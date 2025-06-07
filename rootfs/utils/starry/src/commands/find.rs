@@ -8,11 +8,7 @@
 
 use std::ffi::CString;
 use std::io::BufWriter;
-use std::{
-    io::Write,
-    os::fd::OwnedFd,
-    path::Path,
-};
+use std::{io::Write, os::fd::OwnedFd, path::Path};
 
 use crate::recurse::Recurser;
 use crate::sys::file::AT_FDCWD;

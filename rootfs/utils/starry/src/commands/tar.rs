@@ -21,16 +21,12 @@
  * - must be run with CAP_DAC_READ_SEARCH to correctly extract read-only dirs/files (because we set mode at creation time, not afterwards)
  */
 
-use std::{
-    ffi::CString,
-    fs::File,
-    io::Write,
-    os::fd::FromRawFd,
-    path::Path,
-};
+use std::{ffi::CString, fs::File, io::Write, os::fd::FromRawFd, path::Path};
 
 use crate::{
-    interrogate::InterrogatedFile, sys::file::AT_FDCWD, tarball::context::{OwnedTarContext, TarContext, TAR_PADDING}
+    interrogate::InterrogatedFile,
+    sys::file::AT_FDCWD,
+    tarball::context::{OwnedTarContext, TarContext, TAR_PADDING},
 };
 use nix::{
     fcntl::{openat, OFlag},
@@ -56,9 +52,9 @@ pub fn main(src_dir: &str, config_json: Option<&str>) -> anyhow::Result<()> {
     // add root dir
     let root_dir = openat(
         AT_FDCWD,
-            Path::new(&src_dir),
-            OFlag::O_RDONLY | OFlag::O_DIRECTORY | OFlag::O_CLOEXEC,
-            Mode::empty(),
+        Path::new(&src_dir),
+        OFlag::O_RDONLY | OFlag::O_DIRECTORY | OFlag::O_CLOEXEC,
+        Mode::empty(),
     )?;
     let root_dir_file = InterrogatedFile::from_directory_fd(&root_dir)?;
 

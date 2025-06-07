@@ -11,11 +11,7 @@
  * - source MAY be modified concurrently. if so, results may be inconsistent, but there is no security risk, and the command will return a best-effort result.
  */
 
-use std::{
-    collections::BTreeSet,
-    os::fd::OwnedFd,
-    path::Path,
-};
+use std::{collections::BTreeSet, os::fd::OwnedFd, path::Path};
 
 use crate::{
     recurse::Recurser,

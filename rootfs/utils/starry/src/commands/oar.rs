@@ -1,10 +1,9 @@
-use std::{
-    ffi::CString, fs::File, os::fd::FromRawFd, path::Path
-};
+use std::{ffi::CString, fs::File, os::fd::FromRawFd, path::Path};
 
 use crate::{
     interrogate::InterrogatedFile,
-    oarchive::context::{ArchiveContext, OwnedArchiveContext}, sys::file::AT_FDCWD,
+    oarchive::context::{ArchiveContext, OwnedArchiveContext},
+    sys::file::AT_FDCWD,
 };
 use nix::{
     fcntl::{openat, OFlag},

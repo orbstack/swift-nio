@@ -21,7 +21,7 @@ use std::{
     collections::{btree_map::Entry, BTreeMap},
     ffi::{CStr, CString},
     os::{
-        fd::{AsRawFd, OwnedFd, AsFd},
+        fd::{AsFd, AsRawFd, OwnedFd},
         unix::{fs::fchown, net::UnixListener},
     },
     path::Path,
@@ -271,11 +271,9 @@ impl<'a> CopyContext<'a> {
 
             // more complicated special types: symlink, socket
             FileType::Symlink => {
-                src.with_readlink(|link_path| {
-                    symlinkat(link_path, dest_dirfd, entry.name)
-                })
-                .context("readlink")?
-                .context("symlinkat")?;
+                src.with_readlink(|link_path| symlinkat(link_path, dest_dirfd, entry.name))
+                    .context("readlink")?
+                    .context("symlinkat")?;
                 None
             }
             FileType::Socket => {

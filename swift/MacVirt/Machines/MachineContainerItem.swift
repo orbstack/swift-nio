@@ -199,10 +199,12 @@ struct MachineContainerItem: View {
             Text("Data will be permanently lost.")
         }
         .sheet(isPresented: $presentClone) {
-            CloneContainerView(name: info.record.name, record: info.record, isPresented: $presentClone)
+            CloneContainerView(
+                name: info.record.name, record: info.record, isPresented: $presentClone)
         }
         .sheet(isPresented: $presentRename) {
-            RenameContainerView(name: info.record.name, record: info.record, isPresented: $presentRename)
+            RenameContainerView(
+                name: info.record.name, record: info.record, isPresented: $presentRename)
         }
         .akListOnDoubleClick {
             if !info.record.state.isInitializing {
