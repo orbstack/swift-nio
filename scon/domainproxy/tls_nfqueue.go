@@ -88,11 +88,16 @@ func (d *DomainTLSProxy) probeHost(addr netip.Addr, downstreamIP netip.Addr) (pr
 		}
 	}
 
+	// HTTP always uses the HTTP port override, if set
 	if upstream.HTTPPortOverride != 0 {
 		httpPort = upstream.HTTPPortOverride
 	}
 	if upstream.HTTPSPortOverride != 0 {
+		// HTTPS always uses the HTTPS port override, if set
 		httpsPort = upstream.HTTPSPortOverride
+	} else if upstream.HTTPPortOverride != 0 {
+		// otherwise, disable HTTPS if the user requested only HTTP
+		httpsPort = 0
 	}
 
 	logrus.WithFields(logrus.Fields{
