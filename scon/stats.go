@@ -151,7 +151,7 @@ func (m *ConManager) GetStats(req types.StatsRequest) (types.StatsResponse, erro
 	// 2. containers
 	dockerMachine := m.sconGuest.dockerMachine
 	dockerRt, err := dockerMachine.RuntimeState()
-	if err != nil {
+	if err == nil {
 		dockerCgPath := dockerRt.cgroupPath + "/" + ChildCgroupName
 		err = m.sconGuest.ForEachDockerContainer(func(ctr containerWithMeta) error {
 			ctrCgPath := dockerRt.cgroupPath + "/" + ChildCgroupName + "/" + ctr.CgroupPath
