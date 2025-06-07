@@ -710,10 +710,14 @@ impl Vcpu {
                     Ok(VcpuEmulation::Handled)
                 }
                 VcpuExit::IoPortWrite(port, value) => {
+                    use std::io::Write;
+
                     //debug!("vCPU {} IoPortWrite port={} value={}", vcpuid, port, value);
                     // write to stdout
                     if port == 0x3f8 {
-                        write(1, &[(value & 0xff) as u8]).unwrap();
+                        std::io::stdout()
+                            .write_all(&[(value & 0xff) as u8])
+                            .unwrap();
                     }
                     Ok(VcpuEmulation::Handled)
                 }
