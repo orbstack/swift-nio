@@ -25,6 +25,7 @@
 		D805C1B92D0ADD21005BBB25 /* Proxy.swift in Sources */ = {isa = PBXBuildFile; fileRef = D805C1A92D0ADD21005BBB25 /* Proxy.swift */; };
 		D81E785A299F059700A1D8AC /* sparkle-cli in Copy Go executables and other helpers */ = {isa = PBXBuildFile; fileRef = D81E7859299F059700A1D8AC /* sparkle-cli */; settings = {ATTRIBUTES = (CodeSignOnCopy, ); }; };
 		D81E786529A7012900A1D8AC /* docker-buildx in Copy xbin executables */ = {isa = PBXBuildFile; fileRef = D81E786429A7012900A1D8AC /* docker-buildx */; settings = {ATTRIBUTES = (CodeSignOnCopy, ); }; };
+		D84982A02DF3D77400941950 /* SwiftUIIntrospect in Frameworks */ = {isa = PBXBuildFile; productRef = D849829F2DF3D77400941950 /* SwiftUIIntrospect */; };
 		D855F1F02998B6A700B62588 /* Sentry in Frameworks */ = {isa = PBXBuildFile; productRef = D855F1EF2998B6A700B62588 /* Sentry */; };
 		D85EC4642A9CEBA800300ABE /* kubectl in Copy xbin executables */ = {isa = PBXBuildFile; fileRef = D85EC4632A9CEBA800300ABE /* kubectl */; settings = {ATTRIBUTES = (CodeSignOnCopy, ); }; };
 		D86614182A38061700EA0995 /* Defaults in Frameworks */ = {isa = PBXBuildFile; productRef = D86614172A38061700EA0995 /* Defaults */; };
@@ -239,6 +240,7 @@
 				D86614182A38061700EA0995 /* Defaults in Frameworks */,
 				D86637E72AAF4D2B00630A01 /* AsyncHTTPClient in Frameworks */,
 				D855F1F02998B6A700B62588 /* Sentry in Frameworks */,
+				D84982A02DF3D77400941950 /* SwiftUIIntrospect in Frameworks */,
 				D88F08232AC12F5200454098 /* CachedAsyncImage in Frameworks */,
 				D8694A49299464810046B6B6 /* Sparkle in Frameworks */,
 				D87746022A7CBB2E00739040 /* SecureXPC in Frameworks */,
@@ -445,6 +447,7 @@
 				D87746012A7CBB2E00739040 /* SecureXPC */,
 				D86637E62AAF4D2B00630A01 /* AsyncHTTPClient */,
 				D88F08222AC12F5200454098 /* CachedAsyncImage */,
+				D849829F2DF3D77400941950 /* SwiftUIIntrospect */,
 			);
 			productName = MacVirt;
 			productReference = D8A32B8E296F839100E56EEF /* OrbStack.app */;
@@ -495,6 +498,7 @@
 				D87746002A7CBB2E00739040 /* XCRemoteSwiftPackageReference "SecureXPC" */,
 				D86637E52AAF4D2B00630A01 /* XCRemoteSwiftPackageReference "async-http-client" */,
 				D88F08212AC12F5200454098 /* XCRemoteSwiftPackageReference "swiftui-cached-async-image" */,
+				D849829E2DF3D77400941950 /* XCRemoteSwiftPackageReference "swiftui-introspect" */,
 			);
 			productRefGroup = D8A32B8F296F839100E56EEF /* Products */;
 			projectDirPath = "";
@@ -1031,6 +1035,14 @@
 /* End XCConfigurationList section */
 
 /* Begin XCRemoteSwiftPackageReference section */
+		D849829E2DF3D77400941950 /* XCRemoteSwiftPackageReference "swiftui-introspect" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/siteline/swiftui-introspect";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 1.3.0;
+			};
+		};
 		D855F1EE2998B6A700B62588 /* XCRemoteSwiftPackageReference "sentry-cocoa" */ = {
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/getsentry/sentry-cocoa.git";
@@ -1106,6 +1118,11 @@
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
+		D849829F2DF3D77400941950 /* SwiftUIIntrospect */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = D849829E2DF3D77400941950 /* XCRemoteSwiftPackageReference "swiftui-introspect" */;
+			productName = SwiftUIIntrospect;
+		};
 		D855F1EF2998B6A700B62588 /* Sentry */ = {
 			isa = XCSwiftPackageProductDependency;
 			package = D855F1EE2998B6A700B62588 /* XCRemoteSwiftPackageReference "sentry-cocoa" */;
