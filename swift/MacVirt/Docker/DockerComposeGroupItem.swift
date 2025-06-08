@@ -171,7 +171,7 @@ struct DockerComposeGroupItem: View, Equatable, BaseDockerContainerItem {
 
             let projectPath = firstChild?.composeConfigFiles?.first
             Group {
-                Button("Open Logs") {
+                Button("Logs") {
                     composeGroup.showLogs(windowTracker: windowTracker)
                 }
 

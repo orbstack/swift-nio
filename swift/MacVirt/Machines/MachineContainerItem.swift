@@ -110,14 +110,14 @@ struct MachineContainerItem: View {
                         await info.record.openInTerminal()
                     }
                 }) {
-                    Label("Open Terminal", systemImage: "terminal")
+                    Label("Terminal", systemImage: "terminal")
                 }
                 .disabled(info.record.state.isInitializing)
 
                 Button(action: {
                     info.record.openNfsDirectory()
                 }) {
-                    Label("Open Files", systemImage: "folder")
+                    Label("Files", systemImage: "folder")
                 }
                 .disabled(info.record.state.isInitializing)
             }

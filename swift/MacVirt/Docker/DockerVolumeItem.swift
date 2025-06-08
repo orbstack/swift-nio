@@ -99,7 +99,7 @@ struct DockerVolumeItem: View {
             Button(action: {
                 volume.openNfsDirectory()
             }) {
-                Label("Open", systemImage: "folder")
+                Label("Show in Finder", systemImage: "folder")
             }
 
             Button(action: {

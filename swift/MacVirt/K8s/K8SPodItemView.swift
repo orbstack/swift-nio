@@ -120,13 +120,13 @@ struct K8SPodItemView: View, Equatable, BaseK8SResourceItem {
                 Button(action: {
                     pod.showLogs(windowTracker: windowTracker)
                 }) {
-                    Label("Open Logs", systemImage: "")
+                    Label("Logs", systemImage: "")
                 }
 
                 Button(action: {
                     pod.openInTerminal()
                 }) {
-                    Label("Open Terminal", systemImage: "")
+                    Label("Terminal", systemImage: "")
                 }
                 .disabled(state != .running)
 

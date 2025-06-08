@@ -264,7 +264,7 @@ struct DockerContainerItem: View, Equatable, BaseDockerContainerItem {
                 Button(action: {
                     container.showLogs(windowTracker: windowTracker)
                 }) {
-                    Label("Open Logs", systemImage: "")
+                    Label("Logs", systemImage: "")
                 }
 
                 Button(action: {
@@ -280,14 +280,14 @@ struct DockerContainerItem: View, Equatable, BaseDockerContainerItem {
                 Button(action: {
                     container.openDebugShellFallback()
                 }) {
-                    Label("Open Terminal", systemImage: "")
+                    Label("Terminal", systemImage: "")
                 }
                 .disabled(!isRunning)
 
                 Button(action: {
                     container.openFolder()
                 }) {
-                    Label("Open Files", systemImage: "")
+                    Label("Files", systemImage: "")
                 }
                 .disabled(!isRunning)
 

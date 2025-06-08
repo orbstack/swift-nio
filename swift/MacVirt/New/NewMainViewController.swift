@@ -46,7 +46,7 @@ class NewMainViewController: NSViewController {
     lazy var containersFolderButton = makeToolbarItem(
         itemIdentifier: .dockerContainersOpen,
         icon: "externaldrive",
-        title: "Open Containers",
+        title: "Files",
         action: #selector(actionDockerContainersOpen)
     )
 
@@ -70,7 +70,7 @@ class NewMainViewController: NSViewController {
         let item = makeMenuToolbarItem(
             itemIdentifier: .dockerContainersFilter,
             icon: "line.3.horizontal.circle",
-            title: "Filter Containers",
+            title: "Filter",
             menuItems: [menuItem1]
         )
 
@@ -84,21 +84,21 @@ class NewMainViewController: NSViewController {
     lazy var volumesFolderButton = makeToolbarItem(
         itemIdentifier: .dockerVolumesOpen,
         icon: "externaldrive",
-        title: "Open Volumes",
+        title: "Files",
         action: #selector(actionDockerVolumesOpen)
     )
 
     lazy var volumesPlusButton = makeToolbarItem(
         itemIdentifier: .dockerVolumesNew,
         icon: "plus",
-        title: "New Volume",
+        title: "New",
         action: #selector(actionDockerVolumesNew)
     )
 
     lazy var volumesImportButton = makeToolbarItem(
         itemIdentifier: .dockerVolumesImport,
         icon: "square.and.arrow.down",
-        title: "Import Volume",
+        title: "Import",
         action: #selector(actionDockerVolumesImport)
     )
 
@@ -115,14 +115,14 @@ class NewMainViewController: NSViewController {
     lazy var imagesFolderButton = makeToolbarItem(
         itemIdentifier: .dockerImagesOpen,
         icon: "externaldrive",
-        title: "Open Images",
+        title: "Files",
         action: #selector(actionDockerImagesOpen)
     )
 
     lazy var imagesImportButton = makeToolbarItem(
         itemIdentifier: .dockerImagesImport,
         icon: "square.and.arrow.down",
-        title: "Import Image",
+        title: "Import",
         action: #selector(actionDockerImagesImport)
     )
 
@@ -198,28 +198,28 @@ class NewMainViewController: NSViewController {
     lazy var machinesFolderButton = makeToolbarItem(
         itemIdentifier: .machinesOpen,
         icon: "externaldrive",
-        title: "Open Machines",
+        title: "Files",
         action: #selector(actionMachinesOpen)
     )
 
     lazy var machinesImportButton = makeToolbarItem(
         itemIdentifier: .machinesImport,
         icon: "square.and.arrow.down",
-        title: "Import Machine",
+        title: "Import",
         action: #selector(actionMachinesImport)
     )
 
     lazy var machinesPlusButton = makeToolbarItem(
         itemIdentifier: .machinesNew,
         icon: "plus",
-        title: "New Machine",
+        title: "New",
         action: #selector(actionMachinesNew)
     )
 
     lazy var commandsHelpButton = makeToolbarItem(
         itemIdentifier: .cliHelp,
         icon: "questionmark.circle",
-        title: "Go to Docs",
+        title: "Docs",
         action: #selector(actionCliHelp)
     )
 
@@ -369,6 +369,7 @@ extension NewMainViewController {
         item.image = NSImage(systemSymbolName: icon, accessibilityDescription: nil)!
         item.isBordered = true
         item.toolTip = title
+        item.label = title
 
         if requiresVmRunning {
             model.$state.sink { [weak item] state in
