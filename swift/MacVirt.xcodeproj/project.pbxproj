@@ -425,6 +425,7 @@
 				D87746202A7CD0BC00739040 /* Embed privileged helper tool */,
 				D8715CBE2A2087790047A9BE /* Embed Go VM helper bundle */,
 				D8694A45299224CA0046B6B6 /* Copy xbin executables */,
+				3B9F0AA12DF8B84500642A17 /* Delete debug symlinks */,
 				D88F4EB72998D61B00419B5C /* Copy assets */,
 				D8694A46299224F10046B6B6 /* Create symlinks */,
 				D86F35482997A5B700DADC6F /* Set version from Git */,
@@ -530,6 +531,25 @@
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXShellScriptBuildPhase section */
+		3B9F0AA12DF8B84500642A17 /* Delete debug symlinks */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+			);
+			name = "Delete debug symlinks";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/bash;
+			shellScript = "if [ -L \"$BUILT_PRODUCTS_DIR/OrbStack.app/Contents/Resources/assets\" ]; then\n    rm -f \"$BUILT_PRODUCTS_DIR/OrbStack.app/Contents/Resources/assets\"\nfi\n";
+		};
 		D8694A3B2991F3F80046B6B6 /* Copy “Launch at Login Helper” */ = {
 			isa = PBXShellScriptBuildPhase;
 			alwaysOutOfDate = 1;
