@@ -546,11 +546,11 @@ impl Vcpu {
                 }
                 VcpuEmulation::Handled
             }
-            VcpuExit::HypervisorCall => {
+            VcpuExit::Hypercall => {
                 debug!("vCPU {} HVC", vcpuid);
                 VcpuEmulation::Handled
             }
-            VcpuExit::HypervisorIoCall { dev_id, args_addr } => {
+            VcpuExit::HypercallIo { dev_id, args_addr } => {
                 debug!(
                     "vCPU {} HVC IO: dev_id={} args_addr={:?}",
                     vcpuid, dev_id, args_addr
@@ -670,11 +670,11 @@ impl Vcpu {
                     Ok(VcpuEmulation::Handled)
                 }
                 VcpuExit::Handled => Ok(VcpuEmulation::Handled),
-                VcpuExit::HypervisorCall => {
+                VcpuExit::Hypercall => {
                     debug!("vCPU {} HVC", vcpuid);
                     Ok(VcpuEmulation::Handled)
                 }
-                VcpuExit::HypervisorIoCall { dev_id, args_addr } => {
+                VcpuExit::HypercallIo { dev_id, args_addr } => {
                     debug!(
                         "vCPU {} HVC IO: dev_id={} args_addr={:?}",
                         vcpuid, dev_id, args_addr

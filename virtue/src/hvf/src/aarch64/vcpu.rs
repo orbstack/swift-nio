@@ -137,8 +137,8 @@ pub enum VcpuExit<'a> {
     Breakpoint,
     Canceled,
     CpuOn(u64, u64, u64),
-    HypervisorCall,
-    HypervisorIoCall {
+    Hypercall,
+    HypercallIo {
         dev_id: usize,
         args_addr: GuestAddress,
     },
@@ -604,7 +604,7 @@ impl HvfVcpu {
                 COUNT_EXIT_HVC_VIRTIOFS.count();
                 let dev_id = self.read_raw_reg(hv_reg_t_HV_REG_X1)? as usize;
                 let args_addr = GuestAddress::from_u64(self.read_raw_reg(hv_reg_t_HV_REG_X2)?);
-                return Ok(VcpuExit::HypervisorIoCall { dev_id, args_addr });
+                return Ok(VcpuExit::HypercallIo { dev_id, args_addr });
             }
 
             ORBVM_PVGIC_SET_STATE => {
@@ -628,7 +628,7 @@ impl HvfVcpu {
                 let value = self.read_raw_reg(hv_reg_t_HV_REG_X1)?;
                 self.write_actlr_el1(value & self.actlr_mask)?;
 
-                return Ok(VcpuExit::HypervisorCall);
+                return Ok(VcpuExit::Hypercall);
             }
 
             ORBVM_PVLOCK_WFK => {
@@ -671,7 +671,7 @@ impl HvfVcpu {
 
         // SMCCC not supported
         self.write_raw_reg(hv_reg_t_HV_REG_X0, ret.unwrap_or(-1i64 as u64))?;
-        Ok(VcpuExit::HypervisorCall)
+        Ok(VcpuExit::Hypercall)
     }
 
     // from cloud-hypervisor: https://github.com/cloud-hypervisor/cloud-hypervisor/blob/29675cfe687dde124dd71ccaf31c0562938f1564/vmm/src/cpu.rs#L1670C66-L1818C6
