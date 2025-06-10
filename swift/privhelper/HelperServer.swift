@@ -35,7 +35,7 @@ enum HelperServer {
         _ = retryEintr { mkdir(destDir, 0o755) }
 
         // finally, create the link
-        let ret = retryEintr { unistd.symlink(req.src, req.dest) }
+        let ret = retryEintr { Darwin.symlink(req.src, req.dest) }
         // EEXIST is ok: we raced with another setup instance
         if ret == -1 && errno != EEXIST {
             throw PHSymlinkError.linkError(String(cString: strerror(errno)))
