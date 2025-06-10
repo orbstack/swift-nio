@@ -1,10 +1,41 @@
 use bitflags::bitflags;
 
 pub const PSCI_VERSION: u32 = 0x8400_0000;
+pub const PSCI_VERSION_1_0: u32 = psci_version(1, 0);
+const fn psci_version(major: u16, minor: u16) -> u32 {
+    ((major as u32) << 16) | minor as u32
+}
+
 pub const PSCI_MIGRATE_TYPE: u32 = 0x8400_0006;
 pub const PSCI_POWER_OFF: u32 = 0x8400_0008;
 pub const PSCI_RESET: u32 = 0x8400_0009;
 pub const PSCI_CPU_ON: u32 = 0xc400_0003;
+
+pub const PSCI_MIGRATE_TYPE_MP: u32 = 2;
+
+pub const PSCI_1_0_FEATURES: u32 = 0x8400000a;
+
+pub const SMCCC_VERSION: u32 = 0x80000000;
+pub const SMCCC_ARCH_FEATURES: u32 = 0x80000001;
+pub const SMCCC_TRNG_VERSION: u32 = 0x84000050;
+
+// same encoding
+pub const SMCCC_VERSION_1_1: u32 = psci_version(1, 1);
+
+pub const VENDOR_UID: u32 = 0x8600_ff01;
+pub const KVM_UID: [u32; 4] = [0xb66fb428, 0xe911c52e, 0x564bcaa9, 0x743a004d];
+
+pub const KVM_FEATURES: u32 = 0x86000000;
+bitflags! {
+    pub struct KvmFeatures: u32 {
+        const FEATURES = 1 << 0;
+        const PTP = 1 << 1;
+    }
+}
+
+pub const KVM_PTP: u32 = 0x8600_0001;
+pub const KVM_PTP_VIRT_COUNTER: u64 = 0;
+pub const KVM_PTP_PHYS_COUNTER: u64 = 1;
 
 // SMCCC: (fast call, 64-bit, vendor hyp owner, 0xe000 +ID)
 const fn orbvm_hvc_id(id: u32) -> u32 {
@@ -47,7 +78,7 @@ pub const HVC_DEVICE_CONSOLE_START: usize = 3000;
 
 pub const ORBVM_CONSOLE_REQ_WRITE: u16 = 0;
 
-pub const SMCCC_RET_SUCCESS: i64 = 0;
-pub const SMCCC_RET_NOT_SUPPORTED: i64 = -1;
-pub const SMCCC_RET_NOT_REQUIRED: i64 = -2;
-pub const SMCCC_RET_INVALID_PARAMETER: i64 = -3;
+pub const SMCCC_RET_SUCCESS: u64 = 0;
+pub const SMCCC_RET_NOT_SUPPORTED: u64 = (-1i64) as u64;
+pub const SMCCC_RET_NOT_REQUIRED: u64 = (-2i64) as u64;
+pub const SMCCC_RET_INVALID_PARAMETER: u64 = (-3i64) as u64;

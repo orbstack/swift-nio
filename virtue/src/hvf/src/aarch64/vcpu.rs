@@ -3,12 +3,14 @@
 
 use anyhow::anyhow;
 use arch::aarch64::layout::DRAM_MEM_START;
+use nix::sys::time::TimeValLike;
+use nix::time::{clock_gettime, ClockId};
 use smallvec::SmallVec;
 use sysx::mach::time::MachAbsoluteTime;
 use utils::kernel_symbols::CompactSystemMap;
 use utils::macos::sysctl::os_version_at_least;
 use utils::memory::{GuestAddress, GuestMemory, OwnedGuestRef};
-use utils::{extract_bits_64, field};
+use utils::{extract_bits_64, field, hypercalls};
 
 use std::convert::TryInto;
 use std::fmt::Write;
@@ -20,11 +22,7 @@ use tracing::{debug, error};
 
 use counter::RateCounter;
 
-use utils::hypercalls::{
-    OrbvmFeatures, ORBVM_FEATURES, ORBVM_IO_REQUEST, ORBVM_MMIO_WRITE32, ORBVM_PVGIC_SET_STATE,
-    ORBVM_PVLOCK_KICK, ORBVM_PVLOCK_WFK, ORBVM_SET_ACTLR_EL1, PSCI_CPU_ON, PSCI_MIGRATE_TYPE,
-    PSCI_POWER_OFF, PSCI_RESET, PSCI_VERSION,
-};
+use utils::hypercalls::{KvmFeatures, OrbvmFeatures};
 
 use crate::aarch64::bindings::{
     hv_reg_t_HV_REG_X1, hv_reg_t_HV_REG_X2, hv_reg_t_HV_REG_X3,
@@ -580,11 +578,12 @@ impl HvfVcpu {
 
         debug!("HVC: 0x{:x}", val);
         let ret = match val as u32 {
-            PSCI_VERSION => Some(2),
-            PSCI_MIGRATE_TYPE => Some(2),
-            PSCI_POWER_OFF | PSCI_RESET => return Ok(VcpuExit::Shutdown),
+            // PSCI 1.0+ and SMCCC 1.1+ are required for KVM hyp features
+            hypercalls::PSCI_VERSION => Some(hypercalls::PSCI_VERSION_1_0 as u64),
+            hypercalls::PSCI_MIGRATE_TYPE => Some(hypercalls::PSCI_MIGRATE_TYPE_MP as u64),
+            hypercalls::PSCI_POWER_OFF | hypercalls::PSCI_RESET => return Ok(VcpuExit::Shutdown),
 
-            PSCI_CPU_ON => {
+            hypercalls::PSCI_CPU_ON => {
                 let mpidr = self.read_raw_reg(hv_reg_t_HV_REG_X1)?;
                 let entry = self.read_raw_reg(hv_reg_t_HV_REG_X2)?;
                 let context_id = self.read_raw_reg(hv_reg_t_HV_REG_X3)?;
@@ -592,7 +591,52 @@ impl HvfVcpu {
                 return Ok(VcpuExit::CpuOn(mpidr, entry, context_id));
             }
 
-            ORBVM_FEATURES => {
+            hypercalls::PSCI_1_0_FEATURES => {
+                let req_func_id = self.read_raw_reg(hv_reg_t_HV_REG_X1)?;
+                match req_func_id as u32 {
+                    hypercalls::SMCCC_VERSION => Some(hypercalls::SMCCC_RET_SUCCESS),
+                    _ => None,
+                }
+            }
+
+            hypercalls::SMCCC_VERSION => Some(hypercalls::SMCCC_VERSION_1_1 as u64),
+            hypercalls::SMCCC_TRNG_VERSION => Some(hypercalls::SMCCC_RET_NOT_SUPPORTED),
+            hypercalls::SMCCC_ARCH_FEATURES => Some(hypercalls::SMCCC_RET_NOT_SUPPORTED),
+
+            // KVM hyp features
+            hypercalls::VENDOR_UID => {
+                self.write_raw_reg(hv_reg_t_HV_REG_X0, hypercalls::KVM_UID[0] as u64)?;
+                self.write_raw_reg(hv_reg_t_HV_REG_X1, hypercalls::KVM_UID[1] as u64)?;
+                self.write_raw_reg(hv_reg_t_HV_REG_X2, hypercalls::KVM_UID[2] as u64)?;
+                self.write_raw_reg(hv_reg_t_HV_REG_X3, hypercalls::KVM_UID[3] as u64)?;
+                return Ok(VcpuExit::Hypercall);
+            }
+
+            hypercalls::KVM_FEATURES => {
+                let supported = KvmFeatures::all();
+                self.write_raw_reg(hv_reg_t_HV_REG_X0, supported.bits() as u64)?;
+                self.write_raw_reg(hv_reg_t_HV_REG_X1, 0)?;
+                self.write_raw_reg(hv_reg_t_HV_REG_X2, 0)?;
+                self.write_raw_reg(hv_reg_t_HV_REG_X3, 0)?;
+                return Ok(VcpuExit::Hypercall);
+            }
+
+            hypercalls::KVM_PTP => {
+                // we don't check x1 (counter type): CNTVOFF (only accessible with nested virt) and CNTPOFF are the same under HVF
+                // vtimer offset = 0, so guest CNTVOFF is set by Mach hypervisor to match mach_absolute_time
+                let counter = MachAbsoluteTime::now();
+                let wall_time = clock_gettime(ClockId::CLOCK_REALTIME)
+                    .unwrap()
+                    .num_nanoseconds() as u64;
+                self.write_raw_reg(hv_reg_t_HV_REG_X0, wall_time >> 32)?;
+                self.write_raw_reg(hv_reg_t_HV_REG_X1, wall_time & 0xffff_ffff)?;
+                self.write_raw_reg(hv_reg_t_HV_REG_X2, counter.0 >> 32)?;
+                self.write_raw_reg(hv_reg_t_HV_REG_X3, counter.0 & 0xffff_ffff)?;
+                return Ok(VcpuExit::Hypercall);
+            }
+
+            // orbvm
+            hypercalls::ORBVM_FEATURES => {
                 // SMCCC default return value = -1, but faulty implementations might leave x0 unchanged or set x0=0
                 // this makes it unambiguous
                 let mask = self.read_raw_reg(hv_reg_t_HV_REG_X1)?;
@@ -600,14 +644,14 @@ impl HvfVcpu {
                 Some(supported.bits() & mask)
             }
 
-            ORBVM_IO_REQUEST => {
+            hypercalls::ORBVM_IO_REQUEST => {
                 COUNT_EXIT_HVC_VIRTIOFS.count();
                 let dev_id = self.read_raw_reg(hv_reg_t_HV_REG_X1)? as usize;
                 let args_addr = GuestAddress::from_u64(self.read_raw_reg(hv_reg_t_HV_REG_X2)?);
                 return Ok(VcpuExit::HypercallIo { dev_id, args_addr });
             }
 
-            ORBVM_PVGIC_SET_STATE => {
+            hypercalls::ORBVM_PVGIC_SET_STATE => {
                 if USE_HVF_GIC {
                     None
                 } else {
@@ -622,7 +666,7 @@ impl HvfVcpu {
                 }
             }
 
-            ORBVM_SET_ACTLR_EL1 => {
+            hypercalls::ORBVM_SET_ACTLR_EL1 => {
                 COUNT_EXIT_HVC_ACTLR.count();
 
                 let value = self.read_raw_reg(hv_reg_t_HV_REG_X1)?;
@@ -631,7 +675,7 @@ impl HvfVcpu {
                 return Ok(VcpuExit::Hypercall);
             }
 
-            ORBVM_PVLOCK_WFK => {
+            hypercalls::ORBVM_PVLOCK_WFK => {
                 COUNT_EXIT_HVC_PVLOCK_WAIT.count();
 
                 // cases:
@@ -648,13 +692,13 @@ impl HvfVcpu {
                 return Ok(VcpuExit::PvlockPark(deadline));
             }
 
-            ORBVM_PVLOCK_KICK => {
+            hypercalls::ORBVM_PVLOCK_KICK => {
                 COUNT_EXIT_HVC_PVLOCK_KICK.count();
                 let vcpuid = self.read_raw_reg(hv_reg_t_HV_REG_X1)?;
                 return Ok(VcpuExit::PvlockUnpark(vcpuid));
             }
 
-            ORBVM_MMIO_WRITE32 => {
+            hypercalls::ORBVM_MMIO_WRITE32 => {
                 let pa = self.read_raw_reg(hv_reg_t_HV_REG_X1)?;
                 let val = self.read_raw_reg(hv_reg_t_HV_REG_X2)? as u32;
 
@@ -664,13 +708,17 @@ impl HvfVcpu {
                 return Ok(VcpuExit::MmioWrite(pa, &self.mmio_buf[0..4]));
             }
 
+            // strict hypercall failure to catch kernel/VMM version mismatches that could result in misbehavior
             _ => {
                 panic!("unhandled HVC: 0x{:x}", val);
             }
         };
 
         // SMCCC not supported
-        self.write_raw_reg(hv_reg_t_HV_REG_X0, ret.unwrap_or(-1i64 as u64))?;
+        self.write_raw_reg(
+            hv_reg_t_HV_REG_X0,
+            ret.unwrap_or(hypercalls::SMCCC_RET_NOT_SUPPORTED),
+        )?;
         Ok(VcpuExit::Hypercall)
     }
 

@@ -55,7 +55,7 @@ impl ConsoleHvcDevice {
                 Err(e) if e.kind() == io::ErrorKind::WouldBlock => {
                     // EAGAIN = use standard blocking / spinning virtio path
                     // any error will cause Linux to retry
-                    return Ok(SMCCC_RET_INVALID_PARAMETER);
+                    return Ok(SMCCC_RET_INVALID_PARAMETER as i64);
                 }
 
                 Err(e) => {
