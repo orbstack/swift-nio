@@ -98,8 +98,8 @@ extension NSToolbarItem.Identifier {
     static let leadingItems: [NSToolbarItem.Identifier] =
         [.toggleSidebar, .sidebarTrackingSeparator]
     static let trailingItemsStart: [NSToolbarItem.Identifier] =
-        [.inspectorTrackingSeparatorCompat, .flexibleSpace]
+        [.inspectorTrackingSeparatorCompat, .licenseBadge, .flexibleSpace]
     static let trailingItemsEnd: [NSToolbarItem.Identifier] =
         // macOS 14 .toggleInspector starts in disabled state, until a selection is made. custom one works
-        [.licenseBadge, .toggleInspectorButton]
+        [.toggleInspectorButton]
 }
