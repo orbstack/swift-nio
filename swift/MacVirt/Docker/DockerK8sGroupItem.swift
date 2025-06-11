@@ -17,7 +17,7 @@ struct K8sIcon: View {
             .foregroundColor(Color(hex: 0xFAFAFA))
             .background(Circle().fill(color))
             // rasterize so opacity works on it as one big image
-            .drawingGroup(opaque: true)
+            .drawingGroup(opaque: false)
     }
 }
 
