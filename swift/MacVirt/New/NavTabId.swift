@@ -101,5 +101,5 @@ extension NSToolbarItem.Identifier {
         [.inspectorTrackingSeparatorCompat, .licenseBadge, .flexibleSpace]
     static let trailingItemsEnd: [NSToolbarItem.Identifier] =
         // macOS 14 .toggleInspector starts in disabled state, until a selection is made. custom one works
-        [.toggleInspectorButton]
+        [.space, .toggleInspectorButton]
 }
