@@ -1,0 +1,10 @@
+[package]
+name = "orbblk"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+anyhow = "1.0.98"
+bytemuck = "1.23.1"
+libc = "0.2.173"
+nix = "0.30.1"
