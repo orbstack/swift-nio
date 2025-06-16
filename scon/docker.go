@@ -484,6 +484,22 @@ func (h *DockerHooks) PreStart(c *Container) error {
 		if _, ok := config["fixed-cidr-v6"]; !ok {
 			config["fixed-cidr-v6"] = "fd07:b51a:cc66:1::/64"
 		}
+
+		if opts, ok := config["default-network-opts"].(map[string]any); ok {
+			if bridge, ok := opts["bridge"].(map[string]any); ok {
+				bridge["com.docker.network.enable_ipv6"] = "true"
+			} else {
+				opts["bridge"] = map[string]any{
+					"com.docker.network.enable_ipv6": "true",
+				}
+			}
+		} else {
+			config["default-network-opts"] = map[string]any{
+				"bridge": map[string]any{
+					"com.docker.network.enable_ipv6": "true",
+				},
+			}
+		}
 	}
 
 	// check for possible conflict between user-created bridge nets and default (bip)

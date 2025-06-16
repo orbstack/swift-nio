@@ -159,6 +159,9 @@ var DockerDefaultAddressPools = []map[string]any{
 		{"base": "172.28.0.0/14", "size": 16},
 		{"base": "192.168.0.0/16", "size": 20},
 	*/
+
+	// IPv6: fd07:b51a:cc66:d0XX::/64
+	{"base": "fd07:b51a:cc66:d000::/56", "size": 64},
 }
 
 // default max pods is 110, so we can fit it in here
