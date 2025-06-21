@@ -48,13 +48,13 @@ struct DockerStateWrapperView<Content: View, T>: View {
                         }
                     } else {
                         ProgressView(label: {
-                            Text("Loading")
+                            Text("Starting containers")
                         })
                     }
                 }
             } else {
                 ProgressView(label: {
-                    Text("Loading")
+                    Text("Starting containers")
                 })
             }
         }

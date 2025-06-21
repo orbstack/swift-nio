@@ -67,13 +67,14 @@ struct K8SStateWrapperView<Content: View, Entity: K8SResource>: View {
                         Text("Creating cluster")
                     })
                 } else {
+                    // empty label to match height of creating state
                     ProgressView(label: {
-                        Text("Loading")
+                        Text("")
                     })
                 }
             } else {
                 ProgressView(label: {
-                    Text("Loading")
+                    Text("")
                 })
             }
         }

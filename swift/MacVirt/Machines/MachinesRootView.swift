@@ -93,9 +93,7 @@ struct MachinesRootView: View {
                         publisher: actionTracker.$ongoingMachineExports)
                 }
             } else {
-                ProgressView(label: {
-                    Text("Loading")
-                })
+                ProgressView()
             }
         }
         .navigationTitle("Machines")
