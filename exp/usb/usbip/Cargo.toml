@@ -1,0 +1,21 @@
+[package]
+name = "usbip"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+anyhow = "1.0.98"
+bytemuck = { version = "1.23.1", features = ["derive"] }
+core-foundation = "0.10"
+objc2 = "0.6"
+objc2-foundation = "0.3"
+objc2-core-foundation = "0.3"
+objc2-io-kit = "0.3"
+objc2-io-usb-host = { version = "0.3", features = ["IOUSBHostObject", "IOUSBHostDevice", "IOUSBHostInterface", "IOUSBHostPipe"] }
+tokio = { version = "1", features = ["full"] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+[[bin]]
+name = "usbsrv"
+path = "src/bin/usbsrv.rs"

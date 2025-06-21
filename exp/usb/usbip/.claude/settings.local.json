@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "allow": [
+      "WebFetch(domain:docs.kernel.org)",
+      "Bash(cargo:*)",
+      "Bash(grep:*)",
+      "WebFetch(domain:docs.rs)",
+      "Bash(sed:*)",
+      "Bash(target/debug/usbsrv:*)"
+    ],
+    "deny": []
+  }
+}
