@@ -319,11 +319,15 @@ class MenuBarController: NSObject, NSMenuDelegate {
 
         helpMenu.addSeparator()
 
-        helpMenu.addActionItem("Restart", shortcut: "r", icon: systemImage("arrow.clockwise")) { [self] in
+        helpMenu.addActionItem("Restart", shortcut: "r", icon: systemImage("arrow.clockwise")) {
+            [self] in
             await vmModel.tryRestart()
         }
 
-        helpMenu.addActionItem("Sign Out", icon: systemImage("person.crop.circle"), disabled: !vmModel.drmState.isSignedIn) { [self] in
+        helpMenu.addActionItem(
+            "Sign Out", icon: systemImage("person.crop.circle"),
+            disabled: !vmModel.drmState.isSignedIn
+        ) { [self] in
             await vmModel.trySignOut()
         }
 
@@ -333,7 +337,8 @@ class MenuBarController: NSObject, NSMenuDelegate {
 
         helpMenu.addSeparator()
 
-        helpMenu.addActionItem("Check for Updates…", icon: systemImage("arrow.down.circle")) { [self] in
+        helpMenu.addActionItem("Check for Updates…", icon: systemImage("arrow.down.circle")) {
+            [self] in
             updaterController.checkForUpdates(nil)
             NSApp.activate(ignoringOtherApps: true)
         }

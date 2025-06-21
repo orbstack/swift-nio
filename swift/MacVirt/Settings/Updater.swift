@@ -32,7 +32,7 @@ struct CheckForUpdatesView: View {
     }
 
     var body: some View {
-        Button{
+        Button {
             updater.checkForUpdates()
         } label: {
             Label("Check for Updates…", systemImage: "arrow.down.circle")

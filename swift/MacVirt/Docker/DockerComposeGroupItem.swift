@@ -186,7 +186,7 @@ struct DockerComposeGroupItem: View, Equatable, BaseDockerContainerItem {
                 } label: {
                     Label("Logs", systemImage: "doc.text.magnifyingglass")
                 }
-                
+
                 Button {
                     if let projectPath {
                         let parentDir = URL(fileURLWithPath: projectPath)
@@ -207,7 +207,7 @@ struct DockerComposeGroupItem: View, Equatable, BaseDockerContainerItem {
                 } label: {
                     Label("Copy Name", systemImage: "doc.on.doc")
                 }
-                
+
                 Button {
                     if let projectPath {
                         NSPasteboard.copy(projectPath)

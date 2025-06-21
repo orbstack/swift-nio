@@ -11,14 +11,19 @@ import SwiftUI
 private struct NavigationLinkLabelStyle: LabelStyle {
     @Environment(\.colorScheme) private var colorScheme
     @ScaledMetric(relativeTo: .body) var iconSize = 24
-    
+
     func makeBody(configuration: Configuration) -> some View {
         HStack {
             configuration.icon
                 // set a frame so it lines up
                 .frame(width: iconSize, height: iconSize, alignment: .center)
-                .foregroundStyle(colorScheme == .light ? Color(NSColor.windowBackgroundColor) : Color.primary)
-                .background(colorScheme == .light ? Color.primary.opacity(0.75) : Color.secondary.opacity(0.3), in: RoundedRectangle(cornerSize: CGSize(width: 8, height: 8)))
+                .foregroundStyle(
+                    colorScheme == .light ? Color(NSColor.windowBackgroundColor) : Color.primary
+                )
+                .background(
+                    colorScheme == .light
+                        ? Color.primary.opacity(0.75) : Color.secondary.opacity(0.3),
+                    in: RoundedRectangle(cornerSize: CGSize(width: 8, height: 8)))
 
             configuration.title
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -41,9 +46,9 @@ private struct NavigationLinkButtonStyle: ButtonStyle {
             .contentShape(Rectangle())
             .background(
                 configuration.isPressed
-                // close enough
-                ? Color.secondary.opacity(0.05)
-                : Color.clear
+                    // close enough
+                    ? Color.secondary.opacity(0.05)
+                    : Color.clear
             )
     }
 }
@@ -60,10 +65,13 @@ struct DividedRowButton<Label: View>: View {
     }
 
     var body: some View {
-        Button(action: action, label: {
-            label()
-                .labelStyle(NavigationLinkLabelStyle())
-        })
+        Button(
+            action: action,
+            label: {
+                label()
+                    .labelStyle(NavigationLinkLabelStyle())
+            }
+        )
         .buttonStyle(NavigationLinkButtonStyle())
         .padding(-10)
         .opacity(isEnabled ? 1 : 0.75)
@@ -72,7 +80,7 @@ struct DividedRowButton<Label: View>: View {
 
 struct DividedButtonStack<Content: View>: View {
     @ViewBuilder private let content: () -> Content
-    
+
     init(@ViewBuilder content: @escaping () -> Content) {
         self.content = content
     }
