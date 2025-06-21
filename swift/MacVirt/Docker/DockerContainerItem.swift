@@ -549,36 +549,3 @@ extension BaseDockerContainerItem {
         }
     }
 }
-
-struct ItemRowLabelStyle: LabelStyle {
-    @ScaledMetric(relativeTo: .body) var iconWidth = 24
-
-    func makeBody(configuration: Configuration) -> some View {
-        HStack {
-            configuration.icon
-                // set a frame so it lines up
-                .frame(width: iconWidth)
-
-            configuration.title
-                .padding(.vertical)
-                .frame(maxWidth: .infinity, alignment: .leading)
-
-            Image(systemName: "chevron.forward")
-                .foregroundColor(.secondary)
-                .imageScale(.small)
-        }
-        .padding(.horizontal)
-    }
-}
-
-struct ItemRowButtonStyle: ButtonStyle {
-    func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .contentShape(Rectangle())
-            .background {
-                Color.secondary.opacity(0.05)
-                    .opacity(configuration.isPressed ? 1 : 0)
-            }
-    }
-}

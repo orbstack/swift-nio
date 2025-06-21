@@ -8,63 +8,43 @@
 
 import SwiftUI
 
-/// A vertical stack that adds separators
-/// From https://movingparts.io/variadic-views-in-swiftui
-struct DividedVStack<Content: View>: View {
-    var leadingMargin: CGFloat
-    var trailingMargin: CGFloat
-    var color: Color?
-    var content: Content
+private struct NavigationLinkLabelStyle: LabelStyle {
+    @Environment(\.colorScheme) private var colorScheme
+    @ScaledMetric(relativeTo: .body) var iconSize = 24
+    
+    func makeBody(configuration: Configuration) -> some View {
+        HStack {
+            configuration.icon
+                // set a frame so it lines up
+                .frame(width: iconSize, height: iconSize, alignment: .center)
+                .foregroundStyle(colorScheme == .light ? Color(NSColor.windowBackgroundColor) : Color.primary)
+                .background(colorScheme == .light ? Color.primary.opacity(0.75) : Color.secondary.opacity(0.3), in: RoundedRectangle(cornerSize: CGSize(width: 8, height: 8)))
 
-    public init(
-        leadingMargin: CGFloat = 0,
-        trailingMargin: CGFloat = 0,
-        color: Color? = nil,
-        @ViewBuilder content: () -> Content
-    ) {
-        self.leadingMargin = leadingMargin
-        self.trailingMargin = trailingMargin
-        self.color = color
-        self.content = content()
-    }
+            configuration.title
+                .frame(maxWidth: .infinity, alignment: .leading)
 
-    public var body: some View {
-        _VariadicView.Tree(
-            DividedVStackLayout(
-                leadingMargin: leadingMargin,
-                trailingMargin: trailingMargin,
-                color: color
-            )
-        ) {
-            content
+            Spacer()
+
+            Image(systemName: "chevron.right")
+                .imageScale(.small)
+                .foregroundStyle(.tertiary)
+                .fontWeight(.semibold)
         }
+        .padding(10)
     }
 }
 
-struct DividedVStackLayout: _VariadicView_UnaryViewRoot {
-    var leadingMargin: CGFloat
-    var trailingMargin: CGFloat
-    var color: Color?
-
-    @ViewBuilder
-    public func body(children: _VariadicView.Children) -> some View {
-        let last = children.last?.id
-
-        VStack(spacing: 0) {
-            ForEach(children) { child in
-                child
-
-                if child.id != last {
-                    Divider()
-                        .opacity(color == nil ? 1 : 0)
-                        .overlay(
-                            color ?? .clear
-                        )
-                        .padding(.leading, leadingMargin)
-                        .padding(.trailing, trailingMargin)
-                }
-            }
-        }
+private struct NavigationLinkButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
+            .contentShape(Rectangle())
+            .background(
+                configuration.isPressed
+                // close enough
+                ? Color.secondary.opacity(0.05)
+                : Color.clear
+            )
     }
 }
 
@@ -80,34 +60,29 @@ struct DividedRowButton<Label: View>: View {
     }
 
     var body: some View {
-        Button(action: action) {
+        Button(action: action, label: {
             label()
-                .labelStyle(ItemRowLabelStyle())
-        }
-        .buttonStyle(ItemRowButtonStyle())
+                .labelStyle(NavigationLinkLabelStyle())
+        })
+        .buttonStyle(NavigationLinkButtonStyle())
+        .padding(-10)
         .opacity(isEnabled ? 1 : 0.75)
     }
 }
 
 struct DividedButtonStack<Content: View>: View {
     @ViewBuilder private let content: () -> Content
-
+    
     init(@ViewBuilder content: @escaping () -> Content) {
         self.content = content
     }
 
     var body: some View {
-        DividedVStack {
+        Form {
             content()
         }
-        .background {
-            RoundedRectangle(cornerRadius: 8)
-                .fill(.ultraThinMaterial)
-                .overlay {
-                    RoundedRectangle(cornerRadius: 8)
-                        .strokeBorder(Color.secondary, lineWidth: 1)
-                        .opacity(0.1)
-                }
-        }
+        .formStyle(.grouped)
+        // ??? ignoresSafeArea doesn't remove the builtin padding
+        .padding(-10)
     }
 }
