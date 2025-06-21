@@ -58,7 +58,7 @@ extension DKContainer {
         } else {
             // find window by title and bring to front
             for window in NSApp.windows {
-                if window.title == WindowTitles.containerLogs(userName) {
+                if window.title == userName && window.subtitle == WindowTitles.containerLogsBase {
                     window.makeKeyAndOrderFront(nil)
                     break
                 }
@@ -166,31 +166,8 @@ extension NSPasteboard {
 
 enum WindowTitles {
     static let projectLogsBase = "Project Logs"
-    static func projectLogs(_ project: String?) -> String {
-        if let project {
-            return "\(project) — \(projectLogsBase)"
-        } else {
-            return projectLogsBase
-        }
-    }
-
     static let containerLogsBase = "Logs"
-    static func containerLogs(_ name: String?) -> String {
-        if let name {
-            return "\(name) — \(containerLogsBase)"
-        } else {
-            return containerLogsBase
-        }
-    }
-
     static let podLogsBase = "Pod Logs"
-    static func podLogs(_ name: String?) -> String {
-        if let name {
-            return "\(name) — \(podLogsBase)"
-        } else {
-            return podLogsBase
-        }
-    }
 }
 
 struct DockerK8sGroup: Equatable {

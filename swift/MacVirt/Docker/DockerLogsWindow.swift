@@ -738,7 +738,9 @@ private struct DockerLogsContentView: View {
                     model: model
                 )
                 .if(standalone) {
-                    $0.navigationTitle(WindowTitles.containerLogs(container.userName))
+                    $0
+                        .navigationTitle(container.userName)
+                        .navigationSubtitle(WindowTitles.containerLogsBase)
                 }
                 .onAppear {
                     // save name so we can keep going after container is recreated
@@ -757,7 +759,9 @@ private struct DockerLogsContentView: View {
                     model: model
                 )
                 .if(standalone) {
-                    $0.navigationTitle(WindowTitles.containerLogs(container.userName))
+                    $0
+                        .navigationTitle(container.userName)
+                        .navigationSubtitle(WindowTitles.containerLogsBase)
                 }
             } else if case let .compose(composeProject) = cid {
                 LogsView(
@@ -974,7 +978,10 @@ struct DockerComposeLogsWindow: View {
         .onChange(of: selection) {
             savedSelection = $0
         }
-        .navigationTitle(WindowTitles.projectLogs(composeProject))
+        .if(composeProject != nil) {
+            $0.navigationTitle(composeProject!)
+        }
+        .navigationSubtitle(WindowTitles.projectLogsBase)
         .toolbar(forCommands: commandModel, hasSidebar: true)
     }
 }
@@ -1049,7 +1056,8 @@ private struct K8SLogsContentView: View {
                     extraState: [],
                     model: model
                 )
-                .navigationTitle(WindowTitles.podLogs(name))
+                .navigationTitle(name)
+                .navigationSubtitle(WindowTitles.podLogsBase)
             } else {
                 ContentUnavailableViewCompat(
                     "Pod Removed", systemImage: "trash", desc: "No logs available.")

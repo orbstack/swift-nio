@@ -319,7 +319,6 @@ struct MacVirtApp14: App {
         }
         .handlesExternalEvents(matching: ["docker/container-logs/"])
         .defaultSize(width: 800, height: 600)
-        .windowToolbarStyle(.unifiedCompact)
 
         WindowGroup(WindowTitles.projectLogsBase, id: "docker-compose-logs") {
             DockerComposeLogsWindow()
@@ -330,7 +329,6 @@ struct MacVirtApp14: App {
         .commandsRemoved()
         .handlesExternalEvents(matching: ["docker/project-logs/"])
         .defaultSize(width: 875, height: 625)  // extra side for sidebar
-        .windowToolbarStyle(.unifiedCompact)
 
         WindowGroup(WindowTitles.podLogsBase, id: "k8s-pod-logs") {
             K8SPodLogsWindow()
@@ -341,7 +339,6 @@ struct MacVirtApp14: App {
         .commandsRemoved()
         .handlesExternalEvents(matching: ["k8s/pod-logs/"])
         .defaultSize(width: 875, height: 625)  // extra side for sidebar
-        .windowToolbarStyle(.unifiedCompact)
 
         SingletonWindow("Migrate from Docker Desktop", id: WindowID.migrateDocker) {
             DockerMigrationWindow()

@@ -41,7 +41,7 @@ extension K8SPod {
         } else {
             // find window by title and bring to front
             for window in NSApp.windows {
-                if window.title == WindowTitles.podLogs(name) {
+                if window.title == name && window.subtitle == WindowTitles.podLogsBase {
                     window.makeKeyAndOrderFront(nil)
                     break
                 }
