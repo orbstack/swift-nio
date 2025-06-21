@@ -22,10 +22,10 @@
           "image-name" : "dev_badge.png",
           "name" : "dev_badge",
           "position" : {
-            "scale" : 0.45,
+            "scale" : 0.7,
             "translation-in-points" : [
-              240,
-              350
+              180,
+              310
             ]
           }
         }
