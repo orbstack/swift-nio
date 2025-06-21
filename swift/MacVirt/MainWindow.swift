@@ -29,6 +29,13 @@ struct NavTab: View {
     }
 }
 
+private struct ListRowButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .background(configuration.isPressed ? Color.secondary.opacity(0.1) : Color.clear)
+    }
+}
+
 struct UserSwitcherButton: View {
     @EnvironmentObject private var vmModel: VmViewModel
 
@@ -126,7 +133,7 @@ struct UserSwitcherButton: View {
             .padding(12)
             .onRawDoubleClick {}
         }
-        .buttonStyle(.plain)
+        .buttonStyle(ListRowButtonStyle())
         // occupy full rect
         .contextMenu {
             Button {
