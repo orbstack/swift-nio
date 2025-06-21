@@ -310,7 +310,7 @@ enum DockerContainerLists {
 
         // add ungrouped containers
         for container in ungroupedContainers {
-            if container.running {
+            if container.runningOrRestarting {
                 runningItems.append(.container(container))
             } else {
                 stoppedItems.append(.container(container))

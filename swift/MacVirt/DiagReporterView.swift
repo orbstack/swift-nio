@@ -62,7 +62,7 @@ struct DiagReporterView: View {
                     Spacer()
 
                     HStack {
-                        Button(action: {
+                        Button {
                             Task {
                                 // NSWorkspace.shared.openFile(withApplication:) is deprecated :(
                                 do {
@@ -79,14 +79,14 @@ struct DiagReporterView: View {
                                 NSWorkspace.openFolder(
                                     (report.zipPath as NSString).deletingPathExtension)
                             }
-                        }) {
+                        } label: {
                             Text("Review")
                         }
                         .controlSize(.large)
 
                         Spacer()
 
-                        Button(action: {
+                        Button {
                             diagModel.state = .uploading
 
                             Task {
@@ -121,7 +121,7 @@ struct DiagReporterView: View {
                                     diagModel.state = .error(error.localizedDescription)
                                 }
                             }
-                        }) {
+                        } label: {
                             Text("Upload")
                         }
                         .buttonStyle(.borderedProminent)

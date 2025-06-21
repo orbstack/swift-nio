@@ -65,9 +65,9 @@ private struct MigrationHintBox: View {
             Text("Copy your existing containers, volumes, and images to OrbStack.")
                 .font(.body)
                 .padding(.bottom, 12)
-            Button(action: {
+            Button {
                 NSWorkspace.openSubwindow(WindowID.migrateDocker)
-            }) {
+            } label: {
                 Text("Migrate")
                     .padding(6)
             }
@@ -77,9 +77,9 @@ private struct MigrationHintBox: View {
         .padding(.vertical, 24)
         .padding(.horizontal, 48)
         .overlay(alignment: .topTrailing) {
-            Button(action: {
+            Button {
                 Defaults[.dockerMigrationDismissed] = true
-            }) {
+            } label: {
                 Image(systemName: "xmark")
                     .foregroundColor(.secondary)
             }

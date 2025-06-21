@@ -56,9 +56,9 @@ struct DockerVolumeItem: View {
             }
             Spacer()
 
-            Button(action: {
+            Button {
                 volume.openNfsDirectory()
-            }) {
+            } label: {
                 Image(systemName: "folder.fill")
                     // match ProgressIconButton size
                     .frame(width: 24, height: 24)
@@ -96,52 +96,52 @@ struct DockerVolumeItem: View {
             Text("Data will be permanently lost.")
         }
         .akListContextMenu {
-            Button(action: {
+            Button {
                 volume.openNfsDirectory()
-            }) {
+            } label: {
                 Label("Show in Finder", systemImage: "folder")
             }
 
-            Button(action: {
+            Button {
                 volume.openExportPanel(
                     windowHolder: windowHolder,
                     actionTracker: actionTracker,
                     vmModel: vmModel
                 )
-            }) {
-                Label("Export", systemImage: "arrow.up.circle")
+            } label: {
+                Label("Export", systemImage: "square.and.arrow.up")
             }
 
             Divider()
 
-            Button(action: {
+            Button {
                 // skip confirmation if Option pressed
                 if CGKeyCode.optionKeyPressed {
                     finishDelete()
                 } else {
                     self.presentConfirmDelete = true
                 }
-            }) {
-                Label("Delete", systemImage: "trash.fill")
+            } label: {
+                Label("Delete", systemImage: "trash")
             }.disabled(actionInProgress || isMounted)
 
             Divider()
 
-            Button(action: {
+            Button {
                 let pasteboard = NSPasteboard.general
                 pasteboard.clearContents()
                 pasteboard.setString(volume.name, forType: .string)
-            }) {
+            } label: {
                 Label("Copy Name", systemImage: "doc.on.doc")
             }
 
-            Button(action: {
+            Button {
                 let path = "\(Folders.nfsDockerVolumes)/\(volume.name)"
 
                 let pasteboard = NSPasteboard.general
                 pasteboard.clearContents()
                 pasteboard.setString(path, forType: .string)
-            }) {
+            } label: {
                 Label("Copy Path", systemImage: "doc.on.doc")
             }
         }

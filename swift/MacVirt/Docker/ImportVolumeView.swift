@@ -42,16 +42,16 @@ struct ImportVolumeView: View {
 
             HStack {
                 Spacer()
-                Button(action: {
+                Button {
                     vmModel.presentImportVolume = nil
-                }) {
+                } label: {
                     Text("Cancel")
                 }
                 .keyboardShortcut(.cancelAction)
 
-                Button(action: {
+                Button {
                     create()
-                }) {
+                } label: {
                     Text("Import")
                 }
                 .keyboardShortcut(.defaultAction)

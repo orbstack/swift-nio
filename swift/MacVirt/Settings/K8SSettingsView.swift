@@ -42,12 +42,12 @@ struct K8SSettingsView: View {
                 }
 
                 SettingsFooter {
-                    Button(action: {
+                    Button {
                         Task {
                             // restart only
                             await vmModel.tryStartStopK8s(enable: k8sEnable, force: true)
                         }
-                    }) {
+                    } label: {
                         Text("Apply")
                     }
                     .disabled(vmModel.appliedConfig == vmModel.config)

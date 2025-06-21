@@ -97,11 +97,11 @@ struct StorageSettingsView: View {
                 }
 
                 SettingsFooter {
-                    Button(action: {
+                    Button {
                         Task {
                             await vmModel.tryRestart()
                         }
-                    }) {
+                    } label: {
                         Text("Apply")
                         // TODO: dataAllowBackup doesn't require restart
                     }

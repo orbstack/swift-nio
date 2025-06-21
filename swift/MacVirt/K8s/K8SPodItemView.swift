@@ -106,10 +106,10 @@ struct K8SPodItemView: View, Equatable, BaseK8SResourceItem {
         }
         .akListContextMenu {
             Group {
-                Button(action: {
+                Button {
                     finishDelete()
-                }) {
-                    Label("Delete", systemImage: "")
+                } label: {
+                    Label("Delete", systemImage: "trash")
                 }
                 .disabled(actionInProgress != nil)
             }
@@ -117,25 +117,25 @@ struct K8SPodItemView: View, Equatable, BaseK8SResourceItem {
             Divider()
 
             Group {
-                Button(action: {
+                Button {
                     pod.showLogs(windowTracker: windowTracker)
-                }) {
-                    Label("Logs", systemImage: "")
+                } label: {
+                    Label("Logs", systemImage: "doc.text.magnifyingglass")
                 }
 
-                Button(action: {
+                Button {
                     pod.openInTerminal()
-                }) {
-                    Label("Terminal", systemImage: "")
+                } label: {
+                    Label("Terminal", systemImage: "terminal")
                 }
                 .disabled(state != .running)
 
-                Button(action: {
+                Button {
                     if let url = URL(string: "http://\(pod.preferredDomain)") {
                         NSWorkspace.shared.open(url)
                     }
-                }) {
-                    Label("Open in Browser", systemImage: "")
+                } label: {
+                    Label("Open in Browser", systemImage: "link")
                 }
                 .disabled(state != .running || !vmModel.netBridgeAvailable)
             }
@@ -143,25 +143,25 @@ struct K8SPodItemView: View, Equatable, BaseK8SResourceItem {
             Divider()
 
             Group {
-                Button(action: {
+                Button {
                     NSPasteboard.copy(pod.name)
-                }) {
-                    Label("Copy Name", systemImage: "")
+                } label: {
+                    Label("Copy Name", systemImage: "doc.on.doc")
                 }
 
-                Button(action: {
+                Button {
                     NSPasteboard.copy(pod.preferredDomain)
-                }) {
-                    Label("Copy Domain", systemImage: "")
+                } label: {
+                    Label("Copy Domain", systemImage: "doc.on.doc")
                 }.disabled(vmModel.config?.networkBridge == false)
 
                 let ipAddress = pod.status.podIP
-                Button(action: {
+                Button {
                     if let ipAddress {
                         NSPasteboard.copy(ipAddress)
                     }
-                }) {
-                    Label("Copy IP", systemImage: "")
+                } label: {
+                    Label("Copy IP", systemImage: "doc.on.doc")
                 }.disabled(ipAddress == nil)
             }
         }

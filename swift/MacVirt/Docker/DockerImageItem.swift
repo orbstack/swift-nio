@@ -50,9 +50,9 @@ struct DockerImageItem: View, Equatable {
             Spacer()
 
             if !AppConfig.nativeArchs.contains(image.full.architecture) {
-                Button(action: {
+                Button {
                     showEmulationAlert = true
-                }) {
+                } label: {
                     HStack(spacing: 4) {
                         Image(systemName: "exclamationmark.triangle")
                         Text(image.full.architecture)
@@ -73,9 +73,9 @@ struct DockerImageItem: View, Equatable {
                 }
             }
 
-            Button(action: {
+            Button {
                 image.summary.openFolder()
-            }) {
+            } label: {
                 Image(systemName: "folder.fill")
                     // match ProgressIconButton size
                     .frame(width: 24, height: 24)
@@ -103,9 +103,9 @@ struct DockerImageItem: View, Equatable {
                     }
                     .padding(20)
                     .overlay(alignment: .topLeading) {  // opposite side of arrow edge
-                        Button(action: {
+                        Button {
                             tipsImageMountsShow = false
-                        }) {
+                        } label: {
                             Image(systemName: "xmark")
                                 .resizable()
                                 .frame(width: 8, height: 8)
@@ -134,58 +134,62 @@ struct DockerImageItem: View, Equatable {
             }
         }
         .akListContextMenu {
-            Button(action: {
+            Button {
                 image.summary.openFolder()
-            }) {
-                Label("Open", systemImage: "folder")
+            } label: {
+                Label("Show in Finder", systemImage: "folder")
             }.disabled(actionInProgress || (image.summary.repoTags?.isEmpty != false))
 
-            Button(action: {
+            Button {
                 if vmModel.isLicensed {
                     image.summary.openDebugShell()
                 } else {
                     vmModel.presentRequiresLicense = true
                 }
-            }) {
-                Label("Debug Shell", systemImage: "")
+            } label: {
+                Label("Debug Shell", systemImage: "ladybug")
             }.disabled(actionInProgress)
 
-            Button("Export") {
+            Button {
                 image.summary.openExportPanel(
                     windowHolder: windowHolder,
                     actionTracker: actionTracker,
                     vmModel: vmModel
                 )
+            } label: {
+                Label("Export", systemImage: "square.and.arrow.up")
             }.disabled(actionInProgress)
 
             Divider()
 
-            Button(action: {
+            Button {
                 finishDelete()
-            }) {
-                Label("Delete", systemImage: "trash.fill")
+            } label: {
+                Label("Delete", systemImage: "trash")
             }.disabled(actionInProgress || isInUse)
 
             Divider()
 
-            Button(action: {
+            Button {
                 let pasteboard = NSPasteboard.general
                 pasteboard.clearContents()
                 pasteboard.setString(image.summary.userTag, forType: .string)
-            }) {
+            } label: {
                 Label("Copy Tag", systemImage: "doc.on.doc")
             }
 
-            Button(action: {
+            Button {
                 let pasteboard = NSPasteboard.general
                 pasteboard.clearContents()
                 pasteboard.setString(image.summary.userId, forType: .string)
-            }) {
+            } label: {
                 Label("Copy ID", systemImage: "doc.on.doc")
             }
 
-            Button("Copy Path") {
+            Button {
                 NSPasteboard.copy("\(Folders.nfsDockerImages)/\(image.summary.userTag)")
+            } label: {
+                Label("Copy Path", systemImage: "doc.on.doc")
             }
         }
         .windowHolder(windowHolder)

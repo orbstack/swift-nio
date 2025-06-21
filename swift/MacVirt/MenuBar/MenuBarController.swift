@@ -292,62 +292,63 @@ class MenuBarController: NSObject, NSMenuDelegate {
         }
 
         let helpItem = NSMenuItem(title: "Help", action: nil, keyEquivalent: "")
+        helpItem.image = systemImage("questionmark.circle")
         menu.addItem(helpItem)
         let helpMenu = helpItem.newSubmenu()
-        helpMenu.addActionItem("Documentation", icon: systemImage("book.closed.fill")) {
+        helpMenu.addActionItem("Documentation", icon: systemImage("book.closed")) {
             NSWorkspace.shared.open(URL(string: "https://docs.orbstack.dev")!)
         }
-        helpMenu.addActionItem("Community", icon: systemImage("message.fill")) {
+        helpMenu.addActionItem("Community", icon: systemImage("message")) {
             NSWorkspace.shared.open(URL(string: "https://orbstack.dev/chat")!)
         }
-        helpMenu.addActionItem("Email", icon: systemImage("envelope.fill")) {
+        helpMenu.addActionItem("Email", icon: systemImage("envelope")) {
             NSWorkspace.shared.open(URL(string: "mailto:support@orbstack.dev")!)
         }
 
         helpMenu.addSeparator()
 
-        helpMenu.addActionItem("Report Bug", icon: systemImage("exclamationmark.triangle.fill")) {
+        helpMenu.addActionItem("Report Bug", icon: systemImage("exclamationmark.triangle")) {
             NSWorkspace.openSubwindow(WindowID.bugReport)
         }
-        helpMenu.addActionItem("Request Feature", icon: systemImage("lightbulb.fill")) {
+        helpMenu.addActionItem("Request Feature", icon: systemImage("lightbulb")) {
             NSWorkspace.shared.open(URL(string: "https://orbstack.dev/issues/feature")!)
         }
-        helpMenu.addActionItem("Send Feedback", icon: systemImage("paperplane.fill")) {
+        helpMenu.addActionItem("Send Feedback", icon: systemImage("paperplane")) {
             NSWorkspace.openSubwindow(WindowID.feedback)
         }
 
         helpMenu.addSeparator()
 
-        helpMenu.addActionItem("Restart", shortcut: "r") { [self] in
+        helpMenu.addActionItem("Restart", shortcut: "r", icon: systemImage("arrow.clockwise")) { [self] in
             await vmModel.tryRestart()
         }
 
-        helpMenu.addActionItem("Sign Out") { [self] in
+        helpMenu.addActionItem("Sign Out", icon: systemImage("person.crop.circle"), disabled: !vmModel.drmState.isSignedIn) { [self] in
             await vmModel.trySignOut()
         }
 
-        helpMenu.addActionItem("Upload Diagnostics") {
+        helpMenu.addActionItem("Upload Diagnostics", icon: systemImage("ladybug")) {
             NSWorkspace.openSubwindow(WindowID.diagReport)
         }
 
         helpMenu.addSeparator()
 
-        helpMenu.addActionItem("Check for Updates…") { [self] in
+        helpMenu.addActionItem("Check for Updates…", icon: systemImage("arrow.down.circle")) { [self] in
             updaterController.checkForUpdates(nil)
             NSApp.activate(ignoringOtherApps: true)
         }
 
         if !vmModel.drmState.isSignedIn {
-            menu.addActionItem("Sign In…") {
+            menu.addActionItem("Sign In…", icon: systemImage("person.crop.circle")) {
                 NSWorkspace.openSubwindow(WindowID.signIn)
             }
         }
 
-        menu.addActionItem("Settings…", shortcut: ",") {
+        menu.addActionItem("Settings…", shortcut: ",", icon: systemImage("gear")) {
             AppDelegate.shared.showSettingsWindow()
         }
 
-        menu.addActionItem("Quit", shortcut: "q") { [self] in
+        menu.addActionItem("Quit", shortcut: "q", icon: systemImage("xmark")) { [self] in
             // opt = force quit
             if CGKeyCode.optionKeyPressed {
                 AppLifecycle.forceTerminate = true
@@ -389,7 +390,7 @@ class MenuBarController: NSObject, NSMenuDelegate {
         }
         let submenu = containerItem.newSubmenu()
 
-        if container.running {
+        if container.runningOrRestarting {
             submenu.addActionItem(
                 "Stop", icon: systemImage("stop.fill"),
                 disabled: actionInProgress
@@ -409,7 +410,7 @@ class MenuBarController: NSObject, NSMenuDelegate {
             }
         }
 
-        if container.running {
+        if container.runningOrRestarting {
             submenu.addActionItem(
                 "Restart", icon: systemImage("arrow.clockwise"),
                 disabled: actionInProgress

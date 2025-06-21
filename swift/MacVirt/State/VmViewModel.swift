@@ -167,7 +167,7 @@ enum VmError: LocalizedError, CustomNSError, Equatable {
         case .dockerDfError:
             return "Can’t get volume sizes"
         case .dockerMigrationError:
-            return "Can’t migrate Docker data"
+            return "Can’t migrate from Docker Desktop"
         case .dockerVolumeImportError:
             return "Can’t import volume"
         case .dockerVolumeExportError:

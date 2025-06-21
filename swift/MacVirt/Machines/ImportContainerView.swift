@@ -42,16 +42,16 @@ struct ImportContainerView: View {
 
             HStack {
                 Spacer()
-                Button(action: {
+                Button {
                     vmModel.presentImportMachine = nil
-                }) {
+                } label: {
                     Text("Cancel")
                 }
                 .keyboardShortcut(.cancelAction)
 
-                Button(action: {
+                Button {
                     create()
-                }) {
+                } label: {
                     Text("Import")
                 }
                 .keyboardShortcut(.defaultAction)

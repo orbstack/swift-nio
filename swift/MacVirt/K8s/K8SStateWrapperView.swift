@@ -24,11 +24,11 @@ struct K8SStateWrapperView<Content: View, Entity: K8SResource>: View {
         VStack(spacing: 16) {  // match ContentUnavailableViewCompat desc padding
             ContentUnavailableViewCompat("Kubernetes Disabled", systemImage: "helm")
 
-            Button(action: {
+            Button {
                 Task {
                     await vmModel.tryStartStopK8s(enable: true)
                 }
-            }) {
+            } label: {
                 Text("Turn On")
                     .padding(.horizontal, 4)
             }

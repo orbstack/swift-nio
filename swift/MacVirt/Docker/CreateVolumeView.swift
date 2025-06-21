@@ -48,16 +48,16 @@ struct CreateVolumeView: View {
 
             HStack {
                 Spacer()
-                Button(action: {
+                Button {
                     isPresented = false
-                }) {
+                } label: {
                     Text("Cancel")
                 }
                 .keyboardShortcut(.cancelAction)
 
-                Button(action: {
+                Button {
                     submit()
-                }) {
+                } label: {
                     Text("Create")
                 }
                 .keyboardShortcut(.defaultAction)

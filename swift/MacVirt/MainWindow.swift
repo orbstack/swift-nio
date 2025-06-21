@@ -61,12 +61,12 @@ struct UserSwitcherButton: View {
                                 // clip to circle
                                 .clipShape(Circle())
                         } placeholder: {
-                            Image(systemName: "person.circle")
+                            Image(systemName: "person.crop.circle")
                                 .resizable()
                                 .foregroundColor(.accentColor)
                         }
                     } else {
-                        Image(systemName: "person.circle")
+                        Image(systemName: "person.crop.circle")
                             .resizable()
                             .foregroundColor(.accentColor)
                     }
@@ -129,30 +129,38 @@ struct UserSwitcherButton: View {
         .buttonStyle(.plain)
         // occupy full rect
         .contextMenu {
-            Button("Manage…") {
+            Button {
                 NSWorkspace.shared.open(URL(string: "https://orbstack.dev/dashboard")!)
+            } label: {
+                Label("Manage…", systemImage: "pencil")
             }
             .disabled(!isLoggedIn)
 
-            Button("Switch Organization…") {
+            Button {
                 // simple: just reauth and use web org picker
                 presentAuth = true
+            } label: {
+                Label("Switch Organization…", systemImage: "arrow.left.arrow.right")
             }
             .disabled(!isLoggedIn)
 
             Divider()
 
-            Button("Refresh") {
+            Button {
                 Task { @MainActor in
                     await vmModel.tryRefreshDrm()
                 }
+            } label: {
+                Label("Refresh", systemImage: "arrow.clockwise")
             }
             .disabled(!isLoggedIn)
 
-            Button("Sign Out") {
+            Button {
                 Task { @MainActor in
                     await vmModel.trySignOut()
                 }
+            } label: {
+                Label("Sign Out", systemImage: "person.crop.circle")
             }
             .disabled(!isLoggedIn)
         }

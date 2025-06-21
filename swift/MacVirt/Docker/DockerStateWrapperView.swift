@@ -34,11 +34,11 @@ struct DockerStateWrapperView<Content: View, T>: View {
                             ContentUnavailableViewCompat(
                                 "Docker Disabled", systemImage: "shippingbox.fill")
 
-                            Button(action: {
+                            Button {
                                 Task {
                                     await vmModel.tryStartContainer(dockerMachine.record)
                                 }
-                            }) {
+                            } label: {
                                 Text("Turn On")
                                     .padding(.horizontal, 4)
                             }

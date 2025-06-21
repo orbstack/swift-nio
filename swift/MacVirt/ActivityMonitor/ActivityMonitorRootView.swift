@@ -471,20 +471,24 @@ struct ActivityMonitorRootView: View {
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .lineLimit(1)
                         .akListContextMenu {
-                            Button("Stop") {
+                            Button {
                                 if selection.contains(item.id) {
                                     stopOne(id: item.id)
                                 } else {
                                     stopAllSelected(stopAction: stopOne)
                                 }
+                            } label: {
+                                Label("Stop", systemImage: "stop")
                             }
 
-                            Button("Kill") {
+                            Button {
                                 if selection.contains(item.id) {
                                     killOne(id: item.id)
                                 } else {
                                     stopAllSelected(stopAction: killOne)
                                 }
+                            } label: {
+                                Label("Kill", systemImage: "xmark.octagon")
                             }
                         }
                     },

@@ -75,9 +75,9 @@ struct DockerComposeGroupItem: View, Equatable, BaseDockerContainerItem {
                             }
                             .padding(20)
                             .overlay(alignment: .topTrailing) {
-                                Button(action: {
+                                Button {
                                     tipsContainerDomainsShow = false
-                                }) {
+                                } label: {
                                     Image(systemName: "xmark")
                                         .resizable()
                                         .frame(width: 8, height: 8)
@@ -144,24 +144,34 @@ struct DockerComposeGroupItem: View, Equatable, BaseDockerContainerItem {
         }
         .akListContextMenu {
             Group {
-                Button("Start") {
+                Button {
                     finishStart()
+                } label: {
+                    Label("Start", systemImage: "play")
                 }.disabled(actionInProgress != nil || isRunning || !composeGroup.isFullCompose)
 
-                Button("Stop") {
+                Button {
                     finishStop()
+                } label: {
+                    Label("Stop", systemImage: "stop")
                 }.disabled(actionInProgress != nil || !isRunning || !composeGroup.isFullCompose)
 
-                Button("Restart") {
+                Button {
                     finishRestart()
+                } label: {
+                    Label("Restart", systemImage: "arrow.clockwise")
                 }.disabled(actionInProgress != nil || !isRunning || !composeGroup.isFullCompose)
 
-                Button("Delete") {
+                Button {
                     presentConfirmDelete = true
+                } label: {
+                    Label("Delete", systemImage: "trash")
                 }.disabled(actionInProgress != nil || !composeGroup.isFullCompose)
 
-                Button("Kill") {
+                Button {
                     finishKill()
+                } label: {
+                    Label("Kill", systemImage: "xmark.octagon")
                 }.disabled(
                     (actionInProgress != nil && actionInProgress != .stop) || !isRunning
                         || !composeGroup.isFullCompose)
@@ -171,46 +181,40 @@ struct DockerComposeGroupItem: View, Equatable, BaseDockerContainerItem {
 
             let projectPath = firstChild?.composeConfigFiles?.first
             Group {
-                Button("Logs") {
+                Button {
                     composeGroup.showLogs(windowTracker: windowTracker)
+                } label: {
+                    Label("Logs", systemImage: "doc.text.magnifyingglass")
                 }
-
-                if let projectPath {
-                    Button(action: {
+                
+                Button {
+                    if let projectPath {
                         let parentDir = URL(fileURLWithPath: projectPath)
                             .deletingLastPathComponent().path
                         NSWorkspace.shared.selectFile(
                             projectPath, inFileViewerRootedAtPath: parentDir)
-                    }) {
-                        Label("Show in Finder", systemImage: "")
                     }
-                } else {
-                    Button("Show in Finder") {
-                        // no-op
-                    }.disabled(true)
-                }
+                } label: {
+                    Label("Show in Finder", systemImage: "folder")
+                }.disabled(projectPath == nil)
             }
 
             Divider()
 
             Group {
-                Button(action: {
+                Button {
                     NSPasteboard.copy(composeGroup.project)
-                }) {
-                    Label("Copy Name", systemImage: "")
+                } label: {
+                    Label("Copy Name", systemImage: "doc.on.doc")
                 }
-
-                if let projectPath {
-                    Button(action: {
+                
+                Button {
+                    if let projectPath {
                         NSPasteboard.copy(projectPath)
-                    }) {
-                        Label("Copy Path", systemImage: "")
                     }
-                } else {
-                    Button("Copy Path") {
-                        // no-op
-                    }.disabled(true)
-                }
+                } label: {
+                    Label("Copy Path", systemImage: "doc.on.doc")
+                }.disabled(projectPath == nil)
             }
         }
     }

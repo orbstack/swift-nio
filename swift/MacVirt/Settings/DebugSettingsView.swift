@@ -17,19 +17,19 @@ struct DebugSettingsView: View {
     var body: some View {
         SettingsForm {
             Section {
-                Button(action: {
+                Button {
                     Defaults[.onboardingCompleted] = false
-                }) {
+                } label: {
                     Text("reset onboarding")
                 }
 
-                Button(action: {
+                Button {
                     Defaults[.tipsMenubarBgShown] = false
                     Defaults[.tipsContainerDomainsShow] = true
                     Defaults[.tipsContainerFilesShow] = true
                     Defaults[.tipsImageMountsShow] = true
                     Defaults[.dockerMigrationDismissed] = false
-                }) {
+                } label: {
                     Text("reset tips")
                 }
             } header: {

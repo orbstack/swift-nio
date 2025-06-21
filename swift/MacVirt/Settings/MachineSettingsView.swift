@@ -102,11 +102,11 @@ struct MachineSettingsView: View {
                 #endif
 
                 SettingsFooter {
-                    Button(action: {
+                    Button {
                         Task {
                             await vmModel.tryRestart()
                         }
-                    }) {
+                    } label: {
                         Text("Apply")
                         // TODO: dockerSetContext doesn't require restart
                     }

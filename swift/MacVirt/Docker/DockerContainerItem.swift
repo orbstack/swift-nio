@@ -110,9 +110,9 @@ struct DockerContainerItem: View, Equatable, BaseDockerContainerItem {
                         }
                         .padding(20)
                         .overlay(alignment: .topLeading) {  // opposite side of arrow edge
-                            Button(action: {
+                            Button {
                                 tipsContainerDomainsShow = false
-                            }) {
+                            } label: {
                                 Image(systemName: "xmark")
                                     .resizable()
                                     .frame(width: 8, height: 8)
@@ -152,9 +152,9 @@ struct DockerContainerItem: View, Equatable, BaseDockerContainerItem {
                         }
                         .padding(20)
                         .overlay(alignment: .topLeading) {  // opposite side of arrow edge
-                            Button(action: {
+                            Button {
                                 tipsContainerFilesShow = false
-                            }) {
+                            } label: {
                                 Image(systemName: "xmark")
                                     .resizable()
                                     .frame(width: 8, height: 8)
@@ -219,41 +219,41 @@ struct DockerContainerItem: View, Equatable, BaseDockerContainerItem {
         .akListContextMenu {
             Group {
                 if isRunning {
-                    Button(action: {
+                    Button {
                         finishStop()
-                    }) {
-                        Label("Stop", systemImage: "")
+                    } label: {
+                        Label("Stop", systemImage: "stop")
                     }
                     .disabled(actionInProgress != nil || container.isK8s)
                 } else {
-                    Button(action: {
+                    Button {
                         finishStart()
-                    }) {
-                        Label("Start", systemImage: "")
+                    } label: {
+                        Label("Start", systemImage: "play")
                     }
                     .disabled(actionInProgress != nil || container.isK8s)
                 }
 
                 // allow restart for quick k8s crash testing
-                Button(action: {
+                Button {
                     finishRestart()
-                }) {
-                    Label("Restart", systemImage: "")
+                } label: {
+                    Label("Restart", systemImage: "arrow.clockwise")
                 }
                 .disabled(actionInProgress != nil || !isRunning)
 
-                Button(action: {
+                Button {
                     presentConfirmDelete = true
-                }) {
-                    Label("Delete", systemImage: "")
+                } label: {
+                    Label("Delete", systemImage: "trash")
                 }
                 .disabled(actionInProgress != nil || (container.isK8s && isRunning))
 
                 // allow kill in case k8s container is stuck
-                Button(action: {
+                Button {
                     finishKill()
-                }) {
-                    Label("Kill", systemImage: "")
+                } label: {
+                    Label("Kill", systemImage: "xmark.octagon")
                 }
                 .disabled((actionInProgress != nil && actionInProgress != .stop) || !isRunning)
             }
@@ -261,46 +261,46 @@ struct DockerContainerItem: View, Equatable, BaseDockerContainerItem {
             Divider()
 
             Group {
-                Button(action: {
+                Button {
                     container.showLogs(windowTracker: windowTracker)
-                }) {
-                    Label("Logs", systemImage: "")
+                } label: {
+                    Label("Logs", systemImage: "doc.text.magnifyingglass")
                 }
 
-                Button(action: {
+                Button {
                     if vmModel.isLicensed {
                         container.openDebugShell()
                     } else {
                         vmModel.presentRequiresLicense = true
                     }
-                }) {
-                    Label("Debug Shell", systemImage: "")
+                } label: {
+                    Label("Debug Shell", systemImage: "ladybug")
                 }
 
-                Button(action: {
+                Button {
                     container.openDebugShellFallback()
-                }) {
-                    Label("Terminal", systemImage: "")
+                } label: {
+                    Label("Terminal", systemImage: "terminal")
                 }
                 .disabled(!isRunning)
 
-                Button(action: {
+                Button {
                     container.openFolder()
-                }) {
-                    Label("Files", systemImage: "")
+                } label: {
+                    Label("Files", systemImage: "folder")
                 }
                 .disabled(!isRunning)
 
                 let preferredDomain = container.preferredDomain
-                Button(action: {
+                Button {
                     if let preferredDomain,
                         let url = URL(
                             string: "\(container.getPreferredProto(vmModel))://\(preferredDomain)")
                     {
                         NSWorkspace.shared.open(url)
                     }
-                }) {
-                    Label("Open in Browser", systemImage: "")
+                } label: {
+                    Label("Open in Browser", systemImage: "link")
                 }
                 .disabled(!isRunning || !vmModel.netBridgeAvailable || preferredDomain == nil)
             }
@@ -314,22 +314,26 @@ struct DockerContainerItem: View, Equatable, BaseDockerContainerItem {
                 }
 
                 if !container.ports.isEmpty {
-                    Menu("Ports") {
+                    Menu {
                         ForEach(container.ports) { port in
                             Button(port.formatted) {
                                 port.openUrl()
                             }
                         }
+                    } label: {
+                        Label("Ports", systemImage: "network")
                     }
                 }
 
                 if !container.mounts.isEmpty {
-                    Menu("Mounts") {
+                    Menu {
                         ForEach(container.mounts) { mount in
                             Button(mount.formatted) {
                                 mount.openSourceDirectory()
                             }
                         }
+                    } label: {
+                        Label("Mounts", systemImage: "externaldrive")
                     }
                 }
             }
@@ -337,54 +341,58 @@ struct DockerContainerItem: View, Equatable, BaseDockerContainerItem {
             Divider()
 
             Group {
-                Button(action: {
+                Button {
                     NSPasteboard.copy(container.id)
-                }) {
+                } label: {
                     Label("Copy ID", systemImage: "doc.on.doc")
                 }
 
-                Button(action: {
+                Button {
                     NSPasteboard.copy(container.nameOrId)
-                }) {
+                } label: {
                     Label("Copy Name", systemImage: "doc.on.doc")
                 }
 
-                Button(action: {
+                Button {
                     NSPasteboard.copy(container.image)
-                }) {
+                } label: {
                     Label("Copy Image", systemImage: "doc.on.doc")
                 }
 
                 let preferredDomain = container.preferredDomain
-                Button(action: {
+                Button {
                     if let preferredDomain {
                         NSPasteboard.copy(preferredDomain)
                     }
-                }) {
+                } label: {
                     Label("Copy Domain", systemImage: "doc.on.doc")
                 }.disabled(!vmModel.netBridgeAvailable || preferredDomain == nil)
 
-                Menu("Copy…") {
-                    Button(action: {
+                Menu {
+                    Button {
                         Task { @MainActor in
                             await container.copyRunCommand()
                         }
-                    }) {
+                    } label: {
                         Label("Command", systemImage: "doc.on.doc")
                     }
 
                     let ipAddress = container.ipAddress
-                    Button(action: {
+                    Button {
                         if let ipAddress {
                             NSPasteboard.copy(ipAddress)
                         }
-                    }) {
+                    } label: {
                         Label("IP", systemImage: "doc.on.doc")
                     }.disabled(ipAddress == nil)
 
-                    Button("Path") {
+                    Button {
                         NSPasteboard.copy("\(Folders.nfsDockerContainers)/\(container.nameOrId)")
+                    } label: {
+                        Label("Path", systemImage: "doc.on.doc")
                     }
+                } label: {
+                    Label("Copy…", systemImage: "doc.on.doc")
                 }
             }
         }

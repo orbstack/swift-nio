@@ -50,9 +50,9 @@ struct MachinesRootView: View {
                                 ContentUnavailableViewCompat(
                                     "No Machines", systemImage: "desktopcomputer")
 
-                                Button(action: {
+                                Button {
                                     vmModel.presentCreateMachine = true
-                                }) {
+                                } label: {
                                     Text("New Machine")
                                         .padding(6)
                                 }
@@ -72,9 +72,9 @@ struct MachinesRootView: View {
                                 Text("You don’t need a Linux machine.")
                                     .font(.body)
                                     .padding(.bottom, 8)
-                                Button(action: {
+                                Button {
                                     selectedTab = .dockerContainers
-                                }) {
+                                } label: {
                                     Text("Go to Containers")
                                 }
                                 .controlSize(.large)

@@ -79,8 +79,10 @@ struct MacVirtApp14: App {
 
                     Divider()
 
-                    Button("Settings…") {
+                    Button {
                         appDelegate.showSettingsWindow()
+                    } label: {
+                        Label("Settings…", systemImage: "gear")
                     }.keyboardShortcut(",")
                 }
 
@@ -95,62 +97,63 @@ struct MacVirtApp14: App {
                     Button("Invite a Friend") {
                         NSWorkspace.shared.open(URL(string: "https://orbstack.dev")!)
                     }
-                    Button("Documentation") {
-                        NSWorkspace.shared.open(URL(string: "https://docs.orbstack.dev")!)
-                    }
-                    Divider()
-                    Button("Report Bug") {
-                        openWindow.call(id: WindowID.bugReport)
-                    }
-                    Button("Request Feature") {
-                        NSWorkspace.shared.open(URL(string: "https://orbstack.dev/issues/feature")!)
-                    }
-                    Button("Send Feedback") {
-                        openWindow.call(id: WindowID.feedback)
-                    }
                     Divider()
                 }
 
                 CommandGroup(before: .importExport) {
-                    Button("Migrate Docker Containers…") {
+                    Button("Migrate from Docker Desktop…") {
                         openWindow.call(id: WindowID.migrateDocker)
                     }
 
                     switch selectedTab {
                     case .dockerVolumes:
                         Divider()
-                        Button("New Volume") {
+                        Button {
                             vmModel.menuActionRouter.send(.newVolume)
+                        } label: {
+                            Label("New Volume", systemImage: "plus")
                         }
                         .keyboardShortcut("n")
 
-                        Button("Open Volumes") {
+                        Button {
                             vmModel.menuActionRouter.send(.openVolumes)
+                        } label: {
+                            Label("Open Volumes", systemImage: "folder")
                         }
                         .keyboardShortcut("o")
 
-                        Button("Import Volume") {
+                        Button {
                             vmModel.menuActionRouter.send(.importVolume)
+                        } label: {
+                            Label("Import Volume…", systemImage: "square.and.arrow.down")
                         }
                         .keyboardShortcut("i")
                     case .dockerImages:
                         Divider()
-                        Button("Open Images") {
+                        Button {
                             vmModel.menuActionRouter.send(.openImages)
+                        } label: {
+                            Label("Open Images", systemImage: "folder")
                         }
                         .keyboardShortcut("o")
-                        Button("Import Image") {
+                        Button {
                             vmModel.menuActionRouter.send(.importImage)
+                        } label: {
+                            Label("Import Image…", systemImage: "square.and.arrow.down")
                         }
                         .keyboardShortcut("i")
                     case .machines:
                         Divider()
-                        Button("New Machine") {
+                        Button {
                             vmModel.menuActionRouter.send(.newMachine)
+                        } label: {
+                            Label("New Machine", systemImage: "plus")
                         }
                         .keyboardShortcut("n")
-                        Button("Import Machine") {
+                        Button {
                             vmModel.menuActionRouter.send(.importMachine)
+                        } label: {
+                            Label("Import Machine…", systemImage: "square.and.arrow.down")
                         }
                         .keyboardShortcut("i")
                     default:
@@ -162,127 +165,167 @@ struct MacVirtApp14: App {
             // TODO: command to create container
 
             CommandMenu("Account") {
-                Button("Sign In…") {
-                    openWindow.call(id: WindowID.signIn)
-                }
-                .disabled(vmModel.drmState.isSignedIn)
-
-                Button("Sign Out") {
-                    Task { @MainActor in
-                        await vmModel.trySignOut()
+                if vmModel.drmState.isSignedIn {
+                    Button {
+                        Task { @MainActor in
+                            await vmModel.trySignOut()
+                        }
+                    } label: {
+                        Label("Sign Out", systemImage: "person.crop.circle")
+                    }
+                } else {
+                    Button {
+                        openWindow.call(id: WindowID.signIn)
+                    } label: {
+                        Label("Sign In…", systemImage: "person.crop.circle")
                     }
                 }
-                .disabled(!vmModel.drmState.isSignedIn)
 
                 Divider()
 
-                Button("Manage…") {
+                Button {
                     NSWorkspace.shared.open(URL(string: "https://orbstack.dev/dashboard")!)
+                } label: {
+                    Label("Manage…", systemImage: "pencil")
                 }
 
-                Button("Switch Organization…") {
+                Button {
                     openWindow.call(id: WindowID.signIn)
+                } label: {
+                    Label("Switch Organization…", systemImage: "arrow.left.arrow.right")
                 }
 
                 Divider()
 
-                Button("Refresh") {
+                Button {
                     Task { @MainActor in
                         await vmModel.tryRefreshDrm()
                     }
+                } label: {
+                    Label("Refresh", systemImage: "arrow.clockwise")
                 }
             }
 
             // keyboard tab nav for main window
             CommandMenu("Tab") {
-                Group {
-                    Button("Docker") {}
-                        .disabled(true)
-
-                    Button("Containers") {
+                Section("Docker") {
+                    Button {
                         selectedTab = .dockerContainers
+                    } label: {
+                        Label("Containers", systemImage: "shippingbox")
                     }
                     .keyboardShortcut("1", modifiers: [.command])
 
-                    Button("Volumes") {
+                    Button {
                         selectedTab = .dockerVolumes
+                    } label: {
+                        Label("Volumes", systemImage: "externaldrive")
                     }
                     .keyboardShortcut("2", modifiers: [.command])
 
-                    Button("Images") {
+                    Button {
                         selectedTab = .dockerImages
+                    } label: {
+                        Label("Images", systemImage: "zipper.page")
                     }
                     .keyboardShortcut("3", modifiers: [.command])
                 }
 
                 Divider()
 
-                Group {
-                    Button("Kubernetes") {}
-                        .disabled(true)
-
-                    Button("Pods") {
+                Section("Kubernetes") {
+                    Button {
                         selectedTab = .k8sPods
+                    } label: {
+                        Label("Pods", systemImage: "helm")
                     }
                     .keyboardShortcut("4", modifiers: [.command])
 
-                    Button("Services") {
+                    Button {
                         selectedTab = .k8sServices
+                    } label: {
+                        Label("Services", systemImage: "network")
                     }
                     .keyboardShortcut("5", modifiers: [.command])
                 }
 
                 Divider()
 
-                Button("Linux") {}.disabled(true)
-
-                Button("Machines") {
-                    selectedTab = .machines
-                }.keyboardShortcut("6", modifiers: [.command])
+                Section("Linux") {
+                    Button {
+                        selectedTab = .machines
+                    } label: {
+                        Label("Machines", systemImage: "desktopcomputer")
+                    }.keyboardShortcut("6", modifiers: [.command])
+                }
 
                 Divider()
 
-                Button("Help") {}.disabled(true)
+                Section("General") {
+                    Button {
+                        selectedTab = .activityMonitor
+                    } label: {
+                        Label("Activity Monitor", systemImage: "chart.xyaxis.line")
+                    }.keyboardShortcut("7", modifiers: [.command])
 
-                Button("Commands") {
-                    selectedTab = .cli
-                }.keyboardShortcut("7", modifiers: [.command])
+                    Button {
+                        selectedTab = .cli
+                    } label: {
+                        Label("Commands", systemImage: "terminal")
+                    }.keyboardShortcut("8", modifiers: [.command])
+                }
             }
 
             CommandGroup(after: .help) {
                 Divider()
 
-                Button("Website") {
+                Button {
                     NSWorkspace.shared.open(URL(string: "https://orbstack.dev")!)
+                } label: {
+                    Label("Website", systemImage: "network")
                 }
-                Button("Documentation") {
+                Button {
                     NSWorkspace.shared.open(URL(string: "https://docs.orbstack.dev")!)
+                } label: {
+                    Label("Documentation", systemImage: "book.closed")
                 }
-                Button("Community") {
+                Button {
                     NSWorkspace.shared.open(URL(string: "https://orbstack.dev/chat")!)
+                } label: {
+                    Label("Community", systemImage: "message")
                 }
-                Button("Email") {
+                Button {
                     NSWorkspace.shared.open(URL(string: "mailto:support@orbstack.dev")!)
+                } label: {
+                    Label("Email", systemImage: "envelope")
                 }
 
                 Divider()
 
                 Group {
-                    Button("Report Bug") {
+                    Button {
                         openWindow.call(id: WindowID.bugReport)
+                    } label: {
+                        Label("Report Bug", systemImage: "exclamationmark.triangle")
                     }
-                    Button("Request Feature") {
+                    Button {
                         NSWorkspace.shared.open(URL(string: "https://orbstack.dev/issues/feature")!)
+                    } label: {
+                        Label("Request Feature", systemImage: "lightbulb")
                     }
-                    Button("Send Feedback") {
+                    Button {
                         openWindow.call(id: WindowID.feedback)
+                    } label: {
+                        Label("Send Feedback", systemImage: "paperplane")
                     }
                 }
 
                 Divider()
 
-                Button("Upload Diagnostics") {
+                Button {
                     openWindow.call(id: WindowID.diagReport)
+                } label: {
+                    Label("Upload Diagnostics", systemImage: "ladybug")
                 }
             }
         }

@@ -86,10 +86,10 @@ struct K8SServiceItemView: View, Equatable, BaseK8SResourceItem {
         }
         .akListContextMenu {
             Group {
-                Button(action: {
+                Button {
                     finishDelete()
-                }) {
-                    Label("Delete", systemImage: "")
+                } label: {
+                    Label("Delete", systemImage: "trash")
                 }
                 .disabled(actionInProgress != nil)
             }
@@ -97,14 +97,14 @@ struct K8SServiceItemView: View, Equatable, BaseK8SResourceItem {
             Divider()
 
             Group {
-                Button(action: {
+                Button {
                     if let urlStr = service.wrapURL(host: service.preferredDomain),
                         let url = URL(string: urlStr)
                     {
                         NSWorkspace.shared.open(url)
                     }
-                }) {
-                    Label("Open in Browser", systemImage: "")
+                } label: {
+                    Label("Open in Browser", systemImage: "link")
                 }
                 .disabled(
                     !(service.canOpen && (service.hasLocalhost || vmModel.netBridgeAvailable)))
@@ -113,37 +113,37 @@ struct K8SServiceItemView: View, Equatable, BaseK8SResourceItem {
             Divider()
 
             Group {
-                Button(action: {
+                Button {
                     NSPasteboard.copy(service.name)
-                }) {
-                    Label("Copy Name", systemImage: "")
+                } label: {
+                    Label("Copy Name", systemImage: "doc.on.doc")
                 }
 
-                Button(action: {
+                Button {
                     NSPasteboard.copy(
                         service.wrapURL(host: service.preferredDomain)
                             ?? service.preferredDomainAndPort)
-                }) {
-                    Label("Copy Domain", systemImage: "")
+                } label: {
+                    Label("Copy Domain", systemImage: "doc.on.doc")
                 }.disabled(vmModel.config?.networkBridge == false)
 
                 let clusterIP = service.spec.clusterIP
-                Button(action: {
+                Button {
                     if let clusterIP {
                         NSPasteboard.copy(clusterIP)
                     }
-                }) {
-                    Label("Copy Cluster IP", systemImage: "")
+                } label: {
+                    Label("Copy Cluster IP", systemImage: "doc.on.doc")
                 }.disabled(clusterIP == nil)
 
                 /*
                     let externalIP = service.externalIP
-                    Button(action: {
+                    Button {
                         if let externalIP {
                             NSPasteboard.copy(externalIP)
                         }
-                    }) {
-                        Label("Copy External IP", systemImage: "")
+                    } label: {
+                        Label("Copy External IP", systemImage: "doc.on.doc")
                     }.disabled(externalIP == nil)
                     */
             }

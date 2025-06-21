@@ -80,37 +80,41 @@ struct DockerK8sGroupItem: View, Equatable {
         .padding(.vertical, 8)
         .akListContextMenu {
             if isRunning {
-                Button(action: {
+                Button {
                     Task {
                         await actionTracker.with(cid: .k8sGroup, action: .stop) {
                             await vmModel.tryStartStopK8s(enable: false)
                         }
                     }
-                }) {
-                    Label("Stop", systemImage: "")
+                } label: {
+                    Label("Stop", systemImage: "stop")
                 }
                 .disabled(actionInProgress)
             } else {
-                Button(action: {
+                Button {
                     Task {
                         await actionTracker.with(cid: .k8sGroup, action: .start) {
                             await vmModel.tryStartStopK8s(enable: true)
                         }
                     }
-                }) {
-                    Label("Start", systemImage: "")
+                } label: {
+                    Label("Start", systemImage: "play")
                 }
                 .disabled(actionInProgress)
             }
 
             Divider()
 
-            Button("Go to Pods") {
+            Button {
                 Defaults[.selectedTab] = .k8sPods
+            } label: {
+                Label("Go to Pods", systemImage: "helm")
             }
 
-            Button("Go to Services") {
+            Button {
                 Defaults[.selectedTab] = .k8sServices
+            } label: {
+                Label("Go to Services", systemImage: "network")
             }
         }
     }

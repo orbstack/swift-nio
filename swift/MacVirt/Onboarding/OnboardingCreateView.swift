@@ -136,9 +136,9 @@ struct OnboardingCreateView: View {
             Spacer()
 
             HStack(alignment: .bottom) {
-                Button(action: {
+                Button {
                     onboardingModel.back()
-                }) {
+                } label: {
                     Text("Back")
                 }
                 .buttonStyle(.borderless)

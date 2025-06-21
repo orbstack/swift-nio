@@ -33,6 +33,16 @@ struct DKContainer: Codable, Identifiable, Hashable {
         state == "running"
     }
 
+    // docker counts restarting as running for /containers/json list inclusion
+    var runningOrRestarting: Bool {
+        switch state {
+        case "running", "restarting":
+            return true
+        default:
+            return false
+        }
+    }
+
     var statusDot: StatusDot {
         if status.contains("(unhealthy)") {
             return .orange

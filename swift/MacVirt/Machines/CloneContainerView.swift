@@ -55,16 +55,16 @@ struct CloneContainerView: View {
 
             HStack {
                 Spacer()
-                Button(action: {
+                Button {
                     isPresented = false
-                }) {
+                } label: {
                     Text("Cancel")
                 }
                 .keyboardShortcut(.cancelAction)
 
-                Button(action: {
+                Button {
                     create()
-                }) {
+                } label: {
                     Text("Clone")
                 }
                 .keyboardShortcut(.defaultAction)

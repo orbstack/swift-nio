@@ -1000,9 +1000,9 @@ extension View {
             }
 
             ToolbarItem(placement: .automatic) {
-                Button(action: {
+                Button {
                     commandModel.copyAllCommand.send()
-                }) {
+                } label: {
                     Label("Copy", systemImage: "doc.on.doc")
                 }
                 .help("Copy")
@@ -1010,9 +1010,9 @@ extension View {
             }
 
             ToolbarItem(placement: .automatic) {
-                Button(action: {
+                Button {
                     commandModel.clearCommand.send()
-                }) {
+                } label: {
                     Label("Clear", systemImage: "trash")
                 }
                 .help("Clear")
@@ -1020,9 +1020,9 @@ extension View {
             }
 
             ToolbarItem(placement: .automatic) {
-                Button(action: {
+                Button {
                     commandModel.searchCommand.send()
-                }) {
+                } label: {
                     Label("Search", systemImage: "magnifyingglass")
                 }
                 .help("Search")

@@ -361,7 +361,7 @@ extension NSWorkspace {
     static func openSubwindow(_ path: String) {
         switch path {
         case WindowID.migrateDocker:
-            callMenuItem("Migrate Docker Containers…")
+            callMenuItem("Migrate from Docker Desktop…")
         case WindowID.bugReport:
             callMenuItem("Report Bug")
         case WindowID.feedback:

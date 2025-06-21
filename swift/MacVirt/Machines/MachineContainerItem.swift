@@ -46,9 +46,9 @@ struct MachineContainerItem: View {
 
             Spacer()
 
-            Button(action: {
+            Button {
                 info.record.openNfsDirectory()
-            }) {
+            } label: {
                 Image(systemName: "folder.fill")
                     // match ProgressIconButton size
                     .frame(width: 24, height: 24)
@@ -79,25 +79,25 @@ struct MachineContainerItem: View {
         .akListContextMenu {
             Group {
                 if running {
-                    Button(action: {
+                    Button {
                         finishStop()
-                    }) {
-                        Label("Stop", systemImage: "restart")
+                    } label: {
+                        Label("Stop", systemImage: "stop")
                     }
                     .disabled(actionInProgress)
                 } else {
-                    Button(action: {
+                    Button {
                         finishRestart()
-                    }) {
-                        Label("Start", systemImage: "restart")
+                    } label: {
+                        Label("Start", systemImage: "play")
                     }
                     .disabled(actionInProgress)
                 }
 
-                Button(action: {
+                Button {
                     finishRestart()
-                }) {
-                    Label("Restart", systemImage: "restart")
+                } label: {
+                    Label("Restart", systemImage: "arrow.clockwise")
                 }
                 .disabled(actionInProgress)
             }
@@ -105,18 +105,18 @@ struct MachineContainerItem: View {
             if selection.count <= 1 {
                 Divider()
 
-                Button(action: {
+                Button {
                     Task {
                         await info.record.openInTerminal()
                     }
-                }) {
+                } label: {
                     Label("Terminal", systemImage: "terminal")
                 }
                 .disabled(info.record.state.isInitializing)
 
-                Button(action: {
+                Button {
                     info.record.openNfsDirectory()
-                }) {
+                } label: {
                     Label("Files", systemImage: "folder")
                 }
                 .disabled(info.record.state.isInitializing)
@@ -126,30 +126,36 @@ struct MachineContainerItem: View {
 
             Group {
                 if selection.count <= 1 {
-                    Button(action: {
+                    Button {
                         Task {
                             await vmModel.trySetDefaultContainer(info.record)
                         }
-                    }) {
+                    } label: {
                         Label("Make Default", systemImage: "star")
                     }
 
-                    Button("Rename") {
+                    Button {
                         self.presentRename = true
+                    } label: {
+                        Label("Rename", systemImage: "pencil")
                     }
 
                     Divider()
 
-                    Button("Clone") {
+                    Button {
                         self.presentClone = true
+                    } label: {
+                        Label("Clone", systemImage: "plus.square.on.square")
                     }
 
-                    Button("Export") {
+                    Button {
                         info.record.openExportPanel(
                             windowHolder: windowHolder,
                             actionTracker: actionTracker,
                             vmModel: vmModel
                         )
+                    } label: {
+                        Label("Export", systemImage: "square.and.arrow.up")
                     }
                 }
 
@@ -171,20 +177,26 @@ struct MachineContainerItem: View {
             if selection.count <= 1 {
                 Divider()
 
-                Button("Copy Domain") {
+                Button {
                     NSPasteboard.copy("\(info.record.name).orb.local")
+                } label: {
+                    Label("Copy Domain", systemImage: "doc.on.doc")
                 }
 
-                Button("Copy IPv4") {
+                Button {
                     if let ip4 = info.ip4 {
                         NSPasteboard.copy(ip4)
                     }
+                } label: {
+                    Label("Copy IPv4", systemImage: "doc.on.doc")
                 }.disabled(info.ip4 == nil)
 
-                Button("Copy IPv6") {
+                Button {
                     if let ip6 = info.ip6 {
                         NSPasteboard.copy(ip6)
                     }
+                } label: {
+                    Label("Copy IPv6", systemImage: "doc.on.doc")
                 }.disabled(info.ip6 == nil)
             }
         }

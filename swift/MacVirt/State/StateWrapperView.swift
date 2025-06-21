@@ -27,11 +27,11 @@ struct StateWrapperView<Content: View>: View {
                     ContentUnavailableViewCompat(
                         "Service Not Running", systemImage: "moon.zzz.fill")
 
-                    Button(action: {
+                    Button {
                         Task {
                             await vmModel.tryStartDaemon()
                         }
-                    }) {
+                    } label: {
                         Text("Start")
                             .padding(.horizontal, 4)
                     }
