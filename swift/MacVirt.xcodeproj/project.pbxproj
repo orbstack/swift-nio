@@ -174,6 +174,11 @@
 		D87596F92CE738E600CEEE98 /* PBXFileSystemSynchronizedBuildFileExceptionSet */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
+				AppIcon.icon/Assets/orb.png,
+				AppIcon.icon/icon.json,
+				DebugAppIcon.icon/Assets/dev_badge.png,
+				DebugAppIcon.icon/Assets/orb.png,
+				DebugAppIcon.icon/icon.json,
 				Info.plist,
 			);
 			target = D8A32B8D296F839100E56EEF /* MacVirt */;
