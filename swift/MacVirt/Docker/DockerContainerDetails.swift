@@ -25,19 +25,18 @@ struct DockerContainerDetails: View {
                 DetailsRow("Image", copyableText: container.image)
 
                 // needs to be running w/ ip to have domain
-                if let ipAddress = container.ipAddress,
-                    let domain = container.preferredDomain,
-                    let url = URL(string: "\(container.getPreferredProto(vmModel))://\(domain)")
-                {
-                    if vmModel.netBridgeAvailable {
+                if let ipAddress = container.ipAddress {
+                    if vmModel.netBridgeAvailable,
+                        let domain = container.preferredDomain,
+                        let url = URL(string: "\(container.getPreferredProto(vmModel))://\(domain)") {
                         DetailsRow("Domain") {
                             CopyableText(copyAs: domain) {
                                 CustomLink(domain, url: url)
                             }
                         }
-                    } else {
-                        DetailsRow("IP", copyableText: ipAddress)
                     }
+
+                    DetailsRow("IP", copyableText: ipAddress)
                 }
             }
 
