@@ -60,16 +60,19 @@ struct DetailsListSection<Content: View>: View {
 
 struct DetailsRow<Content: View>: View {
     private let label: String
+    private let lineLimit: Int?
     @ViewBuilder private let content: () -> Content
 
-    init(_ label: String, @ViewBuilder content: @escaping () -> Content) {
+    init(_ label: String, lineLimit: Int? = 1, @ViewBuilder content: @escaping () -> Content) {
         self.label = label
+        self.lineLimit = lineLimit
         self.content = content
     }
 
     var body: some View {
         LabeledContent {
             content()
+                .lineLimit(lineLimit)
         } label: {
             Text(label)
         }
@@ -77,18 +80,16 @@ struct DetailsRow<Content: View>: View {
 }
 
 extension DetailsRow where Content == Text {
-    init(_ label: String, text: String) {
-        self.label = label
-        self.content = {
+    init(_ label: String, lineLimit: Int? = 1, text: String) {
+        self.init(label, lineLimit: lineLimit) {
             Text(text)
         }
     }
 }
 
 extension DetailsRow where Content == CopyableText<Text> {
-    init(_ label: String, copyableText: String, copyAs: String? = nil) {
-        self.label = label
-        self.content = {
+    init(_ label: String, lineLimit: Int? = 1, copyableText: String, copyAs: String? = nil) {
+        self.init(label, lineLimit: lineLimit) {
             CopyableText(copyableText, copyAs: copyAs)
         }
     }
