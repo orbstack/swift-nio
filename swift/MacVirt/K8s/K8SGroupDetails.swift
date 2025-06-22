@@ -11,20 +11,18 @@ struct K8SGroupDetails: View {
 
     var body: some View {
         DetailsStack {
-            DetailsSection("Kubernetes Pods") {
+            DetailsListSection("Kubernetes Pods") {
                 let pods = vmModel.k8sPods ?? []
 
-                VStack(alignment: .leading, spacing: 4) {
-                    ForEach(pods) { pod in
-                        Label {
-                            CopyableText(pod.name)
-                                .lineLimit(1)
-                        } icon: {
-                            // icon = red/green status dot
-                            Image(
-                                nsImage: SystemImages.statusDot(
-                                    isRunning: pod.statusStr == "Running"))
-                        }
+                ForEach(pods) { pod in
+                    Label {
+                        CopyableText(pod.name)
+                            .lineLimit(1)
+                    } icon: {
+                        // icon = red/green status dot
+                        Image(
+                            nsImage: SystemImages.statusDot(
+                                isRunning: pod.statusStr == "Running"))
                     }
                 }
             }

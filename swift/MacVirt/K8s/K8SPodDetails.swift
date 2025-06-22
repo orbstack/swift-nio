@@ -15,51 +15,39 @@ struct K8SPodDetails: View {
         DetailsStack {
             let isRunning = pod.uiState == .running
 
-            DetailsSection("Info") {
-                SimpleKvTable(longestLabel: "Restarts") {
-                    let domain = pod.preferredDomain
-                    let ipAddress = pod.status.podIP
+            DetailsKvSection {
+                let domain = pod.preferredDomain
+                let ipAddress = pod.status.podIP
 
-                    SimpleKvTableRow("Status") {
-                        Text(pod.statusStr)
-                    }
+                DetailsRow("Status", text: pod.statusStr)
+                DetailsRow("Restarts", text: "\(pod.restartCount)")
+                DetailsRow("Age", text: pod.ageStr)
 
-                    SimpleKvTableRow("Restarts") {
-                        Text("\(pod.restartCount)")
-                    }
-
-                    SimpleKvTableRow("Age") {
-                        Text(pod.ageStr)
-                    }
-
-                    // needs to be running w/ ip to have domain
-                    if let ipAddress,
-                        let url = URL(string: "http://\(domain)")
-                    {
-                        if vmModel.netBridgeAvailable {
-                            SimpleKvTableRow("IP") {
-                                CopyableText(copyAs: domain) {
-                                    CustomLink(domain, url: url)
-                                }
-                            }
-                        } else {
-                            SimpleKvTableRow("IP") {
-                                CopyableText(ipAddress)
+                // needs to be running w/ ip to have domain
+                if let ipAddress,
+                    let url = URL(string: "http://\(domain)")
+                {
+                    if vmModel.netBridgeAvailable {
+                        DetailsRow("IP") {
+                            CopyableText(copyAs: domain) {
+                                CustomLink(domain, url: url)
                             }
                         }
+                    } else {
+                        DetailsRow("IP", copyableText: ipAddress)
                     }
                 }
             }
 
-            DividedButtonStack {
-                DividedRowButton {
+            DetailsButtonSection {
+                DetailsButton {
                     pod.showLogs(windowTracker: windowTracker)
                 } label: {
                     Label("Logs", systemImage: "doc.text.magnifyingglass")
                 }
 
                 if isRunning {
-                    DividedRowButton {
+                    DetailsButton {
                         pod.openInTerminal()
                     } label: {
                         Label("Terminal", systemImage: "terminal")
@@ -68,19 +56,17 @@ struct K8SPodDetails: View {
             }
 
             if pod.status.containerStatuses?.isEmpty == false {
-                DetailsSection("Containers") {
-                    VStack(alignment: .leading, spacing: 4) {
-                        ForEach(pod.status.containerStatuses ?? []) { container in
-                            if let name = container.name {
-                                // TODO: link
-                                Label {
-                                    CopyableText(name)
-                                } icon: {
-                                    // icon = red/green status dot
-                                    Image(
-                                        nsImage: SystemImages.statusDot(
-                                            isRunning: container.ready ?? false))
-                                }
+                DetailsListSection("Containers") {
+                    ForEach(pod.status.containerStatuses ?? []) { container in
+                        if let name = container.name {
+                            // TODO: link
+                            Label {
+                                CopyableText(name)
+                            } icon: {
+                                // icon = red/green status dot
+                                Image(
+                                    nsImage: SystemImages.statusDot(
+                                        isRunning: container.ready ?? false))
                             }
                         }
                     }
@@ -88,19 +74,17 @@ struct K8SPodDetails: View {
             }
 
             if pod.status.ephemeralContainerStatuses?.isEmpty == false {
-                DetailsSection("Ephemeral Containers") {
-                    VStack(alignment: .leading, spacing: 4) {
-                        ForEach(pod.status.ephemeralContainerStatuses ?? []) { container in
-                            if let name = container.name {
-                                // TODO: link
-                                Label {
-                                    CopyableText(name)
-                                } icon: {
-                                    // icon = red/green status dot
-                                    Image(
-                                        nsImage: SystemImages.statusDot(
-                                            isRunning: container.ready ?? false))
-                                }
+                DetailsListSection("Ephemeral Containers") {
+                    ForEach(pod.status.ephemeralContainerStatuses ?? []) { container in
+                        if let name = container.name {
+                            // TODO: link
+                            Label {
+                                CopyableText(name)
+                            } icon: {
+                                // icon = red/green status dot
+                                Image(
+                                    nsImage: SystemImages.statusDot(
+                                        isRunning: container.ready ?? false))
                             }
                         }
                     }

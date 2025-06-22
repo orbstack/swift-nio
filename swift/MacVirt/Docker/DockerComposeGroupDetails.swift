@@ -15,29 +15,27 @@ struct DockerComposeGroupDetails: View {
         DetailsStack {
             let containers = vmModel.dockerContainers?.byComposeProject[project] ?? []
 
-            DetailsSection("Containers in Group") {
-                VStack(alignment: .leading, spacing: 4) {
-                    ForEach(containers) { container in
-                        // TODO: link
-                        Label {
-                            CopyableText(container.userName)
-                        } icon: {
-                            // icon = red/green status dot
-                            Image(nsImage: SystemImages.statusDot(container.statusDot))
-                        }
+            DetailsListSection("Containers in Group") {
+                ForEach(containers) { container in
+                    // TODO: link
+                    Label {
+                        CopyableText(container.userName)
+                    } icon: {
+                        // icon = red/green status dot
+                        Image(nsImage: SystemImages.statusDot(container.statusDot))
                     }
                 }
             }
 
-            DividedButtonStack {
-                DividedRowButton {
+            DetailsButtonSection {
+                DetailsButton {
                     ComposeGroup(project: project).showLogs(windowTracker: windowTracker)
                 } label: {
                     Label("Logs", systemImage: "doc.text.magnifyingglass")
                 }
 
                 if let projectPath = containers.first?.composeConfigFiles?.first {
-                    DividedRowButton {
+                    DetailsButton {
                         let parentDir = URL(fileURLWithPath: projectPath)
                             .deletingLastPathComponent().path
                         NSWorkspace.shared.selectFile(

@@ -15,52 +15,40 @@ struct DockerContainerDetails: View {
         DetailsStack {
             let isRunning = container.running
 
-            DetailsSection("Info") {
-                SimpleKvTable(longestLabel: "Domain") {
-                    SimpleKvTableRow("ID") {
-                        CopyableText(String(container.id.prefix(12)), copyAs: container.id)
-                            .font(.body.monospaced())
-                    }
+            DetailsKvSection {
+                DetailsRow("ID") {
+                    CopyableText(String(container.id.prefix(12)), copyAs: container.id)
+                        .font(.body.monospaced())
+                }
 
-                    SimpleKvTableRow("Status") {
-                        Text(container.status)
-                            .lineLimit(nil)
-                    }
+                DetailsRow("Status", text: container.status)
+                DetailsRow("Image", copyableText: container.image)
 
-                    SimpleKvTableRow("Image") {
-                        CopyableText(container.image)
-                            .frame(maxWidth: 300, alignment: .leading)
-                            .truncationMode(.tail)
-                    }
-
-                    // needs to be running w/ ip to have domain
-                    if let ipAddress = container.ipAddress,
-                        let domain = container.preferredDomain,
-                        let url = URL(string: "\(container.getPreferredProto(vmModel))://\(domain)")
-                    {
-                        if vmModel.netBridgeAvailable {
-                            SimpleKvTableRow("Domain") {
-                                CopyableText(copyAs: domain) {
-                                    CustomLink(domain, url: url)
-                                }
-                            }
-                        } else {
-                            SimpleKvTableRow("IP") {
-                                CopyableText(ipAddress)
+                // needs to be running w/ ip to have domain
+                if let ipAddress = container.ipAddress,
+                    let domain = container.preferredDomain,
+                    let url = URL(string: "\(container.getPreferredProto(vmModel))://\(domain)")
+                {
+                    if vmModel.netBridgeAvailable {
+                        DetailsRow("Domain") {
+                            CopyableText(copyAs: domain) {
+                                CustomLink(domain, url: url)
                             }
                         }
+                    } else {
+                        DetailsRow("IP", copyableText: ipAddress)
                     }
                 }
             }
 
-            DividedButtonStack {
-                DividedRowButton {
+            DetailsButtonSection {
+                DetailsButton {
                     container.showLogs(windowTracker: windowTracker)
                 } label: {
                     Label("Logs", systemImage: "doc.text.magnifyingglass")
                 }
 
-                DividedRowButton {
+                DetailsButton {
                     if vmModel.isLicensed {
                         container.openDebugShell()
                     } else {
@@ -71,13 +59,13 @@ struct DockerContainerDetails: View {
                 }
 
                 if isRunning {
-                    DividedRowButton {
+                    DetailsButton {
                         container.openDebugShellFallback()
                     } label: {
                         Label("Terminal", systemImage: "terminal")
                     }
 
-                    DividedRowButton {
+                    DetailsButton {
                         container.openFolder()
                     } label: {
                         Label("Files", systemImage: "folder")
@@ -85,7 +73,7 @@ struct DockerContainerDetails: View {
 
                     if container.image == "docker/getting-started" {
                         // special case for more seamless onboarding
-                        DividedRowButton {
+                        DetailsButton {
                             NSWorkspace.shared.open(URL(string: "http://localhost")!)
                         } label: {
                             Label("Tutorial", systemImage: "questionmark.circle")
@@ -95,13 +83,11 @@ struct DockerContainerDetails: View {
             }
 
             if !container.ports.isEmpty {
-                DetailsSection("Ports") {
-                    VStack(alignment: .leading, spacing: 4) {
-                        ForEach(container.ports) { port in
-                            CopyableText(copyAs: "\(port.localPort)") {
-                                CustomLink(port.formatted) {
-                                    port.openUrl()
-                                }
+                DetailsListSection("Ports") {
+                    ForEach(container.ports) { port in
+                        CopyableText(copyAs: "\(port.localPort)") {
+                            CustomLink(port.formatted) {
+                                port.openUrl()
                             }
                         }
                     }
@@ -109,13 +95,11 @@ struct DockerContainerDetails: View {
             }
 
             if !container.mounts.isEmpty {
-                DetailsSection("Mounts") {
-                    VStack(alignment: .leading, spacing: 4) {
-                        ForEach(container.mounts) { mount in
-                            CopyableText(copyAs: mount.getOpenPath()) {
-                                CustomLink(mount.formatted) {
-                                    mount.openSourceDirectory()
-                                }
+                DetailsListSection("Mounts") {
+                    ForEach(container.mounts) { mount in
+                        CopyableText(copyAs: mount.getOpenPath()) {
+                            CustomLink(mount.formatted) {
+                                mount.openSourceDirectory()
                             }
                         }
                     }

@@ -13,70 +13,137 @@ struct DetailsStack<Content: View>: View {
     }
 
     var body: some View {
-        HStack {
-            // keep this at leading
-            VStack(alignment: .leading, spacing: 20) {
-                content()
-            }
-
-            Spacer()
+        Form {
+            content()
         }
-        // toolbar is transparent, but border appears on scroll
-        .padding(16)
+        .formStyle(.grouped)
     }
 }
 
-struct DetailsSection<Content: View>: View {
-    private let label: String
-    private let indent: CGFloat
+struct DetailsKvSection<Content: View>: View {
+    private let label: String?
     @ViewBuilder private let content: () -> Content
 
-    init(_ label: String, indent: CGFloat = 16, @ViewBuilder content: @escaping () -> Content) {
+    init(_ label: String? = nil, @ViewBuilder content: @escaping () -> Content) {
         self.label = label
-        self.indent = indent
         self.content = content
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
+        Section {
+            content()
+        } header: {
+            if let label {
+                Text(label)
+            }
+        }
+    }
+}
+
+struct DetailsListSection<Content: View>: View {
+    private let label: String
+    @ViewBuilder private let content: () -> Content
+
+    init(_ label: String, @ViewBuilder content: @escaping () -> Content) {
+        self.label = label
+        self.content = content
+    }
+
+    var body: some View {
+        Section {
+            content()
+        } header: {
             Text(label)
-                .font(.headline)
-
-            VStack(alignment: .leading, spacing: 24) {
-                content()
-            }
-            .padding(.leading, indent)
         }
     }
 }
 
-struct ScrollableDetailsSection<Content: View>: View {
+struct DetailsRow<Content: View>: View {
     private let label: String
-    private let indent: CGFloat
     @ViewBuilder private let content: () -> Content
 
-    init(_ label: String, indent: CGFloat = 16, @ViewBuilder content: @escaping () -> Content) {
+    init(_ label: String, @ViewBuilder content: @escaping () -> Content) {
         self.label = label
-        self.indent = indent
         self.content = content
     }
 
     var body: some View {
-        DetailsSection(label, indent: 0) {
-            ScrollView(.horizontal) {
-                content()
-                    .padding(4)
-                    .padding(.leading, indent)
+        LabeledContent {
+            content()
+        } label: {
+            Text(label)
+        }
+    }
+}
+
+extension DetailsRow where Content == Text {
+    init(_ label: String, text: String) {
+        self.label = label
+        self.content = {
+            Text(text)
+        }
+    }
+}
+
+extension DetailsRow where Content == CopyableText<Text> {
+    init(_ label: String, copyableText: String, copyAs: String? = nil) {
+        self.label = label
+        self.content = {
+            CopyableText(copyableText, copyAs: copyAs)
+        }
+    }
+}
+
+struct DetailsTableSection<Content: View>: View {
+    private let label: String
+    @ViewBuilder private let content: () -> Content
+
+    init(_ label: String, @ViewBuilder content: @escaping () -> Content) {
+        self.label = label
+        self.content = content
+    }
+
+    var body: some View {
+        Section {
+            content()
+        } header: {
+            Text(label)
+        }
+    }
+}
+
+struct KeyValueItem: Identifiable {
+    let key: String
+    let value: String
+
+    var id: String { key }
+}
+
+struct DetailsKvTableSection<Key: View, Value: View>: View {
+    private let label: String
+    private let items: [KeyValueItem]
+    @ViewBuilder private let key: (KeyValueItem) -> Key
+    @ViewBuilder private let value: (KeyValueItem) -> Value
+
+    init(_ label: String, items: [KeyValueItem], @ViewBuilder key: @escaping (KeyValueItem) -> Key = { Text($0.key) }, @ViewBuilder value: @escaping (KeyValueItem) -> Value = { CopyableText($0.value) }) {
+        self.label = label
+        self.items = items
+        self.key = key
+        self.value = value
+    }
+
+    var body: some View {
+        Section {
+            Table(items) {
+                TableColumn("Key") { item in
+                    key(item)
+                }
+                TableColumn("Value") { item in
+                    value(item)
+                }
             }
-            .background {
-                Rectangle()
-                    .fill(.ultraThinMaterial)
-                    .overlay {
-                        Rectangle()
-                            .strokeBorder(Color.secondary, lineWidth: 1)
-                            .opacity(0.1)
-                    }
-            }
+        } header: {
+            Text(label)
         }
     }
 }

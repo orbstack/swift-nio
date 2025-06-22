@@ -53,7 +53,7 @@ private struct NavigationLinkButtonStyle: ButtonStyle {
     }
 }
 
-struct DividedRowButton<Label: View>: View {
+struct DetailsButton<Label: View>: View {
     @Environment(\.isEnabled) private var isEnabled
 
     private let action: () -> Void
@@ -78,7 +78,7 @@ struct DividedRowButton<Label: View>: View {
     }
 }
 
-struct DividedButtonStack<Content: View>: View {
+struct DetailsButtonSection<Content: View>: View {
     @ViewBuilder private let content: () -> Content
 
     init(@ViewBuilder content: @escaping () -> Content) {
@@ -86,11 +86,8 @@ struct DividedButtonStack<Content: View>: View {
     }
 
     var body: some View {
-        Form {
+        Section {
             content()
         }
-        .formStyle(.grouped)
-        // ??? ignoresSafeArea doesn't remove the builtin padding
-        .padding(-10)
     }
 }

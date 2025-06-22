@@ -16,38 +16,27 @@ struct DockerImageDetails: View {
 
     var body: some View {
         DetailsStack {
-            DetailsSection("Info") {
-                // TODO: fix width constraints
-                SimpleKvTable(longestLabel: "Architecture") {
-                    SimpleKvTableRow("ID") {
-                        CopyableText(
-                            String(image.id.trimmingPrefix("sha256:").prefix(12)), copyAs: image.id
-                        )
-                        .font(.body.monospaced())
-                    }
-
-                    SimpleKvTableRow("Created") {
-                        Text(image.summary.formattedCreated)
-                    }
-
-                    SimpleKvTableRow("Size") {
-                        Text(image.summary.formattedSize)
-                    }
-
-                    SimpleKvTableRow("Architecture") {
-                        Text(image.full.architecture)
-                    }
+            DetailsKvSection {
+                DetailsRow("ID") {
+                    CopyableText(
+                        String(image.id.trimmingPrefix("sha256:").prefix(12)), copyAs: image.id
+                    )
+                    .font(.body.monospaced())
                 }
+
+                DetailsRow("Created", text: image.summary.formattedCreated)
+                DetailsRow("Size", text: image.summary.formattedSize)
+                DetailsRow("Platform", text: image.full.architecture)
             }
 
-            DividedButtonStack {
-                DividedRowButton {
+            DetailsButtonSection {
+                DetailsButton {
                     image.summary.openFolder()
                 } label: {
                     Label("Files", systemImage: "folder")
                 }.disabled(image.summary.repoTags?.isEmpty != false)
 
-                DividedRowButton {
+                DetailsButton {
                     if vmModel.isLicensed {
                         image.summary.openDebugShell()
                     } else {
@@ -57,7 +46,7 @@ struct DockerImageDetails: View {
                     Label("Debug Shell", systemImage: "ladybug")
                 }
 
-                DividedRowButton {
+                DetailsButton {
                     image.summary.openExportPanel(
                         windowHolder: windowHolder,
                         actionTracker: actionTracker,
@@ -71,11 +60,9 @@ struct DockerImageDetails: View {
             if let tags = image.summary.repoTags,
                 !tags.isEmpty
             {
-                DetailsSection("Tags") {
-                    VStack(alignment: .leading, spacing: 4) {
-                        ForEach(tags, id: \.self) { tag in
-                            CopyableText(tag)
-                        }
+                DetailsListSection("Tags") {
+                    ForEach(tags, id: \.self) { tag in
+                        CopyableText(tag)
                     }
                 }
             }
@@ -89,11 +76,9 @@ struct DockerImageDetails: View {
             if let usedByContainers,
                 !usedByContainers.isEmpty
             {
-                DetailsSection("Used By") {
-                    VStack(alignment: .leading, spacing: 4) {
-                        ForEach(usedByContainers) { container in
-                            Text(container.userName)
-                        }
+                DetailsListSection("Used By") {
+                    ForEach(usedByContainers) { container in
+                        Text(container.userName)
                     }
                 }
             }
@@ -101,16 +86,8 @@ struct DockerImageDetails: View {
             if let labels = image.summary.labels,
                 !labels.isEmpty
             {
-                ScrollableDetailsSection("Labels") {
-                    AlignedSimpleKvTable {
-                        let sortedLabels = labels.sorted { $0.key < $1.key }
-                        ForEach(sortedLabels, id: \.key) { key, value in
-                            AlignedSimpleKvTableRow(key) {
-                                CopyableText(value)
-                            }
-                        }
-                    }
-                }
+                let sortedLabels = labels.sorted { $0.key < $1.key }.map { KeyValueItem(key: $0.key, value: $0.value) }
+                DetailsKvTableSection("Labels", items: sortedLabels)
             }
         }
         .windowHolder(windowHolder)

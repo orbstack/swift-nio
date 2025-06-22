@@ -15,81 +15,52 @@ struct MachineDetails: View {
 
     var body: some View {
         DetailsStack {
-            DetailsSection("Info") {
-                // match Image section
-                SimpleKvTable(longestLabel: "Architecture") {
-                    SimpleKvTableRow("Name") {
-                        CopyableText(info.record.name)
-                    }
+            DetailsKvSection {
+                DetailsRow("Name", copyableText: info.record.name)
+                DetailsRow("Status", text: info.record.state.friendlyName)
 
-                    SimpleKvTableRow("Status") {
-                        Text(info.record.state.friendlyName)
-                    }
-
-                    let domain = "\(info.record.name).orb.local"
-                    if let url = URL(string: "http://\(domain)") {
-                        SimpleKvTableRow("Domain") {
-                            if info.record.running && vmModel.netBridgeAvailable {
-                                CopyableText(copyAs: domain) {
-                                    CustomLink(domain, url: url)
-                                }
-                            } else {
-                                CopyableText(domain)
+                let domain = "\(info.record.name).orb.local"
+                if let url = URL(string: "http://\(domain)") {
+                    DetailsRow("Domain") {
+                        if info.record.running && vmModel.netBridgeAvailable {
+                            CopyableText(copyAs: domain) {
+                                CustomLink(domain, url: url)
                             }
-                        }
-                    }
-
-                    if let ip4 = info.ip4 {
-                        SimpleKvTableRow("IP") {
-                            CopyableText(ip4)
+                        } else {
+                            CopyableText(domain)
                         }
                     }
                 }
-            }
 
-            DetailsSection("Image") {
-                SimpleKvTable(longestLabel: "Architecture") {
-                    SimpleKvTableRow("Distro") {
-                        Text(
-                            Distro.map[info.record.image.distro]?.friendlyName
-                                ?? info.record.image.distro)
-                    }
-                    SimpleKvTableRow("Version") {
-                        Text(info.record.image.version)
-                    }
-                    SimpleKvTableRow("Architecture") {
-                        Text(info.record.image.arch)
-                    }
+                if let ip4 = info.ip4 {
+                    DetailsRow("IP", copyableText: ip4)
                 }
             }
 
-            DetailsSection("Settings") {
-                // match Image section
-                SimpleKvTable(longestLabel: "Architecture") {
-                    SimpleKvTableRow("Username") {
-                        Text(info.record.config.defaultUsername ?? Files.username)
-                    }
-                }
+            DetailsKvSection("Image") {
+                DetailsRow("Distro", text: Distro.map[info.record.image.distro]?.friendlyName ?? info.record.image.distro)
+                DetailsRow("Version", text: info.record.image.version)
+                DetailsRow("Architecture", text: info.record.image.arch)
+            }
+
+            DetailsKvSection("Settings") {
+                DetailsRow("Username", text: info.record.config.defaultUsername ?? Files.username)
             }
 
             if let diskSize = info.diskSize {
-                DetailsSection("Resources") {
-                    SimpleKvTable(longestLabel: "Disk usage") {
-                        SimpleKvTableRow("Disk usage") {
-                            Text(diskSize.formatted(.byteCount(style: .file)))
-                        }
-                    }
+                DetailsKvSection("Resources") {
+                    DetailsRow("Disk usage", text: diskSize.formatted(.byteCount(style: .file)))
                 }
             }
 
-            DividedButtonStack {
-                DividedRowButton {
+            DetailsButtonSection {
+                DetailsButton {
                     info.record.openNfsDirectory()
                 } label: {
                     Label("Files", systemImage: "folder")
                 }
 
-                DividedRowButton {
+                DetailsButton {
                     Task {
                         await info.record.openInTerminal()
                     }
@@ -97,7 +68,7 @@ struct MachineDetails: View {
                     Label("Terminal", systemImage: "terminal")
                 }
 
-                DividedRowButton {
+                DetailsButton {
                     info.record.openExportPanel(
                         windowHolder: windowHolder,
                         actionTracker: actionTracker,

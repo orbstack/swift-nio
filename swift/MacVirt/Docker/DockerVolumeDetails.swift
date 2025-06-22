@@ -16,43 +16,31 @@ struct DockerVolumeDetails: View {
 
     var body: some View {
         DetailsStack {
-            DetailsSection("Info") {
+            DetailsKvSection {
                 let showMountpoint =
                     volume.mountpoint != "/var/lib/docker/volumes/\(volume.name)/_data"
-                SimpleKvTable(longestLabel: showMountpoint ? "Mountpoint" : "Created") {
-                    SimpleKvTableRow("Name") {
-                        CopyableText(volume.name)
-                    }
 
-                    SimpleKvTableRow("Created") {
-                        Text(volume.formattedCreatedAt)
-                    }
+                DetailsRow("Name", copyableText: volume.name)
+                DetailsRow("Created", text: volume.formattedCreatedAt)
 
-                    if let usageData = vmModel.dockerDf?.volumes[volume.name]?.usageData {
-                        let fmtSize = ByteCountFormatter.string(
-                            fromByteCount: usageData.size, countStyle: .file)
-                        SimpleKvTableRow("Size") {
-                            Text(fmtSize)
-                        }
-                    }
+                if let usageData = vmModel.dockerDf?.volumes[volume.name]?.usageData {
+                    let fmtSize = ByteCountFormatter.string(
+                        fromByteCount: usageData.size, countStyle: .file)
+                    DetailsRow("Size", text: fmtSize)
+                }
 
-                    if showMountpoint {
-                        SimpleKvTableRow("Mountpoint") {
-                            Text("\(volume.mountpoint)")
-                                .font(.body.monospaced())
-                        }
+                if showMountpoint {
+                    DetailsRow("Mountpoint") {
+                        Text("\(volume.mountpoint)")
+                            .font(.body.monospaced())
                     }
+                }
 
-                    if volume.driver != "local" {
-                        SimpleKvTableRow("Driver") {
-                            Text(volume.driver)
-                        }
-                    }
-                    if volume.scope != "local" {
-                        SimpleKvTableRow("Scope") {
-                            Text(volume.scope)
-                        }
-                    }
+                if volume.driver != "local" {
+                    DetailsRow("Driver", text: volume.driver)
+                }
+                if volume.scope != "local" {
+                    DetailsRow("Scope", text: volume.scope)
                 }
             }
 
@@ -67,11 +55,9 @@ struct DockerVolumeDetails: View {
             if let usedByContainers,
                 !usedByContainers.isEmpty
             {
-                DetailsSection("Used By") {
-                    VStack(alignment: .leading, spacing: 4) {
-                        ForEach(usedByContainers) { container in
-                            Text(container.userName)
-                        }
+                DetailsListSection("Used By") {
+                    ForEach(usedByContainers) { container in
+                        Text(container.userName)
                     }
                 }
             }
@@ -79,41 +65,25 @@ struct DockerVolumeDetails: View {
             if let labels = volume.labels,
                 !labels.isEmpty
             {
-                ScrollableDetailsSection("Labels") {
-                    AlignedSimpleKvTable {
-                        let sortedLabels = labels.sorted { $0.key < $1.key }
-                        ForEach(sortedLabels, id: \.key) { key, value in
-                            AlignedSimpleKvTableRow(key) {
-                                CopyableText(value)
-                            }
-                        }
-                    }
-                }
+                let sortedLabels = labels.sorted { $0.key < $1.key }.map { KeyValueItem(key: $0.key, value: $0.value) }
+                DetailsKvTableSection("Labels", items: sortedLabels)
             }
 
             if let options = volume.options,
                 !options.isEmpty
             {
-                ScrollableDetailsSection("Options") {
-                    AlignedSimpleKvTable {
-                        let sortedOptions = options.sorted { $0.key < $1.key }
-                        ForEach(sortedOptions, id: \.key) { key, value in
-                            AlignedSimpleKvTableRow(key) {
-                                CopyableText(value)
-                            }
-                        }
-                    }
-                }
+                let sortedOptions = options.sorted { $0.key < $1.key }.map { KeyValueItem(key: $0.key, value: $0.value) }
+                DetailsKvTableSection("Options", items: sortedOptions)
             }
 
-            DividedButtonStack {
-                DividedRowButton {
+            DetailsButtonSection {
+                DetailsButton {
                     volume.openNfsDirectory()
                 } label: {
                     Label("Files", systemImage: "folder")
                 }
 
-                DividedRowButton {
+                DetailsButton {
                     volume.openExportPanel(
                         windowHolder: windowHolder,
                         actionTracker: actionTracker,
