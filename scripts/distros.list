@@ -1,9 +1,9 @@
 almalinux:8
 almalinux:9
-alpine:3.18
 alpine:3.19
 alpine:3.20
 alpine:3.21
+alpine:3.22
 alpine:edge
 alt:Sisyphus
 alt:p11
