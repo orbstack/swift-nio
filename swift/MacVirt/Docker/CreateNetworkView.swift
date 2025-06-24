@@ -27,22 +27,25 @@ struct CreateNetworkView: View {
                         self.name = $0
                     })
 
-                ValidatedTextField("Name", text: nameBinding, validate: { value in
-                    // duplicate
-                    if vmModel.dockerNetworks?[value] != nil {
-                        return "Already exists"
-                    }
+                ValidatedTextField(
+                    "Name", text: nameBinding,
+                    validate: { value in
+                        // duplicate
+                        if vmModel.dockerNetworks?[value] != nil {
+                            return "Already exists"
+                        }
 
-                    // regex
-                    if dockerRestrictedNamePattern.firstMatch(
-                        in: value, options: [], range: NSRange(location: 0, length: value.utf16.count))
-                        == nil
-                    {
-                        return "Invalid name"
-                    }
+                        // regex
+                        if dockerRestrictedNamePattern.firstMatch(
+                            in: value, options: [],
+                            range: NSRange(location: 0, length: value.utf16.count))
+                            == nil
+                        {
+                            return "Invalid name"
+                        }
 
-                    return nil
-                })
+                        return nil
+                    })
             }
 
             Section("Advanced") {
@@ -64,7 +67,8 @@ struct CreateNetworkView: View {
             }
         } onSubmit: {
             Task { @MainActor in
-                await vmModel.tryDockerNetworkCreate(name, subnet: subnet.isEmpty ? nil : subnet, enableIPv6: enableIPv6)
+                await vmModel.tryDockerNetworkCreate(
+                    name, subnet: subnet.isEmpty ? nil : subnet, enableIPv6: enableIPv6)
             }
             isPresented = false
         }.onAppear {

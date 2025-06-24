@@ -36,8 +36,8 @@ struct DockerNetworkItem: View, Equatable {
 
                     if let ipamConfig = network.ipam?.config?.first {
                         Text(ipamConfig.subnet)
-                        .font(.subheadline)
-                        .foregroundColor(.secondary)
+                            .font(.subheadline)
+                            .foregroundColor(.secondary)
                     }
                 }
             }

@@ -65,14 +65,18 @@ struct DockerVolumeDetails: View {
             if let labels = volume.labels,
                 !labels.isEmpty
             {
-                let sortedLabels = labels.sorted { $0.key < $1.key }.map { KeyValueItem(key: $0.key, value: $0.value) }
+                let sortedLabels = labels.sorted { $0.key < $1.key }.map {
+                    KeyValueItem(key: $0.key, value: $0.value)
+                }
                 DetailsKvTableSection("Labels", items: sortedLabels)
             }
 
             if let options = volume.options,
                 !options.isEmpty
             {
-                let sortedOptions = options.sorted { $0.key < $1.key }.map { KeyValueItem(key: $0.key, value: $0.value) }
+                let sortedOptions = options.sorted { $0.key < $1.key }.map {
+                    KeyValueItem(key: $0.key, value: $0.value)
+                }
                 DetailsKvTableSection("Options", items: sortedOptions)
             }
 

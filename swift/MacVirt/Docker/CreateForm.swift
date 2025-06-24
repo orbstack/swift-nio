@@ -46,7 +46,10 @@ struct ValidatedTextField<Label: View>: View {
     @State private var errorText: String?
     @State private var errorHeight = 0.0
 
-    init(text: Binding<String>, prompt: Text? = nil, label: @escaping () -> Label, validate: @escaping (String) -> String?) {
+    init(
+        text: Binding<String>, prompt: Text? = nil, label: @escaping () -> Label,
+        validate: @escaping (String) -> String?
+    ) {
         self.label = label
         self.text = text
         self.prompt = prompt
@@ -84,7 +87,10 @@ struct ValidatedTextField<Label: View>: View {
 }
 
 extension ValidatedTextField where Label == Text {
-    init(_ title: String, text: Binding<String>, prompt: Text? = nil, validate: @escaping (String) -> String?) {
+    init(
+        _ title: String, text: Binding<String>, prompt: Text? = nil,
+        validate: @escaping (String) -> String?
+    ) {
         self.init(text: text, prompt: prompt, label: { Text(title) }, validate: validate)
     }
 }
@@ -100,7 +106,7 @@ private struct ValidatedFieldKey: PreferenceKey {
     }
 }
 
-private extension EnvironmentValues {
+extension EnvironmentValues {
     var createSubmitFunc: () -> Void {
         get { self[CreateSubmitFuncKey.self] }
         set { self[CreateSubmitFuncKey.self] = newValue }

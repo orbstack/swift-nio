@@ -49,15 +49,17 @@ struct DockerNetworkDetails: View {
                 }
             }
 
-            if !network.labels.isEmpty
-            {
-                let sortedLabels = network.labels.sorted { $0.key < $1.key }.map { KeyValueItem(key: $0.key, value: $0.value) }
+            if !network.labels.isEmpty {
+                let sortedLabels = network.labels.sorted { $0.key < $1.key }.map {
+                    KeyValueItem(key: $0.key, value: $0.value)
+                }
                 DetailsKvTableSection("Labels", items: sortedLabels)
             }
 
-            if !network.options.isEmpty
-            {
-                let sortedOptions = network.options.sorted { $0.key < $1.key }.map { KeyValueItem(key: $0.key, value: $0.value) }
+            if !network.options.isEmpty {
+                let sortedOptions = network.options.sorted { $0.key < $1.key }.map {
+                    KeyValueItem(key: $0.key, value: $0.value)
+                }
                 DetailsKvTableSection("Options", items: sortedOptions)
             }
         }

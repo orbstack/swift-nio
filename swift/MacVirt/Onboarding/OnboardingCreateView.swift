@@ -17,9 +17,6 @@ struct OnboardingCreateView: View {
 
     @State private var name = "ubuntu"
     @State private var nameChanged = false
-    @State private var isNameDuplicate = false
-    @State private var isNameInvalid = false
-    @State private var duplicateHeight = 0.0
     #if arch(arm64)
         @State private var arch = "arm64"
     #else
@@ -27,6 +24,8 @@ struct OnboardingCreateView: View {
     #endif
     @State private var distro = Distro.ubuntu
     @State private var version = Distro.ubuntu.versions.last!.key
+
+    @Environment(\.createSubmitFunc) private var submitFunc
 
     var body: some View {
         VStack {
@@ -48,86 +47,101 @@ struct OnboardingCreateView: View {
             HStack {
                 Spacer()
                 VStack(alignment: .center) {
-                    let nameBinding = Binding<String>(
-                        get: { name },
-                        set: {
-                            if $0 != name {
-                                self.nameChanged = true
-                            }
-                            self.name = $0
-                        })
+                    CreateForm {
+                        Section {
+                            let nameBinding = Binding<String>(
+                                get: { name },
+                                set: {
+                                    if $0 != name {
+                                        self.nameChanged = true
+                                    }
+                                    self.name = $0
+                                })
 
-                    Form {
-                        TextField("Name", text: nameBinding)
-                            .onSubmit {
-                                create()
+                            ValidatedTextField(
+                                "Name", text: nameBinding,
+                                validate: { value in
+                                    // empty is not allowed
+                                    if value.isEmpty {
+                                        return "Name cannot be empty"
+                                    }
+
+                                    // duplicate
+                                    if let containers = vmModel.machines,
+                                        containers.values.contains(where: {
+                                            $0.record.name == value
+                                        })
+                                    {
+                                        return "Already exists"
+                                    }
+
+                                    // regex
+                                    let isValid =
+                                        containerNameRegex.firstMatch(
+                                            in: value, options: [],
+                                            range: NSRange(location: 0, length: value.utf16.count))
+                                        != nil && !containerNameBlacklist.contains(value)
+                                    if !isValid {
+                                        return "Invalid name"
+                                    }
+
+                                    return nil
+                                })
+
+                            Picker("Distribution", selection: $distro) {
+                                ForEach(Distro.allCases, id: \.self) { distro in
+                                    Text(distro.friendlyName).tag(distro)
+                                }
+                            }
+                            .onChange(of: distro) {
+                                if !nameChanged {
+                                    name = $0.rawValue
+                                }
+
+                                #if arch(arm64)
+                                    // NixOS doesn't work with Rosetta
+                                    if $0 == .nixos {
+                                        arch = "arm64"
+                                    }
+                                #endif
+
+                                version = $0.versions.last!.key
                             }
 
-                        let errorText = isNameInvalid ? "Invalid name" : "Already exists"
-                        Text(errorText)
-                            .font(.caption)
-                            .foregroundColor(.red)
-                            .frame(maxHeight: duplicateHeight)
-                            .clipped()
-
-                        Picker("Distribution", selection: $distro) {
-                            ForEach(Distro.allCases, id: \.self) { distro in
-                                Text(distro.friendlyName).tag(distro)
-                            }
-                        }
-                        .onChange(of: distro) {
-                            if !nameChanged {
-                                name = $0.rawValue
-                            }
+                            Picker("Version", selection: $version) {
+                                ForEach(distro.versions, id: \.self) { version in
+                                    if version == distro.versions.last! && distro.versions.count > 1
+                                    {
+                                        Divider()
+                                    }
+                                    Text(version.friendlyName).tag(version.key)
+                                }
+                            }.disabled(distro.versions.count == 1)
 
                             #if arch(arm64)
-                                // NixOS doesn't work with Rosetta
-                                if $0 == .nixos {
-                                    arch = "arm64"
+                                Picker("CPU type", selection: $arch) {
+                                    Text("Apple").tag("arm64")
+                                    Text("Intel").tag("amd64")
                                 }
+                                .pickerStyle(.segmented)
+                                .disabled(distro == .nixos)
                             #endif
+                        }
+                    } onSubmit: {
+                        Task { @MainActor in
+                            // wait for scon before doing anything - might not be started yet during onboarding
+                            await vmModel.waitForStateEquals(.running)
 
-                            version = $0.versions.last!.key
-                        }
-                        .onChange(of: name) { newName in
-                            checkName(newName)
-                        }
-                        .onChange(of: isNameDuplicate || isNameInvalid) { hasError in
-                            if hasError {
-                                withAnimation(.spring()) {
-                                    duplicateHeight =
-                                        NSFont.preferredFont(forTextStyle: .caption1).pointSize
-                                }
-                            } else {
-                                withAnimation(.spring()) {
-                                    duplicateHeight = 0
-                                }
+                            // user picked linux, so stop docker container to save memory
+                            if let dockerMachine = vmModel.dockerMachine {
+                                await vmModel.tryStopContainer(dockerMachine.record)
                             }
-                        }
-                        .task {
-                            checkName(name)
-                        }
-                        .onChange(of: vmModel.machines) { _ in
-                            checkName(name)
-                        }
 
-                        Picker("Version", selection: $version) {
-                            ForEach(distro.versions, id: \.self) { version in
-                                if version == distro.versions.last! && distro.versions.count > 1 {
-                                    Divider()
-                                }
-                                Text(version.friendlyName).tag(version.key)
-                            }
-                        }.disabled(distro.versions.count == 1)
-
-                        #if arch(arm64)
-                            Picker("CPU type", selection: $arch) {
-                                Text("Apple").tag("arm64")
-                                Text("Intel").tag("amd64")
-                            }
-                            .pickerStyle(.segmented)
-                            .disabled(distro == .nixos)
-                        #endif
+                            // then create
+                            await vmModel.tryCreateContainer(
+                                name: name, distro: distro, version: version, arch: arch)
+                        }
+                        onboardingController.finish()
                     }.frame(minWidth: 200)
                 }.fixedSize()
                 Spacer()
@@ -146,56 +160,11 @@ struct OnboardingCreateView: View {
                 CtaButton(
                     label: "Create",
                     action: {
-                        create()
+                        submitFunc()
                     }
                 )
-                // empty is disabled but not error
-                .disabled(isNameDuplicate || isNameInvalid || name.isEmpty)
                 Spacer()
             }
         }
-    }
-
-    private func checkName(_ newName: String) {
-        if let containers = vmModel.machines,
-            containers.values.contains(where: { $0.record.name == newName })
-        {
-            isNameDuplicate = true
-        } else {
-            isNameDuplicate = false
-        }
-
-        // regex
-        let isValid =
-            containerNameRegex.firstMatch(
-                in: newName, options: [], range: NSRange(location: 0, length: newName.utf16.count))
-            != nil && !containerNameBlacklist.contains(newName)
-        if !newName.isEmpty && !isValid {
-            isNameInvalid = true
-        } else {
-            isNameInvalid = false
-        }
-    }
-
-    private func create() {
-        // disabled
-        if isNameDuplicate || isNameInvalid || name.isEmpty {
-            return
-        }
-
-        Task { @MainActor in
-            // wait for scon before doing anything - might not be started yet during onboarding
-            await vmModel.waitForStateEquals(.running)
-
-            // user picked linux, so stop docker container to save memory
-            if let dockerMachine = vmModel.dockerMachine {
-                await vmModel.tryStopContainer(dockerMachine.record)
-            }
-
-            // then create
-            await vmModel.tryCreateContainer(
-                name: name, distro: distro, version: version, arch: arch)
-        }
-        onboardingController.finish()
     }
 }

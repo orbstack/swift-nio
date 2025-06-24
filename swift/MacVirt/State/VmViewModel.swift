@@ -1518,7 +1518,8 @@ class VmViewModel: ObservableObject {
     }
 
     @MainActor
-    private func doTryDockerNetworkAction(_ label: String, _ action: () async throws -> Void) async {
+    private func doTryDockerNetworkAction(_ label: String, _ action: () async throws -> Void) async
+    {
         do {
             try await action()
         } catch {
@@ -1528,21 +1529,23 @@ class VmViewModel: ObservableObject {
 
     func tryDockerNetworkCreate(_ name: String, subnet: String?, enableIPv6: Bool) async {
         await doTryDockerNetworkAction("create") {
-            let ipam = if let subnet {
-                DKIPAM(
-                    driver: "",
-                    config: [DKIPAMConfig(subnet: subnet, gateway: "")],
-                    options: nil,
-                )
-            } else {
-                DKIPAM?(nil)
-            }
+            let ipam =
+                if let subnet {
+                    DKIPAM(
+                        driver: "",
+                        config: [DKIPAMConfig(subnet: subnet, gateway: "")],
+                        options: nil,
+                    )
+                } else {
+                    DKIPAM?(nil)
+                }
 
-            let options: [String: String] = if enableIPv6 {
-                ["com.docker.network.enable_ipv6": "true"]
-            } else {
-                [:]
-            }
+            let options: [String: String] =
+                if enableIPv6 {
+                    ["com.docker.network.enable_ipv6": "true"]
+                } else {
+                    [:]
+                }
 
             let nw = DKNetwork(
                 name: name,

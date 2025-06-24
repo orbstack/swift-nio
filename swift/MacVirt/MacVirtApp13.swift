@@ -240,7 +240,8 @@ struct MacVirtApp13: App {
                     Button {
                         selectedTab = .dockerNetworks
                     } label: {
-                        Label("Networks", systemImage: "point.3.filled.connected.trianglepath.dotted")
+                        Label(
+                            "Networks", systemImage: "point.3.filled.connected.trianglepath.dotted")
                     }
                     .keyboardShortcut("4", modifiers: [.command])
                 }

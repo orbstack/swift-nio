@@ -14,34 +14,32 @@ struct ImportVolumeView: View {
     @EnvironmentObject private var actionTracker: ActionTracker
 
     @State private var name = ""
-    @State private var isNameDuplicate = false
-    @State private var isNameInvalid = false
-    @State private var duplicateHeight = 0.0
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            Text("Import Volume")
-                .font(.headline.weight(.semibold))
-                .padding(.bottom, 8)
-
-            Form {
-                Section {
-                    TextField("Name", text: $name)
-                        .onSubmit {
-                            create()
+        CreateForm {
+            Section("Import Volume") {
+                ValidatedTextField(
+                    "Name", text: $name,
+                    validate: { value in
+                        // duplicate
+                        if vmModel.dockerVolumes?[value] != nil {
+                            return "Already exists"
                         }
 
-                    let errorText = isNameInvalid ? "Invalid name" : "Already exists"
-                    Text(errorText)
-                        .font(.caption)
-                        .foregroundColor(.red)
-                        .frame(maxHeight: duplicateHeight)
-                        .clipped()
-                }
+                        // regex
+                        if dockerRestrictedNamePattern.firstMatch(
+                            in: value, options: [],
+                            range: NSRange(location: 0, length: value.utf16.count))
+                            == nil
+                        {
+                            return "Invalid name"
+                        }
+
+                        return nil
+                    })
             }
 
-            HStack {
-                Spacer()
+            CreateButtonRow {
                 Button {
                     vmModel.presentImportVolume = nil
                 } label: {
@@ -49,20 +47,18 @@ struct ImportVolumeView: View {
                 }
                 .keyboardShortcut(.cancelAction)
 
-                Button {
-                    create()
-                } label: {
-                    Text("Import")
-                }
-                .keyboardShortcut(.defaultAction)
-                // empty is disabled but not error
-                .disabled(isNameDuplicate || isNameInvalid || name.isEmpty)
+                CreateSubmitButton("Import")
+                    .keyboardShortcut(.defaultAction)
             }
-            .padding(.top, 8)
-        }
-        .padding(20)
-        .onChange(of: name) { newName in
-            checkName(newName)
+        } onSubmit: {
+            let url = vmModel.presentImportVolume!
+            Task { @MainActor in
+                // TODO: figure out how to support changing AKList selection so that we can just select + scroll to the new volume
+                await actionTracker.with(volumeId: name, action: .importing) {
+                    await vmModel.tryDockerImportVolume(url: url, newName: name)
+                }
+            }
+            vmModel.presentImportVolume = nil
         }
         .onAppear {
             do {
@@ -73,54 +69,6 @@ struct ImportVolumeView: View {
             } catch {
                 NSLog("Failed to read config from export: \(error)")
             }
-
-            checkName(name, animate: false)
         }
-        .onChange(of: vmModel.dockerVolumes) { _ in
-            checkName(name)
-        }
-    }
-
-    private func checkName(_ newName: String, animate: Bool = true) {
-        isNameDuplicate = (vmModel.dockerVolumes?[newName] != nil)
-
-        // regex
-        if !newName.isEmpty
-            && dockerRestrictedNamePattern.firstMatch(
-                in: newName, options: [], range: NSRange(location: 0, length: newName.utf16.count))
-                == nil
-        {
-            isNameInvalid = true
-        } else {
-            isNameInvalid = false
-        }
-
-        let hasError = isNameDuplicate || isNameInvalid
-        let animation = animate ? Animation.spring() : nil
-        if hasError {
-            withAnimation(animation) {
-                duplicateHeight = NSFont.preferredFont(forTextStyle: .caption1).pointSize
-            }
-        } else {
-            withAnimation(animation) {
-                duplicateHeight = 0
-            }
-        }
-    }
-
-    private func create() {
-        // disabled
-        if isNameDuplicate || isNameInvalid || name.isEmpty {
-            return
-        }
-
-        let url = vmModel.presentImportVolume!
-        Task { @MainActor in
-            // TODO: figure out how to support changing AKList selection so that we can just select + scroll to the new volume
-            await actionTracker.with(volumeId: name, action: .importing) {
-                await vmModel.tryDockerImportVolume(url: url, newName: name)
-            }
-        }
-        vmModel.presentImportVolume = nil
     }
 }

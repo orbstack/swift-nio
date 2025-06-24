@@ -38,7 +38,10 @@ struct MachineDetails: View {
             }
 
             DetailsKvSection("Image") {
-                DetailsRow("Distro", text: Distro.map[info.record.image.distro]?.friendlyName ?? info.record.image.distro)
+                DetailsRow(
+                    "Distro",
+                    text: Distro.map[info.record.image.distro]?.friendlyName
+                        ?? info.record.image.distro)
                 DetailsRow("Version", text: info.record.image.version)
                 DetailsRow("Architecture", text: info.record.image.arch)
             }

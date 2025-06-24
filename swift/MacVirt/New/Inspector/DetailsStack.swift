@@ -126,7 +126,11 @@ struct DetailsKvTableSection<Key: View, Value: View>: View {
     @ViewBuilder private let key: (KeyValueItem) -> Key
     @ViewBuilder private let value: (KeyValueItem) -> Value
 
-    init(_ label: String, items: [KeyValueItem], @ViewBuilder key: @escaping (KeyValueItem) -> Key = { Text($0.key) }, @ViewBuilder value: @escaping (KeyValueItem) -> Value = { CopyableText($0.value) }) {
+    init(
+        _ label: String, items: [KeyValueItem],
+        @ViewBuilder key: @escaping (KeyValueItem) -> Key = { Text($0.key) },
+        @ViewBuilder value: @escaping (KeyValueItem) -> Value = { CopyableText($0.value) }
+    ) {
         self.label = label
         self.items = items
         self.key = key

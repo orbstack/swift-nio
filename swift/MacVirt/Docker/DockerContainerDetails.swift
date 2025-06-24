@@ -28,7 +28,8 @@ struct DockerContainerDetails: View {
                 if let ipAddress = container.ipAddress {
                     if vmModel.netBridgeAvailable,
                         let domain = container.preferredDomain,
-                        let url = URL(string: "\(container.getPreferredProto(vmModel))://\(domain)") {
+                        let url = URL(string: "\(container.getPreferredProto(vmModel))://\(domain)")
+                    {
                         DetailsRow("Domain") {
                             CopyableText(copyAs: domain) {
                                 CustomLink(domain, url: url)

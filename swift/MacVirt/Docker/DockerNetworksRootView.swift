@@ -31,10 +31,10 @@ struct DockerNetworksRootView: View {
                     // 46 is empirically correct, matches auto height. not sure where it comes from
                     AKList(listData, selection: $selection, rowHeight: 46) { network in
                         DockerNetworkItem(network: network)
-                        .equatable()
-                        .environmentObject(vmModel)
-                        .environmentObject(windowTracker)
-                        .environmentObject(actionTracker)
+                            .equatable()
+                            .environmentObject(vmModel)
+                            .environmentObject(windowTracker)
+                            .environmentObject(actionTracker)
                     }
                     .navigationSubtitle("\(filteredNetworks.count) total")
                     .inspectorSelection(selection)
@@ -44,7 +44,9 @@ struct DockerNetworksRootView: View {
                     HStack {
                         Spacer()
                         if searchQuery.isEmpty {
-                            ContentUnavailableViewCompat("No Networks", systemImage: "point.3.filled.connected.trianglepath.dotted")
+                            ContentUnavailableViewCompat(
+                                "No Networks",
+                                systemImage: "point.3.filled.connected.trianglepath.dotted")
                         } else {
                             ContentUnavailableViewCompat.search
                         }
@@ -69,7 +71,7 @@ struct DockerNetworksRootView: View {
                 || network.name.localizedCaseInsensitiveContains(searchQuery)
                 || (network.ipam?.config?.contains {
                     $0.subnet.localizedCaseInsensitiveContains(searchQuery)
-                    || $0.gateway.localizedCaseInsensitiveContains(searchQuery)
+                        || $0.gateway.localizedCaseInsensitiveContains(searchQuery)
                 } ?? false)
         }
         networks.sort(accordingTo: sortDescriptor)
@@ -77,17 +79,21 @@ struct DockerNetworksRootView: View {
     }
 }
 
-private extension [DKNetwork] {
-    mutating func sort(accordingTo descriptor: DockerNetworkSortDescriptor) {
+extension [DKNetwork] {
+    fileprivate mutating func sort(accordingTo descriptor: DockerNetworkSortDescriptor) {
         switch descriptor {
         case .name:
             self.sort(by: { $0.name < $1.name })
         case .containers:
             self.sort(by: { $0.containers?.count ?? 0 > $1.containers?.count ?? 0 })
         case .dateDescending:
-            self.sort(by: { $0.createdDate ?? Date.distantPast > $1.createdDate ?? Date.distantPast })
+            self.sort(by: {
+                $0.createdDate ?? Date.distantPast > $1.createdDate ?? Date.distantPast
+            })
         case .dateAscending:
-            self.sort(by: { $0.createdDate ?? Date.distantPast < $1.createdDate ?? Date.distantPast })
+            self.sort(by: {
+                $0.createdDate ?? Date.distantPast < $1.createdDate ?? Date.distantPast
+            })
         }
     }
 }

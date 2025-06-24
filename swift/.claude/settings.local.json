@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(swift build:*)",
+      "mcp__ide__getDiagnostics",
+      "Bash(treefmt:*)"
+    ],
+    "deny": []
+  }
+}
