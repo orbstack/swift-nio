@@ -1526,9 +1526,45 @@ class VmViewModel: ObservableObject {
         }
     }
 
-    func tryDockerNetworkCreate(_ name: String) async {
+    func tryDockerNetworkCreate(_ name: String, subnet: String?, enableIPv6: Bool) async {
         await doTryDockerNetworkAction("create") {
-            try await vmgr.dockerNetworkCreate(DKNetworkCreateOptions(name: name, checkDuplicate: true))
+            let ipam = if let subnet {
+                DKIPAM(
+                    driver: "",
+                    config: [DKIPAMConfig(subnet: subnet, gateway: "")],
+                    options: nil,
+                )
+            } else {
+                DKIPAM?(nil)
+            }
+
+            let options: [String: String] = if enableIPv6 {
+                ["com.docker.network.enable_ipv6": "true"]
+            } else {
+                [:]
+            }
+
+            let nw = DKNetwork(
+                name: name,
+                id: "",
+                created: nil,
+                scope: nil,
+                driver: "",
+                enableIPv6: enableIPv6,
+                ipam: ipam,
+                internal: false,
+                attachable: false,
+                ingress: false,
+                configFrom: DKConfigReference(
+                    network: ""
+                ),
+                configOnly: false,
+                containers: [:],
+                options: options,
+                labels: [:],
+                checkDuplicate: nil,
+            )
+            try await vmgr.dockerNetworkCreate(nw)
         }
     }
 

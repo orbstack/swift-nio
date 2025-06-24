@@ -151,7 +151,7 @@ class VmService {
         try await c.call("DockerImageDelete", args: IDRequest(id: id))
     }
 
-    func dockerNetworkCreate(_ options: DKNetworkCreateOptions) async throws {
+    func dockerNetworkCreate(_ options: DKNetwork) async throws {
         try await c.call("DockerNetworkCreate", args: options)
     }
 

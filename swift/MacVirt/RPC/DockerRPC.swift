@@ -337,17 +337,6 @@ struct DKVolumeCreateOptions: Codable {
     }
 }
 
-struct DKNetworkCreateOptions: Codable {
-    let name: String
-
-    let checkDuplicate: Bool?
-
-    enum CodingKeys: String, CodingKey {
-        case name = "Name"
-        case checkDuplicate = "CheckDuplicate"
-    }
-}
-
 struct DKVolume: AKListItem, Codable, Identifiable, Equatable {
     let createdAt: Date?
     let driver: String

@@ -13,6 +13,8 @@ struct CreateNetworkView: View {
     @EnvironmentObject private var vmModel: VmViewModel
 
     @State private var name = ""
+    @State private var subnet = ""
+    @State private var enableIPv6 = false
 
     @Binding var isPresented: Bool
 
@@ -43,6 +45,12 @@ struct CreateNetworkView: View {
                 })
             }
 
+            Section("Advanced") {
+                Toggle("IPv6", isOn: $enableIPv6)
+
+                TextField("Subnet (IPv4)", text: $subnet, prompt: Text("172.30.30.0/24"))
+            }
+
             CreateButtonRow {
                 Button {
                     isPresented = false
@@ -56,9 +64,11 @@ struct CreateNetworkView: View {
             }
         } onSubmit: {
             Task { @MainActor in
-                await vmModel.tryDockerNetworkCreate(name)
+                await vmModel.tryDockerNetworkCreate(name, subnet: subnet.isEmpty ? nil : subnet, enableIPv6: enableIPv6)
             }
             isPresented = false
+        }.onAppear {
+            enableIPv6 = vmModel.dockerEnableIPv6
         }
     }
 }
