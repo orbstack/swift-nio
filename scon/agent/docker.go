@@ -498,6 +498,14 @@ func (d *DockerAgent) doSendUIEvent() error {
 		event.CurrentImages = images
 	}
 
+	if d.pendingUIEntities[uitypes.DockerEntityNetwork] {
+		networks, err := d.proxiedClient.ListNetworksFull()
+		if err != nil {
+			return err
+		}
+		event.CurrentNetworks = networks
+	}
+
 	err := d.host.OnUIEvent(uitypes.UIEvent{
 		Docker: &event,
 	})
@@ -577,6 +585,7 @@ func (d *DockerAgent) monitorEvents() error {
 		if conf.Debug() {
 			logrus.WithField("event", event).Debug("engine event")
 		}
+
 		switch event.Type {
 		case "container":
 			switch event.Action {
@@ -615,7 +624,10 @@ func (d *DockerAgent) monitorEvents() error {
 		case "network":
 			switch event.Action {
 			// "connect" and "disconnect" for dynamic bridge creation depending on active containers
-			case "create", "destroy", "disconnect":
+			case "create", "destroy":
+				d.triggerUIEvent(uitypes.DockerEntityNetwork)
+				fallthrough
+			case "disconnect":
 				// we only care about bridges
 				if event.Actor.Attributes.Type == "bridge" {
 					d.networkRefreshDebounce.Call()

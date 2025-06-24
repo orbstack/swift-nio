@@ -162,6 +162,7 @@ enum NavTabId: String, Defaults.Serializable {
     case dockerContainers = "docker"
     case dockerVolumes = "docker-volumes"
     case dockerImages = "docker-images"
+    case dockerNetworks = "docker-networks"
 
     case k8sPods = "k8s-pods"
     case k8sServices = "k8s-services"
@@ -187,6 +188,28 @@ enum DockerGenericSortDescriptor: String, Defaults.Serializable, CaseIterable, H
             return "Name"
         case .size:
             return "Size"
+        case .dateDescending:
+            return "Newest"
+        case .dateAscending:
+            return "Oldest"
+        }
+    }
+}
+
+enum DockerNetworkSortDescriptor: String, Defaults.Serializable, CaseIterable, Hashable,
+    CustomStringConvertible
+{
+    case name = "nameAscending"
+    case containers = "containersAscending"
+    case dateDescending = "dateDescending"
+    case dateAscending = "dateAscending"
+
+    var description: String {
+        switch self {
+        case .name:
+            return "Name"
+        case .containers:
+            return "Number of Containers"
         case .dateDescending:
             return "Newest"
         case .dateAscending:
@@ -234,6 +257,9 @@ extension Defaults.Keys {
 
     static let dockerImagesSortDescriptor = Key<DockerGenericSortDescriptor>(
         "dockerImagesSortDescriptor", default: .name, suite: suite)
+
+    static let dockerNetworksSortDescriptor = Key<DockerNetworkSortDescriptor>(
+        "dockerNetworksSortDescriptor", default: .name, suite: suite)
 
     static let dockerMigrationDismissed = Key<Bool>(
         "docker_migrationDismissed", default: false, suite: suite)

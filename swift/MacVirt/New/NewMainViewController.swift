@@ -136,6 +136,23 @@ class NewMainViewController: NSViewController {
             requiresVmRunning: false, menu: menu)
     }()
 
+    lazy var networksPlusButton = makeToolbarItem(
+        itemIdentifier: .dockerNetworksNew,
+        icon: "plus",
+        title: "New",
+        action: #selector(actionDockerNetworksNew)
+    )
+
+    private lazy var networksSortDelegate = EnumMenuDelegate<DockerNetworkSortDescriptor>(
+        key: .dockerNetworksSortDescriptor)
+    lazy var networksSortMenu = {
+        let menu = NSMenu()
+        menu.delegate = networksSortDelegate
+        return self.makeMenuToolbarItem(
+            itemIdentifier: .dockerNetworksSort, icon: "arrow.up.arrow.down", title: "Sort",
+            requiresVmRunning: false, menu: menu)
+    }()
+
     lazy var podsStartToggle = {
         let item = NSToolbarItem(itemIdentifier: .k8sEnable)
         let toggle = NSSwitch()

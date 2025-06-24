@@ -64,6 +64,9 @@ extension SidebarView {
 
             NavTab("Images", systemImage: "doc.zipper")
                 .tag(NavTabId.dockerImages)
+
+            NavTab("Networks", systemImage: "point.3.filled.connected.trianglepath.dotted")
+                .tag(NavTabId.dockerNetworks)
         }
 
         Section(header: Text("Kubernetes")) {

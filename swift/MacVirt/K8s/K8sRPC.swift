@@ -4,13 +4,11 @@
 
 import Foundation
 
-private let relativeDateFormatter = makeRelativeDateFormatter()
-
-private func makeRelativeDateFormatter() -> RelativeDateTimeFormatter {
+private let relativeDateFormatter = {
     let formatter = RelativeDateTimeFormatter()
     formatter.formattingContext = .standalone
     return formatter
-}
+}()
 
 enum K8SResourceId: Equatable, Identifiable, Hashable {
     // uid isn't very useful. it breaks using ID as a check

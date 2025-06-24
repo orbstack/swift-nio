@@ -13,7 +13,6 @@ func (m *Migrator) migrateOneNetwork(n dockertypes.Network) error {
 	logrus.Infof("Migrating network %s", n.Name)
 
 	// create network on dest, mostly same flags
-	var newNetResp dockertypes.NetworkCreateResponse
 	newNetReq := n
 	newNetReq.ID = ""
 	newNetReq.Created = ""
@@ -40,7 +39,7 @@ func (m *Migrator) migrateOneNetwork(n dockertypes.Network) error {
 		newNetReq.IPAM.Config = newIPAMConfig
 	}
 
-	err := m.destClient.Call("POST", "/networks/create", newNetReq, &newNetResp)
+	newNetResp, err := m.destClient.CreateNetwork(newNetReq)
 	if err != nil {
 		return fmt.Errorf("create network: %w", err)
 	}

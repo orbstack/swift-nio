@@ -32,6 +32,8 @@ extension NewMainViewController {
                 self.actionDockerImagesImport(nil)
             case .newMachine:
                 self.actionMachinesNew(nil)
+            case .newNetwork:
+                self.actionDockerNetworksNew(nil)
             }
         }
         .store(in: &cancellables)

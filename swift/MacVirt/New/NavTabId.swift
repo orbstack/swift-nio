@@ -19,6 +19,8 @@ extension NavTabId {
             ]
         case .dockerImages:
             return [.dockerImagesSort, .dockerImagesImport, .searchItem]
+        case .dockerNetworks:
+            return [.dockerNetworksSort, .dockerNetworksNew, .searchItem]
 
         case .k8sPods:
             return [.k8sEnable, .k8sPodsFilter, .searchItem]
@@ -70,6 +72,9 @@ extension NSToolbarItem.Identifier {
     static let dockerImagesOpen = NSToolbarItem.Identifier("dockerImagesOpen")
     static let dockerImagesSort = NSToolbarItem.Identifier("dockerImagesSort")
     static let dockerImagesImport = NSToolbarItem.Identifier("dockerImagesImport")
+
+    static let dockerNetworksNew = NSToolbarItem.Identifier("dockerNetworksNew")
+    static let dockerNetworksSort = NSToolbarItem.Identifier("dockerNetworksSort")
 
     static let k8sEnable = NSToolbarItem.Identifier("k8sEnable")
     static let k8sPodsFilter = NSToolbarItem.Identifier("k8sPodsFilter")

@@ -24,6 +24,7 @@ enum MenuActionRouter {
     case importVolume
     case importImage
     case newMachine
+    case newNetwork
 }
 
 enum ToolbarAction {
@@ -82,6 +83,7 @@ enum VmError: LocalizedError, CustomNSError, Equatable {
     case dockerContainerActionError(action: String, cause: Error)
     case dockerVolumeActionError(action: String, cause: Error)
     case dockerImageActionError(action: String, cause: Error)
+    case dockerNetworkActionError(action: String, cause: Error)
     case dockerComposeActionError(action: String, cause: Error)
     case dockerConfigSaveError(cause: Error)
     case dockerExitError(status: Int, message: String?)
@@ -158,6 +160,8 @@ enum VmError: LocalizedError, CustomNSError, Equatable {
             return "Can’t \(action) volume"
         case let .dockerImageActionError(action, _):
             return "Can’t \(action) image"
+        case let .dockerNetworkActionError(action, _):
+            return "Can’t \(action) network"
         case let .dockerComposeActionError(action, _):
             return "Can’t \(action) project"
         case .dockerConfigSaveError:
@@ -349,6 +353,8 @@ enum VmError: LocalizedError, CustomNSError, Equatable {
             return cause
         case let .dockerImageActionError(_, cause):
             return cause
+        case let .dockerNetworkActionError(_, cause):
+            return cause
         case let .dockerComposeActionError(_, cause):
             return cause
         case let .dockerConfigSaveError(cause):
@@ -511,6 +517,7 @@ class VmViewModel: ObservableObject {
                 dockerContainers = nil
                 dockerVolumes = nil
                 dockerImages = nil
+                dockerNetworks = nil
                 dockerDf = nil
 
                 k8sPods = nil
@@ -538,6 +545,7 @@ class VmViewModel: ObservableObject {
     @Published private(set) var dockerContainers: MappedContainers?
     @Published private(set) var dockerVolumes: [String: DKVolume]?
     @Published private(set) var dockerImages: [String: DKSummaryAndFullImage]?
+    @Published private(set) var dockerNetworks: [String: DKNetwork]?
     @Published private(set) var dockerDf: MappedDf?
 
     // Kubernetes
@@ -564,6 +572,7 @@ class VmViewModel: ObservableObject {
     @Published var presentAddPaths = false
     @Published var presentCreateMachine = false
     @Published var presentCreateVolume = false
+    @Published var presentCreateNetwork = false
     @Published var presentImportMachine: URL? = nil
     @Published var presentRequiresLicense = false
     @Published var presentImportVolume: URL? = nil
@@ -640,6 +649,9 @@ class VmViewModel: ObservableObject {
                     if let images = event.currentImages {
                         self.onNewDockerImages(rawImages: images)
                     }
+                    if let networks = event.currentNetworks {
+                        self.onNewDockerNetworks(rawNetworks: networks)
+                    }
                     if let systemDf = event.currentSystemDf {
                         self.onNewDockerSystemDf(resp: systemDf)
                     }
@@ -647,6 +659,7 @@ class VmViewModel: ObservableObject {
                         self.dockerContainers = nil
                         self.dockerVolumes = nil
                         self.dockerImages = nil
+                        self.dockerNetworks = nil
                         self.dockerDf = nil
 
                         if exitEvent.status != 0 {
@@ -868,6 +881,13 @@ class VmViewModel: ObservableObject {
     private func onNewDockerImages(rawImages: [DKSummaryAndFullImage]) {
         dockerImages = rawImages.mapToDict { image in
             (image.summary.id, image)
+        }
+    }
+
+    @MainActor
+    private func onNewDockerNetworks(rawNetworks: [DKNetwork]) {
+        dockerNetworks = rawNetworks.mapToDict { network in
+            (network.name, network)
         }
     }
 
@@ -1494,6 +1514,27 @@ class VmViewModel: ObservableObject {
     func tryDockerImageRemove(_ id: String) async {
         await doTryDockerImageAction("delete") {
             try await vmgr.dockerImageRemove(id)
+        }
+    }
+
+    @MainActor
+    private func doTryDockerNetworkAction(_ label: String, _ action: () async throws -> Void) async {
+        do {
+            try await action()
+        } catch {
+            setError(.dockerNetworkActionError(action: "\(label)", cause: error))
+        }
+    }
+
+    func tryDockerNetworkCreate(_ name: String) async {
+        await doTryDockerNetworkAction("create") {
+            try await vmgr.dockerNetworkCreate(DKNetworkCreateOptions(name: name, checkDuplicate: true))
+        }
+    }
+
+    func tryDockerNetworkRemove(_ id: String) async {
+        await doTryDockerNetworkAction("delete") {
+            try await vmgr.dockerNetworkRemove(id)
         }
     }
 

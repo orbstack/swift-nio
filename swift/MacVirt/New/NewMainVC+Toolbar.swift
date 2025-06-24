@@ -73,6 +73,11 @@ extension NewMainViewController: NSToolbarDelegate, NSToolbarItemValidation {
         case .dockerImagesImport:
             return imagesImportButton
 
+        case .dockerNetworksNew:
+            return networksPlusButton
+        case .dockerNetworksSort:
+            return networksSortMenu
+
         case .k8sEnable:
             return podsStartToggle
         case .k8sPodsFilter:
@@ -137,6 +142,10 @@ extension NewMainViewController: NSToolbarDelegate, NSToolbarItemValidation {
 
     @objc func actionDockerImagesOpen(_: NSButton?) {
         NSWorkspace.openFolder(Folders.nfsDockerImages)
+    }
+
+    @objc func actionDockerNetworksNew(_: NSButton?) {
+        model.presentCreateNetwork = true
     }
 
     @objc func actionK8sToggle(_ sender: NSSwitch?) {

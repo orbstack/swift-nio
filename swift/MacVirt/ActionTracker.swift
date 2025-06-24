@@ -33,6 +33,10 @@ enum DKImageAction {
     case exporting
 }
 
+enum DKNetworkAction {
+    case delete
+}
+
 enum MachineAction {
     case start
     case stop
@@ -67,6 +71,7 @@ class ActionTracker: ObservableObject {
     @Published var ongoingDockerContainerActions: [DockerContainerId: DKContainerAction] = [:]
     @Published var ongoingDockerVolumeActions: [String: DKVolumeAction] = [:]
     @Published var ongoingDockerImageActions: [String: DKImageAction] = [:]
+    @Published var ongoingDockerNetworkActions: [String: DKNetworkAction] = [:]
     @Published var ongoingMachineActions: [String: MachineAction] = [:]
     @Published var ongoingK8sActions: [K8SResourceId: K8SResourceAction] = [:]
 
@@ -84,6 +89,10 @@ class ActionTracker: ObservableObject {
 
     func ongoingFor(image: DKSummaryAndFullImage) -> DKImageAction? {
         ongoingDockerImageActions[image.id]
+    }
+
+    func ongoingFor(network: DKNetwork) -> DKNetworkAction? {
+        ongoingDockerNetworkActions[network.id]
     }
 
     func ongoingFor(machine: ContainerRecord) -> MachineAction? {
@@ -106,6 +115,10 @@ class ActionTracker: ObservableObject {
         ongoingDockerImageActions[iid] = action
     }
 
+    func beginNetwork(_ nid: String, action: DKNetworkAction) {
+        ongoingDockerNetworkActions[nid] = action
+    }
+
     func beginMachine(_ mid: String, action: MachineAction) {
         ongoingMachineActions[mid] = action
     }
@@ -124,6 +137,10 @@ class ActionTracker: ObservableObject {
 
     func endImage(_ iid: String) {
         ongoingDockerImageActions[iid] = nil
+    }
+
+    func endNetwork(_ nid: String) {
+        ongoingDockerNetworkActions[nid] = nil
     }
 
     func endMachine(_ mid: String) {
@@ -175,6 +192,20 @@ class ActionTracker: ObservableObject {
     {
         beginImage(imageId, action: action)
         defer { endImage(imageId) }
+        try await block()
+    }
+
+    func with(networkId: String, action: DKNetworkAction, _ block: () throws -> Void) rethrows {
+        beginNetwork(networkId, action: action)
+        defer { endNetwork(networkId) }
+        try block()
+    }
+
+    func with(networkId: String, action: DKNetworkAction, _ block: () async throws -> Void)
+        async rethrows
+    {
+        beginNetwork(networkId, action: action)
+        defer { endNetwork(networkId) }
         try await block()
     }
 

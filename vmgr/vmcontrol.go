@@ -168,6 +168,15 @@ func (s *VmControlServer) DockerImageDelete(ctx context.Context, params vmtypes.
 	return s.dockerClient.DeleteImage(params.ID, true)
 }
 
+func (s *VmControlServer) DockerNetworkCreate(ctx context.Context, options dockertypes.Network) error {
+	_, err := s.dockerClient.CreateNetwork(options)
+	return err
+}
+
+func (s *VmControlServer) DockerNetworkDelete(ctx context.Context, params vmtypes.IDRequest) error {
+	return s.dockerClient.DeleteNetwork(params.ID)
+}
+
 func (s *VmControlServer) DockerImageImportFromHostPath(ctx context.Context, params vmtypes.DockerImageImportFromHostPathRequest) error {
 	reader, err := os.Open(params.HostPath)
 	if err != nil {
@@ -452,6 +461,9 @@ func (s *VmControlServer) Serve() (func() error, error) {
 		"DockerImageDelete":             handler.New(s.DockerImageDelete),
 		"DockerImageImportFromHostPath": handler.New(s.DockerImageImportFromHostPath),
 		"DockerImageExportToHostPath":   handler.New(s.DockerImageExportToHostPath),
+
+		"DockerNetworkCreate": handler.New(s.DockerNetworkCreate),
+		"DockerNetworkDelete": handler.New(s.DockerNetworkDelete),
 
 		"K8sPodDelete":     handler.New(s.K8sPodDelete),
 		"K8sServiceDelete": handler.New(s.K8sServiceDelete),

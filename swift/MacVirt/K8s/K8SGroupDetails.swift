@@ -11,7 +11,7 @@ struct K8SGroupDetails: View {
 
     var body: some View {
         DetailsStack {
-            DetailsListSection("Kubernetes Pods") {
+            DetailsListSection("Pods") {
                 let pods = vmModel.k8sPods ?? []
 
                 ForEach(pods) { pod in

@@ -125,6 +125,12 @@ struct InspectorView: View {
                 ) {
                     DockerImageDetails(image: $0)
                 }
+            case .dockerNetworks:
+                InspectorSelectionList(
+                    model.dockerNetworks?.values, selection: navModel.inspectorSelection
+                ) {
+                    DockerNetworkDetails(network: $0)
+                }
             case .k8sPods:
                 InspectorSelectionList(model.k8sPods, selection: navModel.inspectorSelection) {
                     K8SPodDetails(pod: $0)

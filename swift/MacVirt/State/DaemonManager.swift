@@ -186,6 +186,7 @@ struct UIEvent: Codable {
         let currentContainers: [DKContainer]?
         let currentVolumes: [DKVolume]?
         let currentImages: [DKSummaryAndFullImage]?
+        let currentNetworks: [DKNetwork]?
         let currentSystemDf: DKSystemDf?
         let exited: UIExitEvent?
     }

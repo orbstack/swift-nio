@@ -152,7 +152,6 @@ func (d *DockerAgent) migrateConflictNetworks(origConfigJson []byte) error {
 
 		// create new network with the same flags
 		logrus.WithField("network", minNet.Name).Info("recreating network")
-		var newNetResp dockertypes.NetworkCreateResponse
 		newNetReq := fullNet
 		newNetReq.ID = ""
 		newNetReq.Created = ""
@@ -175,12 +174,12 @@ func (d *DockerAgent) migrateConflictNetworks(origConfigJson []byte) error {
 			newIPAMConfig = append(newIPAMConfig, config)
 		}
 		newNetReq.IPAM.Config = newIPAMConfig
-		err = d.realClient.Call("POST", "/networks/create", &newNetReq, &newNetResp)
+		newNetResp, err := d.realClient.CreateNetwork(newNetReq)
 		if err != nil {
 			// oops, we probably ran out of pools...
 			// try to restore the old one
 			logrus.WithError(err).WithField("network", minNet.Name).Error("failed to recreate network, restoring")
-			err = d.realClient.Call("POST", "/networks/create", &fullNet, &newNetResp)
+			newNetResp, err = d.realClient.CreateNetwork(fullNet)
 			if err != nil {
 				// fatal: if can't restore then it's broken
 				return fmt.Errorf("restore network: %w", err)

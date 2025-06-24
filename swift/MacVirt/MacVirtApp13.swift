@@ -128,6 +128,13 @@ struct MacVirtApp13: App {
                             Label("Import Volume…", systemImage: "square.and.arrow.down")
                         }
                         .keyboardShortcut("i")
+                    case .dockerNetworks:
+                        Divider()
+                        Button {
+                            vmModel.menuActionRouter.send(.newNetwork)
+                        } label: {
+                            Label("New Network", systemImage: "plus")
+                        }
                     case .dockerImages:
                         Divider()
                         Button {
@@ -229,6 +236,13 @@ struct MacVirtApp13: App {
                         Label("Images", systemImage: "zipper.page")
                     }
                     .keyboardShortcut("3", modifiers: [.command])
+
+                    Button {
+                        selectedTab = .dockerNetworks
+                    } label: {
+                        Label("Networks", systemImage: "point.3.filled.connected.trianglepath.dotted")
+                    }
+                    .keyboardShortcut("4", modifiers: [.command])
                 }
 
                 Divider()
@@ -239,14 +253,14 @@ struct MacVirtApp13: App {
                     } label: {
                         Label("Pods", systemImage: "helm")
                     }
-                    .keyboardShortcut("4", modifiers: [.command])
+                    .keyboardShortcut("5", modifiers: [.command])
 
                     Button {
                         selectedTab = .k8sServices
                     } label: {
                         Label("Services", systemImage: "network")
                     }
-                    .keyboardShortcut("5", modifiers: [.command])
+                    .keyboardShortcut("6", modifiers: [.command])
                 }
 
                 Divider()
@@ -256,7 +270,7 @@ struct MacVirtApp13: App {
                         selectedTab = .machines
                     } label: {
                         Label("Machines", systemImage: "desktopcomputer")
-                    }.keyboardShortcut("6", modifiers: [.command])
+                    }.keyboardShortcut("7", modifiers: [.command])
                 }
 
                 Divider()
@@ -266,13 +280,13 @@ struct MacVirtApp13: App {
                         selectedTab = .activityMonitor
                     } label: {
                         Label("Activity Monitor", systemImage: "chart.xyaxis.line")
-                    }.keyboardShortcut("7", modifiers: [.command])
+                    }.keyboardShortcut("8", modifiers: [.command])
 
                     Button {
                         selectedTab = .cli
                     } label: {
                         Label("Commands", systemImage: "terminal")
-                    }.keyboardShortcut("8", modifiers: [.command])
+                    }.keyboardShortcut("9", modifiers: [.command])
                 }
             }
 

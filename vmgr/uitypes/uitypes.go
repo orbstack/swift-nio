@@ -38,6 +38,7 @@ const (
 	DockerEntityContainer DockerEntity = iota
 	DockerEntityVolume
 	DockerEntityImage
+	DockerEntityNetwork
 
 	DockerEntityMax_
 )
@@ -46,6 +47,7 @@ type DockerEvent struct {
 	CurrentContainers []*dockertypes.ContainerSummary `json:"currentContainers"`
 	CurrentVolumes    []*dockertypes.Volume           `json:"currentVolumes"`
 	CurrentImages     []dockertypes.Image             `json:"currentImages"`
+	CurrentNetworks   []dockertypes.Network           `json:"currentNetworks"`
 	CurrentSystemDf   *dockertypes.SystemDf           `json:"currentSystemDf"`
 
 	Exited *ExitEvent `json:"exited"`

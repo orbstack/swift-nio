@@ -47,6 +47,8 @@ struct PrincipalView: View {
                 DockerVolumesRootView()
             case .dockerImages:
                 DockerImagesRootView()
+            case .dockerNetworks:
+                DockerNetworksRootView()
             case .k8sPods:
                 K8SPodsView()
             case .k8sServices:

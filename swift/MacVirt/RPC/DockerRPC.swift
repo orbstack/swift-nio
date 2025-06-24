@@ -6,6 +6,11 @@ import Defaults
 import Foundation
 
 private let relativeDateFormatter = RelativeDateTimeFormatter()
+private let iso8601TzDateFormatter = {
+    let formatter = ISO8601DateFormatter()
+    formatter.formatOptions = [.withFullDate, .withTime, .withFractionalSeconds, .withTimeZone]
+    return formatter
+}()
 private let nowTimeThreshold: TimeInterval = 5  // sec
 
 struct IDRequest: Codable {
@@ -332,6 +337,17 @@ struct DKVolumeCreateOptions: Codable {
     }
 }
 
+struct DKNetworkCreateOptions: Codable {
+    let name: String
+
+    let checkDuplicate: Bool?
+
+    enum CodingKeys: String, CodingKey {
+        case name = "Name"
+        case checkDuplicate = "CheckDuplicate"
+    }
+}
+
 struct DKVolume: AKListItem, Codable, Identifiable, Equatable {
     let createdAt: Date?
     let driver: String
@@ -392,6 +408,117 @@ struct DKVolumeListResponse: Codable {
     enum CodingKeys: String, CodingKey {
         case volumes = "Volumes"
         case warnings = "Warnings"
+    }
+}
+
+struct DKNetwork: Codable, Equatable, Identifiable, AKListItem {
+    let name: String
+    // wtf, this is omitempty in Go?
+    let id: String
+    let created: String?
+    let scope: String?
+    let driver: String
+    let enableIPv6: Bool
+    let ipam: DKIPAM?
+
+    let `internal`: Bool
+    let attachable: Bool
+    let ingress: Bool
+    let configFrom: DKConfigReference
+    let configOnly: Bool
+    let containers: [String: DKContainerEndpoint]?
+    let options: [String: String]
+    let labels: [String: String]
+
+    // on create only
+    let checkDuplicate: Bool?
+
+    var textLabel: String? {
+        name
+    }
+
+    // TODO: don't keep re-parsing this
+    var createdDate: Date? {
+        guard let created else { return nil }
+        return iso8601TzDateFormatter.date(from: created)
+    }
+
+    var formattedCreated: String {
+        guard let date = createdDate else { return "unknown" }
+
+        // fix "in 0 seconds"
+        if Date().timeIntervalSince(date) < nowTimeThreshold {
+            return "just now"
+        }
+
+        return relativeDateFormatter.localizedString(for: date, relativeTo: Date())
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case name = "Name"
+        case id = "Id"
+        case created = "Created"
+        case scope = "Scope"
+        case driver = "Driver"
+        case enableIPv6 = "EnableIPv6"
+        case ipam = "IPAM"
+
+        case `internal` = "Internal"
+        case attachable = "Attachable"
+        case ingress = "Ingress"
+        case configFrom = "ConfigFrom"
+        case configOnly = "ConfigOnly"
+        case containers = "Containers"
+        case options = "Options"
+        case labels = "Labels"
+
+        case checkDuplicate = "CheckDuplicate"
+    }
+}
+
+struct DKIPAM: Codable, Equatable {
+    let driver: String
+    let config: [DKIPAMConfig]?
+    let options: [String: String]?
+
+    enum CodingKeys: String, CodingKey {
+        case driver = "Driver"
+        case config = "Config"
+        case options = "Options"
+    }
+}
+
+struct DKIPAMConfig: Codable, Equatable {
+    let subnet: String
+    let gateway: String
+
+    enum CodingKeys: String, CodingKey {
+        case subnet = "Subnet"
+        case gateway = "Gateway"
+    }
+}
+
+struct DKConfigReference: Codable, Equatable {
+    let network: String
+
+    enum CodingKeys: String, CodingKey {
+        case network = "Network"
+    }
+}
+
+struct DKContainerEndpoint: Codable, Equatable {
+    let name: String
+    let endpointId: String
+    let macAddress: String
+    let ipv4Address: String
+    let ipv6Address: String
+
+    enum CodingKeys: String, CodingKey {
+        case name = "Name"
+        case endpointId = "EndpointID"
+        case macAddress = "MacAddress"
+        case ipv4Address = "IPv4Address"
+        case ipv6Address = "IPv6Address"
     }
 }
 
