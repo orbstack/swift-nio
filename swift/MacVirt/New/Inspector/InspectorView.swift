@@ -146,8 +146,8 @@ struct InspectorView: View {
                     MachineDetails(info: $0)
                 }
             case .activityMonitor:
-                if let container = navModel.inspectorView {
-                    container.content
+                if let view = navModel.inspectorView {
+                    view.value
                 } else {
                     EmptyView()
                 }
@@ -173,20 +173,20 @@ struct InspectorSelectionKey: PreferenceKey {
     }
 }
 
-struct EquatableViewContainer: Equatable {
+struct UniqueEquatable<T>: Equatable {
     let id = UUID()
-    let content: AnyView
+    let value: T
 
-    static func == (lhs: EquatableViewContainer, rhs: EquatableViewContainer) -> Bool {
+    static func == (lhs: UniqueEquatable<T>, rhs: UniqueEquatable<T>) -> Bool {
         lhs.id == rhs.id
     }
 }
 
 struct InspectorViewKey: PreferenceKey {
-    static var defaultValue: EquatableViewContainer?
+    static var defaultValue: UniqueEquatable<AnyView>?
 
     static func reduce(
-        value: inout EquatableViewContainer?, nextValue: () -> EquatableViewContainer?
+        value: inout UniqueEquatable<AnyView>?, nextValue: () -> UniqueEquatable<AnyView>?
     ) {
         let nextVal = nextValue()
         if let nextVal {
@@ -203,7 +203,7 @@ extension View {
     func inspectorView<Content: View>(@ViewBuilder content: () -> Content) -> some View {
         preference(
             key: InspectorViewKey.self,
-            value: EquatableViewContainer(content: AnyView(content()))
+            value: UniqueEquatable(value: AnyView(content()))
         )
     }
 }

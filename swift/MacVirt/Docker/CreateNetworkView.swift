@@ -13,41 +13,37 @@ struct CreateNetworkView: View {
     @EnvironmentObject private var vmModel: VmViewModel
 
     @State private var name = ""
-    @State private var isNameDuplicate = false
-    @State private var isNameInvalid = false
-    @State private var duplicateHeight = 0.0
 
     @Binding var isPresented: Bool
 
     var body: some View {
-        VStack(alignment: .leading) {
-            Text("New Network")
-                .font(.headline.weight(.semibold))
-                .padding(.bottom, 8)
+        CreateForm {
+            Section("New Network") {
+                let nameBinding = Binding<String>(
+                    get: { name },
+                    set: {
+                        self.name = $0
+                    })
 
-            Form {
-                Section {
-                    let nameBinding = Binding<String>(
-                        get: { name },
-                        set: {
-                            self.name = $0
-                        })
+                ValidatedTextField("Name", text: nameBinding, validate: { value in
+                    // duplicate
+                    if vmModel.dockerNetworks?[value] != nil {
+                        return "Already exists"
+                    }
 
-                    TextField("Name", text: nameBinding)
-                        .onSubmit {
-                            submit()
-                        }
-                    let errorText = isNameInvalid ? "Invalid name" : "Already exists"
-                    Text(errorText)
-                        .font(.caption)
-                        .foregroundColor(.red)
-                        .frame(maxHeight: duplicateHeight)
-                        .clipped()
-                }
+                    // regex
+                    if dockerRestrictedNamePattern.firstMatch(
+                        in: value, options: [], range: NSRange(location: 0, length: value.utf16.count))
+                        == nil
+                    {
+                        return "Invalid name"
+                    }
+
+                    return nil
+                })
             }
 
-            HStack {
-                Spacer()
+            CreateButtonRow {
                 Button {
                     isPresented = false
                 } label: {
@@ -55,64 +51,14 @@ struct CreateNetworkView: View {
                 }
                 .keyboardShortcut(.cancelAction)
 
-                Button {
-                    submit()
-                } label: {
-                    Text("Create")
-                }
-                .keyboardShortcut(.defaultAction)
-                // empty is disabled but not error
-                .disabled(isNameDuplicate || isNameInvalid || name.isEmpty)
+                CreateSubmitButton("Create")
+                    .keyboardShortcut(.defaultAction)
             }
-            .padding(.top, 8)
-        }
-        .padding(20)
-        .onChange(of: name) { newName in
-            checkName(newName)
-        }
-        .onAppear {
-            checkName(name, animate: false)
-        }
-        .onChange(of: vmModel.dockerNetworks) { _ in
-            checkName(name)
-        }
-    }
-
-    private func checkName(_ newName: String, animate: Bool = true) {
-        isNameDuplicate = vmModel.dockerNetworks?[newName] != nil
-
-        // regex
-        if !newName.isEmpty
-            && dockerRestrictedNamePattern.firstMatch(
-                in: newName, options: [], range: NSRange(location: 0, length: newName.utf16.count))
-                == nil
-        {
-            isNameInvalid = true
-        } else {
-            isNameInvalid = false
-        }
-
-        let hasError = isNameDuplicate || isNameInvalid
-        let animation = animate ? Animation.spring() : nil
-        if hasError {
-            withAnimation(animation) {
-                duplicateHeight = NSFont.preferredFont(forTextStyle: .caption1).pointSize
+        } onSubmit: {
+            Task { @MainActor in
+                await vmModel.tryDockerNetworkCreate(name)
             }
-        } else {
-            withAnimation(animation) {
-                duplicateHeight = 0
-            }
+            isPresented = false
         }
-    }
-
-    private func submit() {
-        if isNameDuplicate || isNameInvalid || name.isEmpty {
-            return
-        }
-
-        Task { @MainActor in
-            await vmModel.tryDockerNetworkCreate(name)
-        }
-        isPresented = false
     }
 }
