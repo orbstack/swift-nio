@@ -9,60 +9,17 @@ on:
 concurrency:
   group: ${{ github.head_ref || github.run_id }}-${{ github.actor }}
   cancel-in-progress: true
-env:
-  GO_VERSION: "1.23.1"
-  BLACK_MAJOR_VERSION: "24.0"
-  SWIFT_FORMAT_VERSION: "601.0.0"
-  TREEFMT_VERSION: "2.0.5"
-  LLVM_VERSION: "18"
 jobs:
   treefmt:
-    runs-on: ubuntu-latest
+    runs-on: macOS
     steps:
       - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332
-      - uses: actions/setup-go@0a12ed9d6a96ab950c8f026ed9f722fe0da7ef32
-        with:
-          go-version: ${{ env.GO_VERSION }}
-      - uses: dtolnay/rust-toolchain@7b1c307e0dcbda6122208f10795a713336a9b35a
-        with:
-          toolchain: "nightly"
-          components: "rustfmt"
-      - uses: actions/setup-python@f677139bbe7f9c59b41e40162b753c062f5d49a3
-      - name: Install Black
-        run: pip install "black~=${{ env.BLACK_MAJOR_VERSION }}"
-      - run: mkdir bin
-      - name: Install clang-format
+      - name: Install/update formatters
+        run: brew install black treefmt swift-format clang-format rustup go
+      - name: Install/update rustfmt
         run: |
-          wget https://apt.llvm.org/llvm.sh
-          chmod +x llvm.sh
-          sudo ./llvm.sh ${{ env.LLVM_VERSION }}
-          rm llvm.sh
-          sudo apt install clang-format-${{ env.LLVM_VERSION }}
-          ln -s /usr/bin/clang-format-${{ env.LLVM_VERSION }} bin/clang-format
-      - name: Cache swift-format
-        id: cache-swift-format
-        uses: actions/cache@d4323d4df104b026a6aa633fdb11d772146be0bf
-        with:
-          path: ${{ github.workspace }}/bin/swift-format
-          key: swift-format-${{ env.SWIFT_FORMAT_VERSION }}
-      - uses: swift-actions/setup-swift@561549fb536eeca90a28080104029a3911e56a1e
-        # TODO(winter): For some reason, GitHub's runners require libswiftCore.so, but nektos/act's environment doesn't? WTF?
-        # if: steps.cache-swiftformat.outputs.cache-hit != 'true'
-      - name: Build swift-format
-        if: steps.cache-swift-format.outputs.cache-hit != 'true'
-        run: |
-          mkdir swift-format-src
-          cd swift-format-src
-          git -c init.defaultbranch=main init
-          git remote add origin https://github.com/swiftlang/swift-format.git
-          git fetch --depth 1 origin refs/tags/${{ env.SWIFT_FORMAT_VERSION }}
-          git -c advice.detachedHead=false checkout FETCH_HEAD
-          swift build -c release
-          mv .build/release/swift-format ../bin
-      - name: Download treefmt
-        run: |
-          curl -Lo treefmt.tar.gz https://github.com/numtide/treefmt/releases/download/v${{ env.TREEFMT_VERSION }}/treefmt_${{ env.TREEFMT_VERSION }}_linux_$(go version | awk '{split($0, a, "/"); print a[2]}').tar.gz
-          tar xf treefmt.tar.gz -C bin treefmt
-          rm treefmt.tar.gz
+          brew link --force rustup
+          rustup default stable
+          rustup update
       - name: Run treefmt
-        run: PATH=${{ github.workspace }}/bin:$PATH treefmt --no-cache --fail-on-change -u debug -v
+        run: treefmt --no-cache --fail-on-change -u debug -v
