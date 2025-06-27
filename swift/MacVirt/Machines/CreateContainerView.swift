@@ -89,11 +89,10 @@ struct CreateContainerView: View {
                 }.disabled(distro.versions.count == 1)
 
                 #if arch(arm64)
-                    Picker("CPU type", selection: $arch) {
-                        Text("Apple").tag("arm64")
-                        Text("Intel").tag("amd64")
+                    Picker("Architecture", selection: $arch) {
+                        Text("arm64").tag("arm64")
+                        Text("x86-64 (Intel, emulated)").tag("amd64")
                     }
-                    .pickerStyle(.segmented)
                     .disabled(distro == .nixos)
                 #endif
             }
@@ -127,9 +126,7 @@ struct CreateContainerView: View {
                 }
                 .disabled(!distro.hasCloudVariant)
 
-                TextField(text: $defaultUsername, prompt: Text(Files.username)) {
-                    Label("Username", systemImage: "")
-                }
+                TextField("Username", text: $defaultUsername, prompt: Text(Files.username))
             }
 
             CreateButtonRow {
