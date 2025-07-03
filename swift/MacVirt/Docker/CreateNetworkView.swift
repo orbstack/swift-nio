@@ -48,7 +48,7 @@ struct CreateNetworkView: View {
                     })
             } header: {
                 Text("New Network")
-                Text("Networks change how containers are connected to each other and to the internet. They are typically used by Compose to group containers into a bridge network, and don’t need to be manually created or deleted.")
+                Text("Bridge networks are groups of containers in the same subnet (IP range) that can communicate with each other. They are typically used by Compose, and don’t need to be manually created or deleted.")
             }
 
             Section("Advanced") {
