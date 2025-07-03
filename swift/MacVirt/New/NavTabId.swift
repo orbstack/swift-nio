@@ -11,7 +11,7 @@ extension NavTabId {
     var defaultItemIdentifiers: [NSToolbarItem.Identifier] {
         switch self {
         case .dockerContainers:
-            return [ /*.dockerContainersSort,*/.dockerContainersFilter, .searchItem]
+            return [ /*.dockerContainersSort,*/.dockerContainersFilter, .dockerContainersNew, .searchItem]
         case .dockerVolumes:
             return [
                 .dockerVolumesSort, .dockerVolumesImport, .dockerVolumesNew,
@@ -63,6 +63,7 @@ extension NSToolbarItem.Identifier {
     static let dockerContainersOpen = NSToolbarItem.Identifier("dockerContainersOpen")
     static let dockerContainersSort = NSToolbarItem.Identifier("dockerContainersSort")
     static let dockerContainersFilter = NSToolbarItem.Identifier("dockerContainersFilter")
+    static let dockerContainersNew = NSToolbarItem.Identifier("dockerContainersNew")
 
     static let dockerVolumesOpen = NSToolbarItem.Identifier("dockerVolumesOpen")
     static let dockerVolumesNew = NSToolbarItem.Identifier("dockerVolumesNew")

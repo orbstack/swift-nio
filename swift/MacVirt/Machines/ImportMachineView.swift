@@ -6,39 +6,34 @@ import Foundation
 import SwiftUI
 
 // min 2 chars, disallows hidden files (^.)
-private let containerNameRegex = try! NSRegularExpression(pattern: "^[a-zA-Z0-9][a-zA-Z0-9-]+$")
+private let containerNameRegex = try! NSRegularExpression(pattern: "^[a-zA-Z0-9][a-zA-Z0-9-.]+$")
 // .orb.internal domains, plus "default" special ssh name
 private let containerNameBlacklist = ["default", "vm", "host", "services", "gateway"]
 
-struct RenameContainerView: View {
+struct ImportMachineView: View {
     @EnvironmentObject private var vmModel: VmViewModel
 
-    @State var name: String
-
-    var record: ContainerRecord
-    @Binding var isPresented: Bool
+    @State private var name = ""
 
     var body: some View {
-        VStack(alignment: .leading) {
-            Text("Rename \"\(record.name)\"")
+        VStack(alignment: .leading, spacing: 0) {
+            Text("Import Machine")
                 .font(.headline.weight(.semibold))
                 .padding(.bottom, 8)
 
             CreateForm {
                 Section {
                     ValidatedTextField(
-                        "Name", text: $name,
+                        "Name", text: $name, prompt: Text("(keep original)"),
                         validate: { value in
-                            // empty is not allowed
+                            // empty is allowed for import (keeps original name)
                             if value.isEmpty {
-                                return "Name cannot be empty"
+                                return nil
                             }
 
-                            // duplicate (renaming to same isn't considered duplicate)
+                            // duplicate
                             if let containers = vmModel.machines,
-                                containers.values.contains(where: {
-                                    $0.record.name == value && $0.record.id != record.id
-                                })
+                                containers.values.contains(where: { $0.record.name == value })
                             {
                                 return "Already exists"
                             }
@@ -59,25 +54,33 @@ struct RenameContainerView: View {
 
                 CreateButtonRow {
                     Button {
-                        isPresented = false
+                        vmModel.presentImportMachine = nil
                     } label: {
                         Text("Cancel")
                     }
                     .keyboardShortcut(.cancelAction)
 
-                    CreateSubmitButton("Rename")
+                    CreateSubmitButton("Import")
                         .keyboardShortcut(.defaultAction)
                 }
             } onSubmit: {
+                let url = vmModel.presentImportMachine!
                 Task { @MainActor in
-                    await vmModel.tryRenameContainer(record, newName: name)
+                    await vmModel.tryImportContainer(url: url, newName: name.isEmpty ? nil : name)
                 }
-                isPresented = false
+                vmModel.presentImportMachine = nil
             }
         }
         .padding(20)
         .onAppear {
-            name = record.name
+            do {
+                let config: ExportedMachineV1 = try Zstd.readSkippableFrame(
+                    url: vmModel.presentImportMachine!,
+                    expectedVersion: ZstdFrameVersion.machineConfig1)
+                name = config.record.name
+            } catch {
+                NSLog("Failed to read config from export: \(error)")
+            }
         }
     }
 }

@@ -43,6 +43,13 @@ class NewMainViewController: NSViewController {
         requiresVmRunning: false
     )
 
+    lazy var containersPlusButton = makeToolbarItem(
+        itemIdentifier: .dockerContainersNew,
+        icon: "plus",
+        title: "New",
+        action: #selector(actionDockerContainersNew)
+    )
+
     lazy var containersFolderButton = makeToolbarItem(
         itemIdentifier: .dockerContainersOpen,
         icon: "externaldrive",

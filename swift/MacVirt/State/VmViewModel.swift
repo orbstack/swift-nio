@@ -17,6 +17,8 @@ private let maxAdminDismissCount = 2  // auto-disable
 private let maxConsecutiveStatsErrors = 10
 
 enum MenuActionRouter {
+    case newContainer
+    case openContainers
     case newVolume
     case openVolumes
     case openImages
@@ -571,6 +573,7 @@ class VmViewModel: ObservableObject {
     @Published var presentProfileChanged = false
     @Published var presentAddPaths = false
     @Published var presentCreateMachine = false
+    @Published var presentCreateContainer = false
     @Published var presentCreateVolume = false
     @Published var presentCreateNetwork = false
     @Published var presentImportMachine: URL? = nil

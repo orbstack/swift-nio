@@ -18,6 +18,10 @@ extension NewMainViewController {
             guard let self else { return }
 
             switch router {
+            case .newContainer:
+                self.actionDockerContainersNew(nil)
+            case .openContainers:
+                self.actionDockerContainersOpen(nil)
             case .newVolume:
                 self.actionDockerVolumesNew(nil)
             case .openVolumes:

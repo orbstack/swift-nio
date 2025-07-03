@@ -18,7 +18,7 @@ struct CreateVolumeView: View {
 
     var body: some View {
         CreateForm {
-            Section("New Volume") {
+            Section {
                 let nameBinding = Binding<String>(
                     get: { name },
                     set: {
@@ -44,9 +44,16 @@ struct CreateVolumeView: View {
 
                         return nil
                     })
+            } header: {
+                Text("New Volume")
+                Text("Volumes are for sharing data between containers. Unlike bind mounts, they are stored on a native Linux file system, making them faster and more reliable.")
             }
 
             CreateButtonRow {
+                HelpButton {
+                    NSWorkspace.shared.open(URL(string: "https://orb.cx/docker-docs/volume-create")!)
+                }
+
                 Button {
                     isPresented = false
                 } label: {

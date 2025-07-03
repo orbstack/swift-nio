@@ -56,6 +56,8 @@ extension NewMainViewController: NSToolbarDelegate, NSToolbarItemValidation {
             return containersSortMenu
         case .dockerContainersFilter:
             return containersFilterMenu
+        case .dockerContainersNew:
+            return containersPlusButton
 
         case .dockerVolumesOpen:
             return volumesFolderButton
@@ -126,6 +128,10 @@ extension NewMainViewController: NSToolbarDelegate, NSToolbarItemValidation {
 
     @objc func actionDockerContainersFilter1(_: Any?) {
         Defaults[.dockerFilterShowStopped].toggle()
+    }
+
+    @objc func actionDockerContainersNew(_: NSButton?) {
+        model.presentCreateContainer = true
     }
 
     @objc func actionDockerContainersOpen(_: NSButton?) {

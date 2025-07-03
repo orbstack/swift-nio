@@ -37,6 +37,10 @@ struct DockerSettingsView: View {
             }
 
             SettingsFooter {
+                HelpButton {
+                    NSWorkspace.shared.open(URL(string: "https://orb.cx/docker-docs/daemon-json")!)
+                }
+
                 if vmModel.state == .running,
                     let dockerMachine = vmModel.dockerMachine
                 {

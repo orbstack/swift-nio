@@ -5,7 +5,7 @@
 import Foundation
 import SwiftUI
 
-struct MachineContainerItem: View {
+struct MachineItem: View {
     @EnvironmentObject var vmModel: VmViewModel
     @EnvironmentObject var actionTracker: ActionTracker
     @EnvironmentObject var listModel: AKListModel
@@ -211,11 +211,11 @@ struct MachineContainerItem: View {
             Text("Data will be permanently lost.")
         }
         .sheet(isPresented: $presentClone) {
-            CloneContainerView(
+            CloneMachineView(
                 name: info.record.name, record: info.record, isPresented: $presentClone)
         }
         .sheet(isPresented: $presentRename) {
-            RenameContainerView(
+            RenameMachineView(
                 name: info.record.name, record: info.record, isPresented: $presentRename)
         }
         .akListOnDoubleClick {

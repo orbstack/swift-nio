@@ -106,6 +106,21 @@ struct MacVirtApp13: App {
                     }
 
                     switch selectedTab {
+                    case .dockerContainers:
+                        Divider()
+                        Button {
+                            vmModel.menuActionRouter.send(.newContainer)
+                        } label: {
+                            Label("New Container", systemImage: "plus")
+                        }
+                        .keyboardShortcut("n")
+
+                        Button {
+                            vmModel.menuActionRouter.send(.openContainers)
+                        } label: {
+                            Label("Open Container Files", systemImage: "folder")
+                        }
+                        .keyboardShortcut("o")
                     case .dockerVolumes:
                         Divider()
                         Button {

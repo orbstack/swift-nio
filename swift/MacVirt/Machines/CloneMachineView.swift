@@ -10,7 +10,7 @@ private let containerNameRegex = try! NSRegularExpression(pattern: "^[a-zA-Z0-9]
 // .orb.internal domains, plus "default" special ssh name
 private let containerNameBlacklist = ["default", "vm", "host", "services", "gateway"]
 
-struct CloneContainerView: View {
+struct CloneMachineView: View {
     @EnvironmentObject private var vmModel: VmViewModel
 
     @State var name: String

@@ -17,7 +17,7 @@ private enum FileItem: Hashable {
     case other
 }
 
-struct CreateContainerView: View {
+struct CreateMachineView: View {
     @EnvironmentObject private var vmModel: VmViewModel
 
     @StateObject private var windowHolder = WindowHolder()
@@ -114,7 +114,7 @@ struct CreateContainerView: View {
                         break
                     }
                 }
-                Picker(selection: userDataBinding, label: Text("Cloud-init")) {
+                Picker(selection: userDataBinding) {
                     Text("None").tag(FileItem.none)
                     Divider()
                     if let cloudInitFile {
@@ -123,6 +123,9 @@ struct CreateContainerView: View {
                     }
                     Divider()
                     Text("Select User Data…").tag(FileItem.other)
+                } label: {
+                    Text("Cloud-init user data")
+                    Text("YAML file for automated setup. Compatible with AWS EC2 and other cloud providers. [Learn more](https://cloudinit.readthedocs.io/en/latest/reference/examples.html)")
                 }
                 .disabled(!distro.hasCloudVariant)
 
@@ -130,6 +133,10 @@ struct CreateContainerView: View {
             }
 
             CreateButtonRow {
+                HelpButton {
+                    NSWorkspace.shared.open(URL(string: "https://orb.cx/ui-docs/machine-create")!)
+                }
+
                 Button {
                     isPresented = false
                 } label: {

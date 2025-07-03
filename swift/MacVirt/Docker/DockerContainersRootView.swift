@@ -257,6 +257,9 @@ struct DockerContainersRootView: View {
             .inspectorSelection(selection)
         }
         .navigationTitle("Containers")
+        .sheet(isPresented: $vmModel.presentCreateContainer) {
+            CreateContainerView(isPresented: $vmModel.presentCreateContainer)
+        }
     }
 
     private func filterContainers(_ containers: any Sequence<DKContainer>, searchQuery: String)

@@ -47,6 +47,7 @@
 		D88F4EDD299A131B00419B5C /* docker-compose in Copy xbin executables */ = {isa = PBXBuildFile; fileRef = D88F4EDA299A131B00419B5C /* docker-compose */; settings = {ATTRIBUTES = (CodeSignOnCopy, ); }; };
 		D88F4EDE299A131B00419B5C /* docker-credential-osxkeychain in Copy xbin executables */ = {isa = PBXBuildFile; fileRef = D88F4EDB299A131B00419B5C /* docker-credential-osxkeychain */; settings = {ATTRIBUTES = (CodeSignOnCopy, ); }; };
 		D8E1F6972B624D320043B932 /* completions in Copy assets */ = {isa = PBXBuildFile; fileRef = D8E1F6962B624D320043B932 /* completions */; };
+		D8F43B232E13CD6C00B4602A /* SwiftTerm in Frameworks */ = {isa = PBXBuildFile; productRef = D8F43B222E13CD6C00B4602A /* SwiftTerm */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXCopyFilesBuildPhase section */
@@ -242,6 +243,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				D8F43B232E13CD6C00B4602A /* SwiftTerm in Frameworks */,
 				D86614182A38061700EA0995 /* Defaults in Frameworks */,
 				D86637E72AAF4D2B00630A01 /* AsyncHTTPClient in Frameworks */,
 				D855F1F02998B6A700B62588 /* Sentry in Frameworks */,
@@ -454,6 +456,7 @@
 				D86637E62AAF4D2B00630A01 /* AsyncHTTPClient */,
 				D88F08222AC12F5200454098 /* CachedAsyncImage */,
 				D849829F2DF3D77400941950 /* SwiftUIIntrospect */,
+				D8F43B222E13CD6C00B4602A /* SwiftTerm */,
 			);
 			productName = MacVirt;
 			productReference = D8A32B8E296F839100E56EEF /* OrbStack.app */;
@@ -505,6 +508,7 @@
 				D86637E52AAF4D2B00630A01 /* XCRemoteSwiftPackageReference "async-http-client" */,
 				D88F08212AC12F5200454098 /* XCRemoteSwiftPackageReference "swiftui-cached-async-image" */,
 				D849829E2DF3D77400941950 /* XCRemoteSwiftPackageReference "swiftui-introspect" */,
+				D8F43B212E13CD6C00B4602A /* XCRemoteSwiftPackageReference "SwiftTerm" */,
 			);
 			productRefGroup = D8A32B8F296F839100E56EEF /* Products */;
 			projectDirPath = "";
@@ -1142,6 +1146,14 @@
 				minimumVersion = 2.0.0;
 			};
 		};
+		D8F43B212E13CD6C00B4602A /* XCRemoteSwiftPackageReference "SwiftTerm" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/migueldeicaza/SwiftTerm";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 1.2.5;
+			};
+		};
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
@@ -1214,6 +1226,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = D88F08212AC12F5200454098 /* XCRemoteSwiftPackageReference "swiftui-cached-async-image" */;
 			productName = CachedAsyncImage;
+		};
+		D8F43B222E13CD6C00B4602A /* SwiftTerm */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = D8F43B212E13CD6C00B4602A /* XCRemoteSwiftPackageReference "SwiftTerm" */;
+			productName = SwiftTerm;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

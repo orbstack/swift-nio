@@ -34,14 +34,14 @@ struct NewMainView: View {
         }
         .ignoresSafeArea()
         .sheet(isPresented: $model.presentCreateMachine) {
-            CreateContainerView(isPresented: $model.presentCreateMachine)
+            CreateMachineView(isPresented: $model.presentCreateMachine)
         }
         .sheet(
             isPresented: Binding(
                 get: { model.presentImportMachine != nil },
                 set: { if !$0 { model.presentImportMachine = nil } })
         ) {
-            ImportContainerView()
+            ImportMachineView()
         }
         .sheet(
             isPresented: Binding(
