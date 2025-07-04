@@ -1,10 +1,11 @@
 #!/usr/bin/env bash
 
+K8S_VERSION=${1:-1.32}
 set -eufo pipefail
 cd "$(dirname "$0")"
 
 export GOPRIVATE='github.com/orbstack/*-macvirt'
-BRANCH=orbstack/1.31
+BRANCH="orbstack/$K8S_VERSION"
 
 orb start
 
@@ -24,10 +25,12 @@ if [[ ! -d "kubernetes" ]]; then
 else
   (cd kubernetes; git fetch && git checkout $BRANCH && git pull)
 fi
+
+CRI_DOCKERD_VERSION="$BRANCH"
 if [[ ! -d "cri-dockerd" ]]; then
-  git clone -b $BRANCH git@github.com:orbstack/cri-dockerd
+  git clone -b $CRI_DOCKERD_VERSION git@github.com:orbstack/cri-dockerd
 else
-  (cd cri-dockerd; git fetch && git checkout $BRANCH && git pull)
+  (cd cri-dockerd; git fetch && git checkout $CRI_DOCKERD_VERSION && git pull)
 fi
 popd
 
