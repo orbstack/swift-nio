@@ -125,7 +125,9 @@ struct CreateMachineView: View {
                     Text("Select User Data…").tag(FileItem.other)
                 } label: {
                     Text("Cloud-init user data")
-                    Text("YAML file for automated setup. Compatible with AWS EC2 and other cloud providers. [Learn more](https://cloudinit.readthedocs.io/en/latest/reference/examples.html)")
+                    Text(
+                        "YAML file for automated setup. Compatible with AWS EC2 and other cloud providers. [Learn more](https://cloudinit.readthedocs.io/en/latest/reference/examples.html)"
+                    )
                 }
                 .disabled(!distro.hasCloudVariant)
 

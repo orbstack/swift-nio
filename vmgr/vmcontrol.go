@@ -5,7 +5,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"io"
 	"math"
 	"net"
 	"net/http"
@@ -25,7 +24,6 @@ import (
 	"github.com/orbstack/macvirt/vmgr/conf"
 	"github.com/orbstack/macvirt/vmgr/conf/coredir"
 	"github.com/orbstack/macvirt/vmgr/dockerclient"
-	"github.com/orbstack/macvirt/vmgr/dockertypes"
 	"github.com/orbstack/macvirt/vmgr/drm"
 	"github.com/orbstack/macvirt/vmgr/earlyinit"
 	"github.com/orbstack/macvirt/vmgr/swext"
@@ -126,87 +124,6 @@ func (s *VmControlServer) StartSetup(ctx context.Context) (*vmtypes.SetupInfo, e
 // for post-migration
 func (s *VmControlServer) SetDockerContext(ctx context.Context) error {
 	return setupDockerContext()
-}
-
-func (s *VmControlServer) DockerContainerStart(ctx context.Context, req vmtypes.IDRequest) error {
-	return s.dockerClient.StartContainer(req.ID)
-}
-
-func (s *VmControlServer) DockerContainerStop(ctx context.Context, req vmtypes.IDRequest) error {
-	return s.dockerClient.StopContainer(req.ID)
-}
-
-func (s *VmControlServer) DockerContainerKill(ctx context.Context, req vmtypes.IDRequest) error {
-	return s.dockerClient.KillContainer(req.ID)
-}
-
-func (s *VmControlServer) DockerContainerRestart(ctx context.Context, req vmtypes.IDRequest) error {
-	return s.dockerClient.RestartContainer(req.ID)
-}
-
-func (s *VmControlServer) DockerContainerPause(ctx context.Context, req vmtypes.IDRequest) error {
-	return s.dockerClient.PauseContainer(req.ID)
-}
-
-func (s *VmControlServer) DockerContainerUnpause(ctx context.Context, req vmtypes.IDRequest) error {
-	return s.dockerClient.UnpauseContainer(req.ID)
-}
-
-func (s *VmControlServer) DockerContainerDelete(ctx context.Context, params vmtypes.IDRequest) error {
-	return s.dockerClient.DeleteContainer(params.ID, true)
-}
-
-func (s *VmControlServer) DockerVolumeCreate(ctx context.Context, options dockertypes.VolumeCreateOptions) error {
-	return s.dockerClient.Call("POST", "/volumes/create", &options, nil)
-}
-
-func (s *VmControlServer) DockerVolumeDelete(ctx context.Context, params vmtypes.IDRequest) error {
-	return s.dockerClient.DeleteVolume(params.ID)
-}
-
-func (s *VmControlServer) DockerImageDelete(ctx context.Context, params vmtypes.IDRequest) error {
-	return s.dockerClient.DeleteImage(params.ID, true)
-}
-
-func (s *VmControlServer) DockerNetworkCreate(ctx context.Context, options dockertypes.Network) error {
-	_, err := s.dockerClient.CreateNetwork(options)
-	return err
-}
-
-func (s *VmControlServer) DockerNetworkDelete(ctx context.Context, params vmtypes.IDRequest) error {
-	return s.dockerClient.DeleteNetwork(params.ID)
-}
-
-func (s *VmControlServer) DockerImageImportFromHostPath(ctx context.Context, params vmtypes.DockerImageImportFromHostPathRequest) error {
-	reader, err := os.Open(params.HostPath)
-	if err != nil {
-		return fmt.Errorf("open file: %w", err)
-	}
-	defer reader.Close()
-
-	return s.dockerClient.ImportImage(reader)
-}
-
-func (s *VmControlServer) DockerImageExportToHostPath(ctx context.Context, params vmtypes.DockerImageExportToHostPathRequest) error {
-	// open output file
-	file, err := os.Create(params.HostPath)
-	if err != nil {
-		return fmt.Errorf("create file: %w", err)
-	}
-	defer file.Close()
-
-	reader, err := s.dockerClient.ExportImage(params.ImageID)
-	if err != nil {
-		return err
-	}
-	defer reader.Close()
-
-	_, err = io.Copy(file, reader)
-	if err != nil {
-		return fmt.Errorf("copy data: %w", err)
-	}
-
-	return nil
 }
 
 func (s *VmControlServer) K8sPodDelete(ctx context.Context, params vmtypes.K8sNameRequest) error {
@@ -446,24 +363,6 @@ func (s *VmControlServer) Serve() (func() error, error) {
 		"InternalDumpDebugInfo":          handler.New(s.InternalDumpDebugInfo),
 		"InternalGetEnvPATH":             handler.New(s.InternalGetEnvPATH),
 		"InternalIsTestMode":             handler.New(s.InternalIsTestMode),
-
-		"DockerContainerStart":   handler.New(s.DockerContainerStart),
-		"DockerContainerStop":    handler.New(s.DockerContainerStop),
-		"DockerContainerKill":    handler.New(s.DockerContainerKill),
-		"DockerContainerRestart": handler.New(s.DockerContainerRestart),
-		"DockerContainerPause":   handler.New(s.DockerContainerPause),
-		"DockerContainerUnpause": handler.New(s.DockerContainerUnpause),
-		"DockerContainerDelete":  handler.New(s.DockerContainerDelete),
-
-		"DockerVolumeCreate": handler.New(s.DockerVolumeCreate),
-		"DockerVolumeDelete": handler.New(s.DockerVolumeDelete),
-
-		"DockerImageDelete":             handler.New(s.DockerImageDelete),
-		"DockerImageImportFromHostPath": handler.New(s.DockerImageImportFromHostPath),
-		"DockerImageExportToHostPath":   handler.New(s.DockerImageExportToHostPath),
-
-		"DockerNetworkCreate": handler.New(s.DockerNetworkCreate),
-		"DockerNetworkDelete": handler.New(s.DockerNetworkDelete),
 
 		"K8sPodDelete":     handler.New(s.K8sPodDelete),
 		"K8sServiceDelete": handler.New(s.K8sServiceDelete),

@@ -48,7 +48,9 @@ struct CreateNetworkView: View {
                     })
             } header: {
                 Text("New Network")
-                Text("Bridge networks are groups of containers in the same subnet (IP range) that can communicate with each other. They are typically used by Compose, and don’t need to be manually created or deleted.")
+                Text(
+                    "Bridge networks are groups of containers in the same subnet (IP range) that can communicate with each other. They are typically used by Compose, and don’t need to be manually created or deleted."
+                )
             }
 
             Section("Advanced") {
@@ -59,7 +61,8 @@ struct CreateNetworkView: View {
 
             CreateButtonRow {
                 HelpButton {
-                    NSWorkspace.shared.open(URL(string: "https://orb.cx/docker-docs/network-create")!)
+                    NSWorkspace.shared.open(
+                        URL(string: "https://orb.cx/docker-docs/network-create")!)
                 }
 
                 Button {

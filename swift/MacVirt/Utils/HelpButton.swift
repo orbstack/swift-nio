@@ -1,5 +1,5 @@
-import SwiftUI
 import AppKit
+import SwiftUI
 
 struct HelpButton: NSViewRepresentable {
     let action: () -> Void

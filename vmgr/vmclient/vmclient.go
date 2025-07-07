@@ -11,7 +11,6 @@ import (
 	"github.com/creachadair/jrpc2"
 	"github.com/creachadair/jrpc2/jhttp"
 	"github.com/orbstack/macvirt/vmgr/conf"
-	"github.com/orbstack/macvirt/vmgr/dockertypes"
 	"github.com/orbstack/macvirt/vmgr/flock"
 	"github.com/orbstack/macvirt/vmgr/vmclient/vmtypes"
 	"golang.org/x/sys/unix"
@@ -181,16 +180,6 @@ func (c *VmClient) StartSetup() (*vmtypes.SetupInfo, error) {
 
 func (c *VmClient) SetDockerContext() error {
 	return c.rpc.CallResult(context.TODO(), "SetDockerContext", nil, &noResult)
-}
-
-func (c *VmClient) DockerContainerList() ([]dockertypes.ContainerSummary, error) {
-	var containers []dockertypes.ContainerSummary
-	err := c.rpc.CallResult(context.TODO(), "DockerContainerList", nil, &containers)
-	if err != nil {
-		return nil, err
-	}
-
-	return containers, nil
 }
 
 func (c *VmClient) IsSshConfigWritable() (bool, error) {

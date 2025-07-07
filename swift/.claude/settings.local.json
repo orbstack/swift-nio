@@ -3,7 +3,8 @@
     "allow": [
       "Bash(swift build:*)",
       "mcp__ide__getDiagnostics",
-      "Bash(treefmt:*)"
+      "Bash(treefmt:*)",
+      "Bash(xcodebuild:*)"
     ],
     "deny": []
   }

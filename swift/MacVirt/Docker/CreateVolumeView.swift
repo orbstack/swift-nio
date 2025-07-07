@@ -46,12 +46,15 @@ struct CreateVolumeView: View {
                     })
             } header: {
                 Text("New Volume")
-                Text("Volumes are for sharing data between containers. Unlike bind mounts, they are stored on a native Linux file system, making them faster and more reliable.")
+                Text(
+                    "Volumes are for sharing data between containers. Unlike bind mounts, they are stored on a native Linux file system, making them faster and more reliable."
+                )
             }
 
             CreateButtonRow {
                 HelpButton {
-                    NSWorkspace.shared.open(URL(string: "https://orb.cx/docker-docs/volume-create")!)
+                    NSWorkspace.shared.open(
+                        URL(string: "https://orb.cx/docker-docs/volume-create")!)
                 }
 
                 Button {

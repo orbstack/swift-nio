@@ -475,6 +475,7 @@ class VmViewModel: ObservableObject {
     private let daemon = DaemonManager()
     private let vmgr = VmService(client: JsonRPCClient(unixSocket: Files.vmgrSocket))
     private let scon = SconService(client: JsonRPCClient(unixSocket: Files.sconSocket))
+    private let dockerClient = try! DockerClient(unixSocket: Files.dockerSocket)
 
     let privHelper = PHClient()
 
@@ -1344,13 +1345,13 @@ class VmViewModel: ObservableObject {
 
     func dockerImportImage(url: URL) async {
         await doTryDockerImageAction("import") {
-            try await vmgr.dockerImageImportFromHostPath(url.path)
+            try await dockerClient.imageImport(url: url)
         }
     }
 
-    func dockerExportImage(imageId: String, hostPath: String) async {
+    func dockerExportImage(id: String, url: URL) async {
         await doTryDockerImageAction("export") {
-            try await vmgr.dockerImageExportToHostPath(imageId, hostPath)
+            try await dockerClient.imageExport(id: id, url: url)
         }
     }
 
@@ -1367,43 +1368,43 @@ class VmViewModel: ObservableObject {
 
     func tryDockerContainerStart(_ id: String) async {
         await doTryDockerContainerAction("start") {
-            try await vmgr.dockerContainerStart(id)
+            try await dockerClient.containerStart(id: id)
         }
     }
 
     func tryDockerContainerStop(_ id: String) async {
         await doTryDockerContainerAction("stop") {
-            try await vmgr.dockerContainerStop(id)
+            try await dockerClient.containerStop(id: id)
         }
     }
 
     func tryDockerContainerKill(_ id: String) async {
         await doTryDockerContainerAction("kill") {
-            try await vmgr.dockerContainerKill(id)
+            try await dockerClient.containerKill(id: id)
         }
     }
 
     func tryDockerContainerRestart(_ id: String) async {
         await doTryDockerContainerAction("restart") {
-            try await vmgr.dockerContainerRestart(id)
+            try await dockerClient.containerRestart(id: id)
         }
     }
 
     func tryDockerContainerPause(_ id: String) async {
         await doTryDockerContainerAction("pause") {
-            try await vmgr.dockerContainerPause(id)
+            try await dockerClient.containerPause(id: id)
         }
     }
 
     func tryDockerContainerUnpause(_ id: String) async {
         await doTryDockerContainerAction("unpause") {
-            try await vmgr.dockerContainerUnpause(id)
+            try await dockerClient.containerUnpause(id: id)
         }
     }
 
     func tryDockerContainerRemove(_ id: String) async {
         await doTryDockerContainerAction("delete") {
-            try await vmgr.dockerContainerRemove(id)
+            try await dockerClient.containerDelete(id: id)
         }
     }
 
@@ -1494,14 +1495,15 @@ class VmViewModel: ObservableObject {
 
     func tryDockerVolumeCreate(_ name: String) async {
         await doTryDockerVolumeAction("create") {
-            try await vmgr.dockerVolumeCreate(
-                DKVolumeCreateOptions(name: name, labels: nil, driver: nil, driverOpts: nil))
+            _ = try await dockerClient.volumeCreate(
+                options:
+                    DKVolumeCreateOptions(name: name, labels: nil, driver: nil, driverOpts: nil))
         }
     }
 
     func tryDockerVolumeRemove(_ name: String) async {
         await doTryDockerVolumeAction("delete") {
-            try await vmgr.dockerVolumeRemove(name)
+            try await dockerClient.volumeDelete(id: name)
         }
     }
 
@@ -1516,7 +1518,7 @@ class VmViewModel: ObservableObject {
 
     func tryDockerImageRemove(_ id: String) async {
         await doTryDockerImageAction("delete") {
-            try await vmgr.dockerImageRemove(id)
+            try await dockerClient.imageDelete(id: id)
         }
     }
 
@@ -1570,13 +1572,13 @@ class VmViewModel: ObservableObject {
                 labels: [:],
                 checkDuplicate: nil,
             )
-            try await vmgr.dockerNetworkCreate(nw)
+            _ = try await dockerClient.networkCreate(options: nw)
         }
     }
 
     func tryDockerNetworkRemove(_ id: String) async {
         await doTryDockerNetworkAction("delete") {
-            try await vmgr.dockerNetworkRemove(id)
+            try await dockerClient.networkDelete(id: id)
         }
     }
 

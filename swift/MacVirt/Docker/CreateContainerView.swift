@@ -24,64 +24,68 @@ struct CreateContainerView: View {
     var body: some View {
         NavigationStack {
             ImageSelector(image: $image)
-            .navigationDestination(isPresented: $formIsPresented, destination: {
-                CreateForm {
-                    Section("New Container") {
-                        let nameBinding = Binding<String>(
-                            get: { name },
-                            set: {
-                                self.name = $0
-                            })
+                .navigationDestination(
+                    isPresented: $formIsPresented,
+                    destination: {
+                        CreateForm {
+                            Section("New Container") {
+                                let nameBinding = Binding<String>(
+                                    get: { name },
+                                    set: {
+                                        self.name = $0
+                                    })
 
-                        ValidatedTextField(
-                            "Name", text: nameBinding,
-                            validate: { value in
-                                // duplicate
-                                if vmModel.dockerNetworks?[value] != nil {
-                                    return "Already exists"
+                                ValidatedTextField(
+                                    "Name", text: nameBinding,
+                                    validate: { value in
+                                        // duplicate
+                                        if vmModel.dockerNetworks?[value] != nil {
+                                            return "Already exists"
+                                        }
+
+                                        // regex
+                                        if dockerRestrictedNamePattern.firstMatch(
+                                            in: value, options: [],
+                                            range: NSRange(location: 0, length: value.utf16.count))
+                                            == nil
+                                        {
+                                            return "Invalid name"
+                                        }
+
+                                        return nil
+                                    })
+                            }
+
+                            Section("Advanced") {
+                                Toggle("IPv6", isOn: $enableIPv6)
+
+                                TextField(
+                                    "Subnet (IPv4)", text: $subnet, prompt: Text("172.30.30.0/24"))
+                            }
+
+                            CreateButtonRow {
+                                HelpButton {
+                                    NSWorkspace.shared.open(
+                                        URL(string: "https://orb.cx/docker-docs/container-create")!)
                                 }
 
-                                // regex
-                                if dockerRestrictedNamePattern.firstMatch(
-                                    in: value, options: [],
-                                    range: NSRange(location: 0, length: value.utf16.count))
-                                    == nil
-                                {
-                                    return "Invalid name"
+                                Button {
+                                    isPresented = false
+                                } label: {
+                                    Text("Cancel")
                                 }
+                                .keyboardShortcut(.cancelAction)
 
-                                return nil
-                            })
-                    }
-
-                    Section("Advanced") {
-                        Toggle("IPv6", isOn: $enableIPv6)
-
-                        TextField("Subnet (IPv4)", text: $subnet, prompt: Text("172.30.30.0/24"))
-                    }
-
-                    CreateButtonRow {
-                        HelpButton {
-                            NSWorkspace.shared.open(URL(string: "https://orb.cx/docker-docs/container-create")!)
+                                CreateSubmitButton("Create")
+                                    .keyboardShortcut(.defaultAction)
+                            }
+                        } onSubmit: {
+                            formIsPresented = true
+                        }.onAppear {
+                            enableIPv6 = vmModel.dockerEnableIPv6
                         }
-
-                        Button {
-                            isPresented = false
-                        } label: {
-                            Text("Cancel")
-                        }
-                        .keyboardShortcut(.cancelAction)
-
-                        CreateSubmitButton("Create")
-                            .keyboardShortcut(.defaultAction)
-                    }
-                } onSubmit: {
-                    formIsPresented = true
-                }.onAppear {
-                    enableIPv6 = vmModel.dockerEnableIPv6
-                }
-                .navigationTitle("Container Settings")
-            })
+                        .navigationTitle("Container Settings")
+                    })
         }
         .frame(minHeight: 400)
     }
@@ -194,7 +198,8 @@ private class RegistryImageModel: ObservableObject {
     }
 
     private func getRepositories(registry: String) async throws -> DRRepositoryList {
-        let url: URL = URL(string: "https://\(registry)/v2/repositories/library/?page=1&page_size=100")!
+        let url: URL = URL(
+            string: "https://\(registry)/v2/repositories/library/?page=1&page_size=100")!
         let (data, _) = try await URLSession.shared.data(from: url)
 
         print("data: \(String(data: data, encoding: .utf8)!)")

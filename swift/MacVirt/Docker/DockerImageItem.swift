@@ -247,7 +247,7 @@ extension DKImage {
                 Task {
                     await actionTracker.with(imageId: self.id, action: .exporting) {
                         let identifier = self.hasTag ? self.userTag : self.id
-                        await vmModel.dockerExportImage(imageId: identifier, hostPath: url.path)
+                        await vmModel.dockerExportImage(id: identifier, url: url)
                     }
                 }
             }

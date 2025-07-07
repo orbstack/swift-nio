@@ -59,15 +59,6 @@ private struct InternalUpdateTokenRequest: Codable {
     var refreshToken: String?
 }
 
-private struct DockerImageImportFromHostPathRequest: Codable {
-    let hostPath: String
-}
-
-private struct DockerImageExportToHostPathRequest: Codable {
-    let imageId: String
-    let hostPath: String
-}
-
 class VmService {
     private let c: JsonRPCClient
 
@@ -107,68 +98,6 @@ class VmService {
 
     func isSshConfigWritable() async throws -> Bool {
         try await c.call("IsSshConfigWritable")
-    }
-
-    // MARK: - Docker
-
-    func dockerContainerStart(_ id: String) async throws {
-        try await c.call("DockerContainerStart", args: IDRequest(id: id))
-    }
-
-    func dockerContainerStop(_ id: String) async throws {
-        try await c.call("DockerContainerStop", args: IDRequest(id: id))
-    }
-
-    func dockerContainerKill(_ id: String) async throws {
-        try await c.call("DockerContainerKill", args: IDRequest(id: id))
-    }
-
-    func dockerContainerRestart(_ id: String) async throws {
-        try await c.call("DockerContainerRestart", args: IDRequest(id: id))
-    }
-
-    func dockerContainerPause(_ id: String) async throws {
-        try await c.call("DockerContainerPause", args: IDRequest(id: id))
-    }
-
-    func dockerContainerUnpause(_ id: String) async throws {
-        try await c.call("DockerContainerUnpause", args: IDRequest(id: id))
-    }
-
-    func dockerContainerRemove(_ id: String) async throws {
-        try await c.call("DockerContainerDelete", args: IDRequest(id: id))
-    }
-
-    func dockerVolumeCreate(_ options: DKVolumeCreateOptions) async throws {
-        try await c.call("DockerVolumeCreate", args: options)
-    }
-
-    func dockerVolumeRemove(_ id: String) async throws {
-        try await c.call("DockerVolumeDelete", args: IDRequest(id: id))
-    }
-
-    func dockerImageRemove(_ id: String) async throws {
-        try await c.call("DockerImageDelete", args: IDRequest(id: id))
-    }
-
-    func dockerNetworkCreate(_ options: DKNetwork) async throws {
-        try await c.call("DockerNetworkCreate", args: options)
-    }
-
-    func dockerNetworkRemove(_ id: String) async throws {
-        try await c.call("DockerNetworkDelete", args: IDRequest(id: id))
-    }
-
-    func dockerImageImportFromHostPath(_ hostPath: String) async throws {
-        try await c.call(
-            "DockerImageImportFromHostPath",
-            args: DockerImageImportFromHostPathRequest(hostPath: hostPath))
-    }
-
-    func dockerImageExportToHostPath(_ imageId: String, _ hostPath: String) async throws {
-        try await c.call(
-            "DockerImageExportToHostPath",
-            args: DockerImageExportToHostPathRequest(imageId: imageId, hostPath: hostPath))
     }
 
     // MARK: - K8s
