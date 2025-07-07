@@ -454,6 +454,8 @@ private func fmtRpc(_ error: Error) -> String {
         return "Exited with status \(error.status):\n\(error.stderr)"
     case let error as RPCError:
         return error.errorDescription ?? "\(error)"
+    case let error as DockerError:
+        return error.errorDescription ?? "\(error)"
     default:
         // prefer info, not localized "operation could not be completed"
         return "\(error)"

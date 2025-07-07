@@ -638,6 +638,10 @@ struct DKNetworkCreateResponse: Decodable {
     }
 }
 
+struct DKAPIError: Decodable {
+    let message: String
+}
+
 enum DockerLabels {
     static let composeProject = "com.docker.compose.project"
     static let composeService = "com.docker.compose.service"

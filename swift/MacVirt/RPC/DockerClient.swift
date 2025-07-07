@@ -12,6 +12,12 @@ private let connectTimeout: TimeAmount = .seconds(5)
 // for long downloads/machine creation
 private let readTimeout: TimeAmount = .minutes(30)
 
+extension URL {
+    var filePath: FilePath {
+        FilePath(self.path)
+    }
+}
+
 enum DockerError: LocalizedError {
     case api(status: HTTPResponseStatus, message: String?)
 
@@ -28,7 +34,7 @@ enum DockerError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case let .api(status, message):
-            return "\(status): \(message ?? "(unknown error)")"
+            return "\(message ?? "unknown error") (\(status))"
         case let .decode(cause):
             return "Decode error: \(cause)"
         case let .encode(cause):
@@ -108,7 +114,7 @@ class DockerClient {
         {
             // read error
             let err = try await response.body.collect(upTo: responseBodyLimit)
-            let errJson = try? decoder.decode(DockerAPIError.self, from: err)
+            let errJson = try? decoder.decode(DKAPIError.self, from: err)
             throw DockerError.api(status: response.status, message: errJson?.message)
         }
 
@@ -260,15 +266,5 @@ class DockerClient {
 
     func networkDelete(id: String) async throws {
         try await call(.DELETE, ["networks", id])
-    }
-}
-
-private struct DockerAPIError: Decodable {
-    let message: String
-}
-
-extension URL {
-    var filePath: FilePath {
-        FilePath(self.path)
     }
 }
