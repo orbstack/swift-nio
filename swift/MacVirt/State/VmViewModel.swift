@@ -1480,6 +1480,14 @@ class VmViewModel: ObservableObject {
         await doTryDockerComposeAction("restart", cid: cid, args: ["restart"])
     }
 
+    func tryDockerComposePause(_ cid: DockerContainerId) async {
+        await doTryDockerComposeAction("pause", cid: cid, args: ["pause"])
+    }
+
+    func tryDockerComposeUnpause(_ cid: DockerContainerId) async {
+        await doTryDockerComposeAction("unpause", cid: cid, args: ["unpause"])
+    }
+
     func tryDockerComposeRemove(_ cid: DockerContainerId) async {
         // use 'down' to remove container and networks
         // fails if config is missing, but we don't use configs anymore, so no need for 'rm' fallback

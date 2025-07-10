@@ -556,13 +556,13 @@ class MenuBarController: NSObject, NSMenuDelegate {
         }
         let submenu = groupItem.newSubmenu()
         // supabase cli creates contaners with project label but not service, so Compose doesn't work
-        let isFullCompose = group.isFullCompose
+        let isRealCompose = group.isRealCompose
 
         // actions
         if group.anyRunning {
             submenu.addActionItem(
                 "Stop", icon: systemImage("stop.fill"),
-                disabled: actionInProgress || !isFullCompose
+                disabled: actionInProgress || !isRealCompose
             ) { [self] in
                 await actionTracker.with(cid: group.cid, action: .stop) {
                     await vmModel.tryDockerComposeStop(group.cid)
@@ -571,7 +571,7 @@ class MenuBarController: NSObject, NSMenuDelegate {
         } else {
             submenu.addActionItem(
                 "Start", icon: systemImage("play.fill"),
-                disabled: actionInProgress || !isFullCompose
+                disabled: actionInProgress || !isRealCompose
             ) { [self] in
                 await actionTracker.with(cid: group.cid, action: .start) {
                     await vmModel.tryDockerComposeStart(group.cid)
@@ -582,7 +582,7 @@ class MenuBarController: NSObject, NSMenuDelegate {
         if group.anyRunning {
             submenu.addActionItem(
                 "Restart", icon: systemImage("arrow.clockwise"),
-                disabled: actionInProgress || !isFullCompose
+                disabled: actionInProgress || !isRealCompose
             ) { [self] in
                 await actionTracker.with(cid: group.cid, action: .restart) {
                     await vmModel.tryDockerComposeRestart(group.cid)
@@ -592,7 +592,7 @@ class MenuBarController: NSObject, NSMenuDelegate {
 
         submenu.addActionItem(
             "Delete", icon: systemImage("trash.fill"),
-            disabled: actionInProgress || !isFullCompose
+            disabled: actionInProgress || !isRealCompose
         ) { [self] in
             await actionTracker.with(cid: group.cid, action: .delete) {
                 await vmModel.tryDockerComposeRemove(group.cid)

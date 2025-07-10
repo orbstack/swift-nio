@@ -268,7 +268,10 @@ enum DockerContainerLists {
             // if ANY container in the group is running, show the group as running
             let anyRunning = containers.contains(where: { $0.running })
             group.anyRunning = anyRunning
-            group.isFullCompose = containers.allSatisfy { $0.isFullCompose }
+            group.anyPaused = containers.contains(where: { $0.paused })
+            // supabase launches fake compose containers that have some labels but not others, so the real compose command fails to manage them. only allow running compose actions if it's real
+            // needs to be "any", not "all", because `docker compose run` containers are also missing labels
+            group.isRealCompose = containers.contains { $0.isRealCompose }
             let item = DockerListItem.compose(group, children: children)
             if anyRunning {
                 runningItems.append(item)

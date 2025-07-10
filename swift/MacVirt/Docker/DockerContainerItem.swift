@@ -242,13 +242,6 @@ struct DockerContainerItem: View, Equatable, BaseDockerContainerItem {
                 }
                 .disabled(actionInProgress != nil || !isRunning)
 
-                Button {
-                    presentConfirmDelete = true
-                } label: {
-                    Label("Delete", systemImage: "trash")
-                }
-                .disabled(actionInProgress != nil || (container.isK8s && isRunning))
-
                 // allow kill in case k8s container is stuck
                 Button {
                     finishKill()
@@ -256,6 +249,27 @@ struct DockerContainerItem: View, Equatable, BaseDockerContainerItem {
                     Label("Kill", systemImage: "xmark.octagon")
                 }
                 .disabled((actionInProgress != nil && actionInProgress != .stop) || !isRunning)
+
+                if container.paused {
+                    Button {
+                        finishUnpause()
+                    } label: {
+                        Label("Unpause", systemImage: "playpause")
+                    }
+                } else {
+                    Button {
+                        finishPause()
+                    } label: {
+                        Label("Pause", systemImage: "pause")
+                    }
+                }
+
+                Button {
+                    presentConfirmDelete = true
+                } label: {
+                    Label("Delete", systemImage: "trash")
+                }
+                .disabled(actionInProgress != nil || (container.isK8s && isRunning))
             }
 
             Divider()
@@ -416,6 +430,10 @@ protocol BaseDockerContainerItem {
     @MainActor
     func finishStop()
     @MainActor
+    func finishPause()
+    @MainActor
+    func finishUnpause()
+    @MainActor
     func finishKill()
     @MainActor
     func finishRestart()
@@ -474,6 +492,42 @@ extension BaseDockerContainerItem {
                         await vmModel.tryDockerContainerStart(id)
                     case .compose:
                         await vmModel.tryDockerComposeStart(item)
+                    default:
+                        return
+                    }
+                }
+            }
+        }
+    }
+
+    @MainActor
+    func finishPause() {
+        for item in resolveActionList() {
+            Task { @MainActor in
+                await actionTracker.with(cid: item, action: .pause) {
+                    switch item {
+                    case let .container(id):
+                        await vmModel.tryDockerContainerPause(id)
+                    case .compose:
+                        await vmModel.tryDockerComposePause(item)
+                    default:
+                        return
+                    }
+                }
+            }
+        }
+    }
+
+    @MainActor
+    func finishUnpause() {
+        for item in resolveActionList() {
+            Task { @MainActor in
+                await actionTracker.with(cid: item, action: .unpause) {
+                    switch item {
+                    case let .container(id):
+                        await vmModel.tryDockerContainerUnpause(id)
+                    case .compose:
+                        await vmModel.tryDockerComposeUnpause(item)
                     default:
                         return
                     }

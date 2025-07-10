@@ -9,7 +9,8 @@ import SwiftUI
 struct ComposeGroup: Hashable, Equatable {
     let project: String
     var anyRunning: Bool = false
-    var isFullCompose: Bool = false
+    var anyPaused: Bool = false
+    var isRealCompose: Bool = false
 
     var cid: DockerContainerId {
         .compose(project: project)

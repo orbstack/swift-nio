@@ -108,7 +108,7 @@ struct DockerComposeGroupItem: View, Equatable, BaseDockerContainerItem {
                 ) {
                     finishStop()
                 }
-                .disabled(actionInProgress != nil || !composeGroup.isFullCompose)
+                .disabled(actionInProgress != nil || !composeGroup.isRealCompose)
                 .help("Stop project")
             } else {
                 ProgressIconButton(
@@ -117,7 +117,7 @@ struct DockerComposeGroupItem: View, Equatable, BaseDockerContainerItem {
                 ) {
                     finishStart()
                 }
-                .disabled(actionInProgress != nil || !composeGroup.isFullCompose)
+                .disabled(actionInProgress != nil || !composeGroup.isRealCompose)
                 .help("Start project")
             }
 
@@ -127,7 +127,7 @@ struct DockerComposeGroupItem: View, Equatable, BaseDockerContainerItem {
             ) {
                 presentConfirmDelete = true
             }
-            .disabled(actionInProgress != nil || !composeGroup.isFullCompose)
+            .disabled(actionInProgress != nil || !composeGroup.isRealCompose)
             .help("Delete project")
         }
         .padding(.vertical, 8)
@@ -148,25 +148,35 @@ struct DockerComposeGroupItem: View, Equatable, BaseDockerContainerItem {
                     finishStart()
                 } label: {
                     Label("Start", systemImage: "play")
-                }.disabled(actionInProgress != nil || isRunning || !composeGroup.isFullCompose)
+                }.disabled(actionInProgress != nil || isRunning || !composeGroup.isRealCompose)
 
                 Button {
                     finishStop()
                 } label: {
                     Label("Stop", systemImage: "stop")
-                }.disabled(actionInProgress != nil || !isRunning || !composeGroup.isFullCompose)
+                }.disabled(actionInProgress != nil || !isRunning || !composeGroup.isRealCompose)
 
                 Button {
                     finishRestart()
                 } label: {
                     Label("Restart", systemImage: "arrow.clockwise")
-                }.disabled(actionInProgress != nil || !isRunning || !composeGroup.isFullCompose)
+                }.disabled(actionInProgress != nil || !isRunning || !composeGroup.isRealCompose)
 
-                Button {
-                    presentConfirmDelete = true
-                } label: {
-                    Label("Delete", systemImage: "trash")
-                }.disabled(actionInProgress != nil || !composeGroup.isFullCompose)
+                if composeGroup.anyPaused {
+                    Button {
+                        finishUnpause()
+                    } label: {
+                        Label("Unpause", systemImage: "playpause")
+                    }.disabled(
+                        (actionInProgress != nil) || !composeGroup.isRealCompose)
+                } else {
+                    Button {
+                        finishPause()
+                    } label: {
+                        Label("Pause", systemImage: "pause")
+                    }.disabled(
+                        (actionInProgress != nil) || !isRunning || !composeGroup.isRealCompose)
+                }
 
                 Button {
                     finishKill()
@@ -174,7 +184,13 @@ struct DockerComposeGroupItem: View, Equatable, BaseDockerContainerItem {
                     Label("Kill", systemImage: "xmark.octagon")
                 }.disabled(
                     (actionInProgress != nil && actionInProgress != .stop) || !isRunning
-                        || !composeGroup.isFullCompose)
+                        || !composeGroup.isRealCompose)
+
+                Button {
+                    presentConfirmDelete = true
+                } label: {
+                    Label("Delete", systemImage: "trash")
+                }.disabled(actionInProgress != nil || !composeGroup.isRealCompose)
             }
 
             Divider()

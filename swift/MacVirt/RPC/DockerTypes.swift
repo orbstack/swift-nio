@@ -38,6 +38,10 @@ struct DKContainer: Codable, Identifiable, Hashable {
         state == "running"
     }
 
+    var paused: Bool {
+        state == "paused"
+    }
+
     // docker counts restarting as running for /containers/json list inclusion
     var runningOrRestarting: Bool {
         switch state {
@@ -82,7 +86,7 @@ struct DKContainer: Codable, Identifiable, Hashable {
         labels?[DockerLabels.composeConfigFiles]?.split(separator: ",").map { String($0) }
     }
 
-    var isFullCompose: Bool {
+    var isRealCompose: Bool {
         composeProject != nil && composeService != nil
     }
 
