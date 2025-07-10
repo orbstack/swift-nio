@@ -594,6 +594,10 @@ func (d *DockerAgent) monitorEvents() error {
 				d.containerRefreshDebounce.Call()
 				// also need to trigger networks refresh, because networks depends on active containers
 				d.networkRefreshDebounce.Call()
+			case "pause", "unpause":
+				// docker engine reports event before pause/unpause actually happens, wtf?
+				time.Sleep(100 * time.Millisecond)
+				d.triggerUIEvent(uitypes.DockerEntityContainer)
 			default:
 				// UI needs updating for health status, but nothing else
 				// action format: "health_status: healthy"
