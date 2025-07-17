@@ -151,7 +151,7 @@ private class AsyncPipeReader {
     }
 }
 
-private class CommandViewModel: ObservableObject {
+class CommandViewModel: ObservableObject {
     let searchCommand = PassthroughSubject<Void, Never>()
     let clearCommand = PassthroughSubject<Void, Never>()
     let copyAllCommand = PassthroughSubject<Void, Never>()
@@ -700,7 +700,7 @@ private struct LogsView: View {
     }
 }
 
-private struct DockerLogsContentView: View {
+struct DockerLogsContentView: View {
     @EnvironmentObject private var vmModel: VmViewModel
     @EnvironmentObject private var commandModel: CommandViewModel
     @StateObject private var model = LogsViewModel()

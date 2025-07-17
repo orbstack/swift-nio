@@ -43,7 +43,7 @@ extension NavTabId {
     var trailingItemIdentifiers: [NSToolbarItem.Identifier] {
         switch self {
         case .dockerContainers:
-            return [.dockerContainersOpen]
+            return [.dockerContainersTabs, .flexibleSpace, .dockerContainersOpen]
         case .dockerVolumes:
             return [.dockerVolumesOpen]
         case .dockerImages:
@@ -58,6 +58,12 @@ extension NavTabId {
     }
 }
 
+enum ContainerTabId: CaseIterable {
+    case info
+    case logs
+    case terminal
+}
+
 extension NSToolbarItem.Identifier {
     // use custom buttons for more flexibility
     static let toggleInspectorButton = NSToolbarItem.Identifier("toggleInspectorButton")
@@ -66,6 +72,7 @@ extension NSToolbarItem.Identifier {
     static let dockerContainersSort = NSToolbarItem.Identifier("dockerContainersSort")
     static let dockerContainersFilter = NSToolbarItem.Identifier("dockerContainersFilter")
     static let dockerContainersNew = NSToolbarItem.Identifier("dockerContainersNew")
+    static let dockerContainersTabs = NSToolbarItem.Identifier("dockerContainersTabs")
 
     static let dockerVolumesOpen = NSToolbarItem.Identifier("dockerVolumesOpen")
     static let dockerVolumesNew = NSToolbarItem.Identifier("dockerVolumesNew")

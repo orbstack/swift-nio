@@ -13,10 +13,12 @@ struct DetailsStack<Content: View>: View {
     }
 
     var body: some View {
-        Form {
-            content()
+        ScrollView {
+            Form {
+                content()
+            }
+            .formStyle(.grouped)
         }
-        .formStyle(.grouped)
     }
 }
 

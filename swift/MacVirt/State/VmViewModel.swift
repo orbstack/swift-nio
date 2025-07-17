@@ -486,6 +486,7 @@ class VmViewModel: ObservableObject {
     @Published var searchText = ""
     @Published var initialDockerContainerSelection: Set<DockerContainerId> = []
     @Published var presentAuth = false
+    @Published var containerTab: ContainerTabId = .info
 
     // the user's choice when the window is big enough
     var sidebarPrefersCollapsed = false

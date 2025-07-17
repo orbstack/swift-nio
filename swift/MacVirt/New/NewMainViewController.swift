@@ -88,6 +88,12 @@ class NewMainViewController: NSViewController {
         return item
     }()
 
+    lazy var containersTabs = {
+        let group = NSToolbarItemGroup(itemIdentifier: .dockerContainersTabs, titles: ["Info", "Logs", "Terminal"], selectionMode: .selectOne, labels: ["info", "logs", "terminal"], target: self, action: #selector(actionDockerContainersTabs))
+        group.setSelected(true, at: 0)
+        return group
+    }()
+
     lazy var volumesFolderButton = makeToolbarItem(
         itemIdentifier: .dockerVolumesOpen,
         icon: "externaldrive",
@@ -443,27 +449,3 @@ private class EnumMenuDelegate<
         }
     }
 }
-
-// private class ClosureToolbarItem: NSToolbarItem {
-//     private let closureAction: () -> Void
-
-//     init(itemIdentifier: NSToolbarItem.Identifier, icon: String? = nil, title: String, toolTip: String? = nil, action: @escaping () -> Void) {
-//         self.closureAction = action
-
-//         super.init(itemIdentifier: itemIdentifier)
-//         self.label = title
-//         self.toolTip = toolTip ?? title
-//         self.target = self
-//         self.action = #selector(performAction)
-
-//         if let icon {
-//             self.image = NSImage(systemSymbolName: icon, accessibilityDescription: nil)!
-//         }
-//     }
-
-//     @objc func performAction() {
-//         closureAction()
-//     }
-// }
-
-// @resultBuilder

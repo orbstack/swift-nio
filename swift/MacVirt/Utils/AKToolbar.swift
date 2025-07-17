@@ -40,7 +40,7 @@ final class AKToolbarItem: NSToolbarItem {
     private let closure: () -> Void
     private let cancellable: AnyCancellable? = nil
 
-    init(id: String, title: String, systemIcon: String, tooltip: String? = nil, action: @escaping () -> Void) {
+    init(id: String, title: String, systemIcon: String? = nil, tooltip: String? = nil, action: @escaping () -> Void) {
         self.closure = action
 
         super.init(itemIdentifier: NSToolbarItem.Identifier(id))
@@ -48,7 +48,9 @@ final class AKToolbarItem: NSToolbarItem {
         self.action = #selector(performAction)
         self.label = title
         self.toolTip = tooltip ?? title
-        self.image = NSImage(systemSymbolName: systemIcon, accessibilityDescription: nil)!
+        if let systemIcon {
+            self.image = NSImage(systemSymbolName: systemIcon, accessibilityDescription: nil)!
+        }
     }
 
     @objc private func performAction() {

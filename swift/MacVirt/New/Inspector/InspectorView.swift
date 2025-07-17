@@ -92,21 +92,26 @@ struct InspectorView: View {
                     let selItem = selection.first as? DockerContainerId
                 {
                     // single selection
-                    ScrollView {
-                        switch selItem {
-                        case let .compose(project):
-                            DockerComposeGroupDetails(project: project)
-                        case .k8sGroup:
-                            K8SGroupDetails()
-                        case let .container(id):
-                            if let container = model.dockerContainers?.byId[id] {
+                    switch selItem {
+                    case let .compose(project):
+                        DockerComposeGroupDetails(project: project)
+                    case .k8sGroup:
+                        K8SGroupDetails()
+                    case let .container(id):
+                        if let container = model.dockerContainers?.byId[id] {
+                            switch model.containerTab {
+                            case .info:
                                 DockerContainerDetails(container: container)
-                            } else {
-                                ContentUnavailableViewCompat("No Container")
+                            case .logs:
+                                DockerContainerLogsTab(container: container)
+                            case .terminal:
+                                DockerContainerTerminalTab(container: container)
                             }
-                        default:
-                            EmptyView()
+                        } else {
+                            ContentUnavailableViewCompat("No Container")
                         }
+                    default:
+                        EmptyView()
                     }
                 } else {
                     // multiple selections
