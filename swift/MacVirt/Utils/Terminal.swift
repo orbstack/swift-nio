@@ -36,18 +36,18 @@ class LocalProcessTerminalController: NSViewController {
         let view = LocalProcessTerminalViewCustom(frame: NSRect())
         // scrollback increased in SwiftTerm fork
         // 5000 lines, not 25000, due to poor resize performance with large windows
-        view.caretColor = NSColor.clear
-        view.caretTextColor = NSColor.clear
-        view.allowMouseReporting = false
-        view.getTerminal().setCursorStyle(.steadyBar)
-        view.getTerminal().hideCursor()
+        // view.caretColor = NSColor.clear
+        // view.caretTextColor = NSColor.clear
+        // view.allowMouseReporting = false
+        // view.getTerminal().setCursorStyle(.steadyBar)
+        // view.getTerminal().hideCursor()
         view.configureNativeColors()
         // remove NSScroller subview to fix weird scrollbar
-        for subview in view.subviews {
-            if subview is NSScroller {
-                subview.removeFromSuperview()
-            }
-        }
+        // for subview in view.subviews {
+        //     if subview is NSScroller {
+        //         subview.removeFromSuperview()
+        //     }
+        // }
 
         model.clearCommand.sink { [weak view] _ in
             view?.getTerminal().resetToInitialState()
@@ -96,7 +96,9 @@ struct SwiftUILocalProcessTerminal: NSViewControllerRepresentable {
     }
 }
 
-protocol LocalProcessTerminalViewDelegateCustom: AnyObject {
+/// Delegate for the ``LocalProcessTerminalView`` class that is used to
+/// notify the user of process-related changes.
+public protocol LocalProcessTerminalViewCustomDelegate: AnyObject {
     /**
      * This method is invoked to notify that the terminal has been resized to the specified number of columns and rows
      * the user interface code might try to adjut the containing scroll view, or if it is a toplevel window, the window itself
@@ -128,17 +130,37 @@ protocol LocalProcessTerminalViewDelegateCustom: AnyObject {
     func processTerminated (source: TerminalView, exitCode: Int32?)
 }
 
-class LocalProcessTerminalViewCustom: TerminalView, TerminalViewDelegate, LocalProcessDelegate {
-
-    // MOD: public
-    public var process: LocalProcess!
-
+/**
+ * `LocalProcessTerminalView` is an AppKit NSView that can be used to host a local process
+ * the process is launched inside a pseudo-terminal.
+ *
+ * Call the `startProcess` to launch the underlying process inside a pseudo terminal.
+ *
+ * Generally, for the `LocalProcessTerminalView` to be useful, you will want to disable the sandbox
+ * for your application, otherwise the underlying shell will not have access to much - not the majority of
+ * commands, not assorted places on the file systems and so on.   For this, you need to disable for your
+ * target in "Signing and Capabilities" the sandbox entirely.
+ *
+ * Note: instances of `LocalProcessTerminalView` will set the `TerminalView`'s `delegate`
+ * property and capture and consume the messages.   The messages that are most likely needed for
+ * consumer applications are reposted to the `LocalProcessTerminalViewDelegate` in
+ * `processDelegate`.   If you override the `delegate` directly, you might inadvertently break
+ * the internal working of `LocalProcessTerminalView`.   If you must change the `delegate`
+ * make sure that you proxy the values in your implementation to the values set after initializing this instance.
+ *
+ * If you want additional control over the delegate methods implemented in this class, you can
+ * subclass this and override the methods
+ */
+open class LocalProcessTerminalViewCustom: TerminalView, TerminalViewDelegate, LocalProcessDelegate {
+    
+    var process: LocalProcess!
+    
     public override init (frame: CGRect)
     {
         super.init (frame: frame)
         setup ()
     }
-
+    
     public required init? (coder: NSCoder)
     {
         super.init (coder: coder)
@@ -150,12 +172,12 @@ class LocalProcessTerminalViewCustom: TerminalView, TerminalViewDelegate, LocalP
         terminalDelegate = self
         process = LocalProcess (delegate: self)
     }
-
+    
     /**
      * The `processDelegate` is used to deliver messages and information relevant t
      */
-    public weak var processDelegate: LocalProcessTerminalViewDelegateCustom?
-
+    public weak var processDelegate: LocalProcessTerminalViewCustomDelegate?
+    
     /**
      * This method is invoked to notify the client of the new columsn and rows that have been set by the UI
      */
@@ -165,10 +187,10 @@ class LocalProcessTerminalViewCustom: TerminalView, TerminalViewDelegate, LocalP
         }
         var size = getWindowSize()
         let _ = PseudoTerminalHelpers.setWinSize(masterPtyDescriptor: process.childfd, windowSize: &size)
-
+        
         processDelegate?.sizeChanged (source: self, newCols: newCols, newRows: newRows)
     }
-
+    
     public func clipboardCopy(source: TerminalView, content: Data) {
         if let str = String (bytes: content, encoding: .utf8) {
             let pasteBoard = NSPasteboard.general
@@ -176,7 +198,7 @@ class LocalProcessTerminalViewCustom: TerminalView, TerminalViewDelegate, LocalP
             pasteBoard.writeObjects([str as NSString])
         }
     }
-
+    
     /**
      * Invoke this method to notify the processDelegate of the new title for the terminal window
      */
@@ -187,17 +209,17 @@ class LocalProcessTerminalViewCustom: TerminalView, TerminalViewDelegate, LocalP
     public func hostCurrentDirectoryUpdate(source: TerminalView, directory: String?) {
         processDelegate?.hostCurrentDirectoryUpdate(source: source, directory: directory)
     }
-
+    
 
     /**
      * This method is invoked when input from the user needs to be sent to the client
+     * Implementation of the TerminalViewDelegate method
      */
-    public func send(source: TerminalView, data: ArraySlice<UInt8>)
+    open func send(source: TerminalView, data: ArraySlice<UInt8>)
     {
-        // don't send anything, we don't take input
         process.send (data: data)
     }
-
+    
     /**
      * Use this method to toggle the logging of data coming from the host, or pass nil to stop
      */
@@ -205,15 +227,16 @@ class LocalProcessTerminalViewCustom: TerminalView, TerminalViewDelegate, LocalP
     {
         process.setHostLogging (directory: directory)
     }
-
-    public func scrolled(source: TerminalView, position: Double) {
+    
+    /// Implementation of the TerminalViewDelegate method
+    open func scrolled(source: TerminalView, position: Double) {
         // noting
     }
 
-    public func rangeChanged(source: TerminalView, startY: Int, endY: Int) {
+    open func rangeChanged(source: TerminalView, startY: Int, endY: Int) {
         //
     }
-
+    
     /**
      * Launches a child process inside a pseudo-terminal.
      * - Parameter executable: The executable to launch inside the pseudo terminal, defaults to /bin/bash
@@ -225,29 +248,29 @@ class LocalProcessTerminalViewCustom: TerminalView, TerminalViewDelegate, LocalP
     {
         process.startProcess(executable: executable, args: args, environment: environment, execName: execName)
     }
-
+    
     /**
      * Implements the LocalProcessDelegate method.
      */
-    public func processTerminated(_ source: LocalProcess, exitCode: Int32?) {
+    open func processTerminated(_ source: LocalProcess, exitCode: Int32?) {
         processDelegate?.processTerminated(source: self, exitCode: exitCode)
     }
-
+    
     /**
      * Implements the LocalProcessDelegate.dataReceived method
      */
-    public func dataReceived(slice: ArraySlice<UInt8>) {
+    open func dataReceived(slice: ArraySlice<UInt8>) {
         feed (byteArray: slice)
     }
-
+    
     /**
      * Implements the LocalProcessDelegate.getWindowSize method
      */
-    public func getWindowSize () -> winsize
+    open func getWindowSize () -> winsize
     {
         let f: CGRect = self.frame
-        // terminal is internal
+        // terminal.{rows,cols} is private
         //return winsize(ws_row: UInt16(terminal.rows), ws_col: UInt16(terminal.cols), ws_xpixel: UInt16 (f.width), ws_ypixel: UInt16 (f.height))
-        return winsize(ws_row: 0, ws_col: 0, ws_xpixel: UInt16 (f.width), ws_ypixel: UInt16 (f.height))
+        return winsize(ws_row: UInt16(0), ws_col: UInt16(0), ws_xpixel: UInt16 (f.width), ws_ypixel: UInt16 (f.height))
     }
 }
