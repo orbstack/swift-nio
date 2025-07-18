@@ -248,32 +248,6 @@ extension View {
             self
         }
     }
-
-    func onKeyPressDownCompat(_ key: KeyEquivalent, action: @escaping () -> Bool) -> some View {
-        if #available(macOS 14, *) {
-            return self.onKeyPress(key, phases: .down) { _ in
-                return action() ? .handled : .ignored
-            }
-        } else {
-            return self
-        }
-    }
-
-    func toolbarRemovingSidebarToggleCompat() -> some View {
-        if #available(macOS 14, *) {
-            return self.toolbar(removing: .sidebarToggle)
-        } else {
-            return self
-        }
-    }
-
-    func sectionActionsCompat(@ViewBuilder content: () -> some View) -> some View {
-        if #available(macOS 15, *) {
-            return self.sectionActions(content: content)
-        } else {
-            return self
-        }
-    }
 }
 
 extension Color {
