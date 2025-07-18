@@ -341,22 +341,6 @@ extension Slider {
     }
 }
 
-// WA: (macOS 13) for SingletonWindowGroup
-func shouldOpenNewWindow(_ id: String) -> Bool {
-    let idPrefix = "\(id)-AppWindow-"
-
-    if let window = NSApp.windows.first(where: {
-        $0.identifier?.rawValue.hasPrefix(idPrefix) ?? false
-    }) {
-        window.makeKeyAndOrderFront(nil)
-        // e.g. from menu bar, with existing windows open, just not focused
-        NSApp.activate(ignoringOtherApps: true)
-        return false
-    }
-
-    return true
-}
-
 extension NSWorkspace {
     static func openSubwindow(_ path: String) {
         switch path {
@@ -376,14 +360,6 @@ extension NSWorkspace {
         //        case WindowID.main:
 
         default:
-            if #available(macOS 14, *) {
-                // WA not needed
-            } else {
-                if !shouldOpenNewWindow(path) {
-                    return
-                }
-            }
-
             NSWorkspace.shared.open(URL(string: "orbstack://\(path)")!)
         }
     }
@@ -424,12 +400,9 @@ extension NSWorkspace {
     }
 }
 
+// TODO: remove this old compatibility shim
 extension OpenWindowAction {
     func call(id: String) {
-        if !shouldOpenNewWindow(id) {
-            return
-        }
-
         self(id: id)
     }
 }

@@ -307,9 +307,6 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
     }
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
-        // WA: on macOS 13, app closes after main window is closed
-        // that's consistent with docs because Window(main) is primary scene, but not consistent with macOS 14+ behavior where having additional scenes disables that behavior
-        // https://developer.apple.com/documentation/swiftui/window#Use-a-window-as-the-main-scene
         false
     }
 
@@ -380,10 +377,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
                 .onPreferenceChange(AKNavigationTitleKey.self) { title in
                     window.title = title ?? "Settings"
                 })
-        // match macOS 13 and 14 behavior
-        if #available(macOS 14, *) {
-            hostingView.sceneBridgingOptions = []
-        }
+        hostingView.sceneBridgingOptions = []
         window.contentView = hostingView
         window.isReleasedWhenClosed = false
 

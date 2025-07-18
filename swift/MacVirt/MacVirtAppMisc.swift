@@ -103,8 +103,3 @@ func getConfigDir() -> String {
     let home = FileManager.default.homeDirectoryForCurrentUser.path
     return home + "/.orbstack"
 }
-
-// WA: on macOS 13, openWindow() and handlesExternalEvents() don't do anything when opening a Window() from a non-SwiftUI context
-// so we have to use WindowGroup() and avoid opening duplicate windows, in order to simulate singletons
-// this is just a marker type for future migration
-typealias SingletonWindowGroup = WindowGroup

@@ -144,9 +144,7 @@ func RunRinitVm() (*RinitData, error) {
 }
 
 func supportsECV() bool {
-	if runtime.GOARCH == "arm64" && osver.Major() >= 14 {
-		// macOS 13 and older misreported FEAT_ECV=1 on M1 because it used the offset for ID_AA64MMFR0.TGran16_2
-		// so only check this on macOS 14+
+	if runtime.GOARCH == "arm64" {
 		if feat, err := unix.SysctlUint32("hw.optional.arm.FEAT_ECV"); err == nil && feat == 1 {
 			return true
 		}

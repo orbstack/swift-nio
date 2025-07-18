@@ -169,7 +169,6 @@ class VmWrapper: NSObject, VZVirtualMachineDelegate {
 }
 
 #if arch(arm64)
-    @available(macOS 13.0, *)
     private func installRosetta() async throws {
         // VZLinuxRosettaDirectoryShare.installRosetta is buggy and gets stuck on "Finding update"
 
