@@ -74,7 +74,7 @@ export RUST_BACKTRACE ?= full
 export RUST_LOG ?= info
 
 # minimumn macOS version
-MACOS_VERSION_ARG := -mmacosx-version-min=13.0
+MACOS_VERSION_ARG := -mmacosx-version-min=14.0
 # for Cgo
 export CGO_CFLAGS := $(MACOS_VERSION_ARG)
 export CGO_LDFLAGS := $(MACOS_VERSION_ARG)

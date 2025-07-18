@@ -15,9 +15,9 @@ DEVELOPER_DIR="$(xcode-select --print-path)"
 rm -fr $OUT/scli.app
 mkdir -p $OUT/scli.app/Contents/MacOS
 # force cgo when cross-compiling to amd64
-CGO_CFLAGS=-mmacosx-version-min=13.0 \
+CGO_CFLAGS=-mmacosx-version-min=14.0 \
 CGO_ENABLED=1 \
-go build "$@" -ldflags "-extldflags '-mmacosx-version-min=13.0 ../swift/SwExt/.build/$SWIFT_ARCH-apple-macosx/$SWIFT_BUILD_TYPE/libSwExt.a -L$DEVELOPER_DIR/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/lib/swift -L$DEVELOPER_DIR/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift/macosx'" -o $OUT/scli.app/Contents/MacOS/scli ./cmd/scli
+go build "$@" -ldflags "-extldflags '-mmacosx-version-min=14.0 ../swift/SwExt/.build/$SWIFT_ARCH-apple-macosx/$SWIFT_BUILD_TYPE/libSwExt.a -L$DEVELOPER_DIR/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/lib/swift -L$DEVELOPER_DIR/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift/macosx'" -o $OUT/scli.app/Contents/MacOS/scli ./cmd/scli
 strip $OUT/scli.app/Contents/MacOS/scli
 # add the rest of the fake app bundle
 cp -r scli-bundle/. "$OUT/scli.app/Contents"

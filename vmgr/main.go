@@ -647,8 +647,8 @@ func runVmManager() {
 	// before sentry, so we don't report dummy CLI panic error to sentry
 	defer errorx.RecoverCLI(1)
 
-	if !osver.IsAtLeast("v13.0") {
-		errorx.Fatalf("unsupported OS: macOS 13.0 or newer is required")
+	if !osver.IsAtLeast("v14.0") {
+		errorx.Fatalf("unsupported OS: macOS 14.0 or newer is required")
 	}
 
 	if osver.Major() == 15 && slices.Contains(badMacOS15Betas, osver.Build()) {
