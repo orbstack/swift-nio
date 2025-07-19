@@ -13,6 +13,11 @@ struct DockerContainerTerminalTab: View {
             env: ["DOCKER_HOST=unix://\(Files.dockerSocket)"],
             model: terminalModel
         )
+        // padding that matches terminal bg color
+        .padding(4)
+        .background(Color(NSColor.textBackgroundColor))
+        // otherwise terminal leaks behind toolbar when scrolled
+        .clipped()
         .overlay {
             // banner for toggling Debug Shell
         }

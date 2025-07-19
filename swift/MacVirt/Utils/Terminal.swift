@@ -33,32 +33,19 @@ class LocalProcessTerminalController: NSViewController {
     }
 
     override func loadView() {
-        let view = LocalProcessTerminalViewCustom(frame: NSRect())
+        let view = LocalProcessTerminalViewCustom(frame: .zero)
         // scrollback increased in SwiftTerm fork
         // 5000 lines, not 25000, due to poor resize performance with large windows
-        // view.caretColor = NSColor.clear
-        // view.caretTextColor = NSColor.clear
-        // view.allowMouseReporting = false
-        // view.getTerminal().setCursorStyle(.steadyBar)
-        // view.getTerminal().hideCursor()
+        // reduce idle frame updates
+        view.getTerminal().setCursorStyle(.steadyBlock)
         view.configureNativeColors()
-        // remove NSScroller subview to fix weird scrollbar
-        // for subview in view.subviews {
-        //     if subview is NSScroller {
-        //         subview.removeFromSuperview()
-        //     }
-        // }
-
-        model.clearCommand.sink { [weak view] _ in
-            view?.getTerminal().resetToInitialState()
-            // invalidate
-            view?.setNeedsDisplay(view!.bounds)
-        }.store(in: &cancellables)
-
-        model.copyAllCommand.sink { [weak view] _ in
-            guard let data = view?.getTerminal().getBufferAsData() else { return }
-            NSPasteboard.copy(data: data)
-        }.store(in: &cancellables)
+        // remove NSScroller subview to fix weird broken scrollbar
+        // ghostty still doesn't even have scrollbar so this is fine
+         for subview in view.subviews {
+             if subview is NSScroller {
+                 subview.removeFromSuperview()
+             }
+         }
 
         self.view = view
     }
