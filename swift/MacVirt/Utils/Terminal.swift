@@ -56,9 +56,9 @@ class LocalProcessTerminalController: NSViewController {
 
     func dismantle() {
         // on close, kill process if still running
-        if terminalView.process.running {
+        if let process = terminalView.process, process.running {
             // require SwiftTerm fork/PR to avoid crash
-            terminalView.process.terminate()
+            kill(process.shellPid, SIGKILL)
         }
     }
 }
@@ -70,16 +70,15 @@ struct SwiftUILocalProcessTerminal: NSViewControllerRepresentable {
     let model: TerminalViewModel
 
     func makeNSViewController(context: Context) -> LocalProcessTerminalController {
-        let controller = LocalProcessTerminalController(model: model)
+        return LocalProcessTerminalController(model: model)
+    }
+
+    func updateNSViewController(_ controller: LocalProcessTerminalController, context: Context) {
         controller.startProcess(executable: executable, args: args, environment: env)
-        return controller
     }
 
-    func updateNSViewController(_ nsViewController: LocalProcessTerminalController, context: Context) {
-    }
-
-    static func dismantleNSViewController(_ nsViewController: LocalProcessTerminalController, coordinator: ()) {
-        nsViewController.dismantle()
+    static func dismantleNSViewController(_ controller: LocalProcessTerminalController, coordinator: ()) {
+        controller.dismantle()
     }
 }
 
@@ -139,25 +138,23 @@ public protocol LocalProcessTerminalViewCustomDelegate: AnyObject {
  * subclass this and override the methods
  */
 open class LocalProcessTerminalViewCustom: TerminalView, TerminalViewDelegate, LocalProcessDelegate {
+    var process: LocalProcess?
     
-    var process: LocalProcess!
+    private var pendingProcessRestart = false
+    private var lastExecutable: String?
+    private var lastArgs: [String]?
+    private var lastEnvironment: [String]?
     
     public override init (frame: CGRect)
     {
         super.init (frame: frame)
-        setup ()
+        terminalDelegate = self
     }
     
     public required init? (coder: NSCoder)
     {
         super.init (coder: coder)
-        setup ()
-    }
-
-    func setup ()
-    {
         terminalDelegate = self
-        process = LocalProcess (delegate: self)
     }
     
     /**
@@ -169,7 +166,7 @@ open class LocalProcessTerminalViewCustom: TerminalView, TerminalViewDelegate, L
      * This method is invoked to notify the client of the new columsn and rows that have been set by the UI
      */
     public func sizeChanged(source: TerminalView, newCols: Int, newRows: Int) {
-        guard process.running else {
+        guard let process, process.running else {
             return
         }
         var size = getWindowSize()
@@ -204,7 +201,7 @@ open class LocalProcessTerminalViewCustom: TerminalView, TerminalViewDelegate, L
      */
     open func send(source: TerminalView, data: ArraySlice<UInt8>)
     {
-        process.send (data: data)
+        process?.send (data: data)
     }
     
     /**
@@ -212,7 +209,7 @@ open class LocalProcessTerminalViewCustom: TerminalView, TerminalViewDelegate, L
      */
     public func setHostLogging (directory: String?)
     {
-        process.setHostLogging (directory: directory)
+        process?.setHostLogging (directory: directory)
     }
     
     /// Implementation of the TerminalViewDelegate method
@@ -233,7 +230,29 @@ open class LocalProcessTerminalViewCustom: TerminalView, TerminalViewDelegate, L
      */
     public func startProcess(executable: String = "/bin/bash", args: [String] = [], environment: [String]? = nil, execName: String? = nil)
     {
-        process.startProcess(executable: executable, args: args, environment: environment, execName: execName)
+        if executable != lastExecutable || args != lastArgs || environment != lastEnvironment {
+            lastExecutable = executable
+            lastArgs = args
+            lastEnvironment = environment
+            
+            if let process, process.running {
+                kill(process.shellPid, SIGKILL)
+                
+                // set process to be started once old process ends
+                pendingProcessRestart = true
+            } else {
+                startProcessNow(executable: executable, args: args, environment: environment, execName: execName)
+            }
+        }
+    }
+    
+    private func startProcessNow(executable: String, args: [String], environment: [String]?, execName: String?) {
+        // combine with default env
+        let finalEnv = Terminal.getEnvironmentVariables() + (environment ?? [])
+
+        let newProcess = LocalProcess(delegate: self)
+        newProcess.startProcess(executable: executable, args: args, environment: finalEnv, execName: execName)
+        self.process = newProcess
     }
     
     /**
@@ -241,8 +260,21 @@ open class LocalProcessTerminalViewCustom: TerminalView, TerminalViewDelegate, L
      */
     open func processTerminated(_ source: LocalProcess, exitCode: Int32?) {
         processDelegate?.processTerminated(source: self, exitCode: exitCode)
+
+        if pendingProcessRestart {
+            clearAndReset()
+
+            startProcessNow(executable: lastExecutable!, args: lastArgs!, environment: lastEnvironment, execName: nil)
+            pendingProcessRestart = false
+        }
     }
-    
+
+    func clearAndReset() {
+        getTerminal().resetToInitialState()
+        // invalidate
+        setNeedsDisplay(bounds)
+    }
+
     /**
      * Implements the LocalProcessDelegate.dataReceived method
      */
@@ -256,8 +288,6 @@ open class LocalProcessTerminalViewCustom: TerminalView, TerminalViewDelegate, L
     open func getWindowSize () -> winsize
     {
         let f: CGRect = self.frame
-        // terminal.{rows,cols} is private
-        //return winsize(ws_row: UInt16(terminal.rows), ws_col: UInt16(terminal.cols), ws_xpixel: UInt16 (f.width), ws_ypixel: UInt16 (f.height))
-        return winsize(ws_row: UInt16(0), ws_col: UInt16(0), ws_xpixel: UInt16 (f.width), ws_ypixel: UInt16 (f.height))
+        return winsize(ws_row: UInt16(getTerminal().rows), ws_col: UInt16(getTerminal().cols), ws_xpixel: UInt16 (f.width), ws_ypixel: UInt16 (f.height))
     }
 }
