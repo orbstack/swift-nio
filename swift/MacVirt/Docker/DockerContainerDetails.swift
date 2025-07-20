@@ -42,29 +42,7 @@ struct DockerContainerDetails: View {
             }
 
             DetailsButtonSection {
-                DetailsButton {
-                    container.showLogs(windowTracker: windowTracker)
-                } label: {
-                    Label("Logs", systemImage: "doc.text.magnifyingglass")
-                }
-
-                DetailsButton {
-                    if vmModel.isLicensed {
-                        container.openDebugShell()
-                    } else {
-                        vmModel.presentRequiresLicense = true
-                    }
-                } label: {
-                    Label("Debug", systemImage: "ladybug")
-                }
-
                 if isRunning {
-                    DetailsButton {
-                        container.openDebugShellFallback()
-                    } label: {
-                        Label("Terminal", systemImage: "terminal")
-                    }
-
                     DetailsButton {
                         container.openFolder()
                     } label: {

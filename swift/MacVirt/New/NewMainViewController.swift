@@ -56,6 +56,13 @@ class NewMainViewController: NSViewController {
         title: "Files",
         action: #selector(actionDockerContainersOpen)
     )
+    
+    lazy var containersOpenWindowButton = makeToolbarItem(
+        itemIdentifier: .dockerContainersOpenWindow,
+        icon: "arrow.up.forward.app",
+        title: "Open in New Window",
+        action: #selector(actionDockerContainersOpenWindow)
+    )
 
     private lazy var containersSortDelegate = EnumMenuDelegate<DockerContainerSortDescriptor>(
         key: .dockerContainersSortDescriptor)

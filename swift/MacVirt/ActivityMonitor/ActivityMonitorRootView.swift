@@ -617,6 +617,8 @@ struct ActivityMonitorRootView: View {
             switch action {
             case .activityMonitorStop:
                 stopAllSelected(stopAction: stopOne)
+            default:
+                break
             }
         }
         .onAppear {

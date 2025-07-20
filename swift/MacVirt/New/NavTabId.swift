@@ -43,14 +43,14 @@ extension NavTabId {
     var trailingItemIdentifiers: [NSToolbarItem.Identifier] {
         switch self {
         case .dockerContainers:
-            return [.dockerContainersTabs, .flexibleSpace, .dockerContainersOpen]
+            return [.dockerContainersTabs, .flexibleSpace, .dockerContainersOpenWindow]
         case .dockerVolumes:
-            return [.dockerVolumesOpen]
+            return [.dockerVolumesOpen, .space]
         case .dockerImages:
-            return [.dockerImagesOpen]
+            return [.dockerImagesOpen, .space]
 
         case .machines:
-            return [.machinesOpen]
+            return [.machinesOpen, .space]
 
         default:
             return []
@@ -69,6 +69,7 @@ extension NSToolbarItem.Identifier {
     static let toggleInspectorButton = NSToolbarItem.Identifier("toggleInspectorButton")
 
     static let dockerContainersOpen = NSToolbarItem.Identifier("dockerContainersOpen")
+    static let dockerContainersOpenWindow = NSToolbarItem.Identifier("dockerContainersOpenWindow")
     static let dockerContainersSort = NSToolbarItem.Identifier("dockerContainersSort")
     static let dockerContainersFilter = NSToolbarItem.Identifier("dockerContainersFilter")
     static let dockerContainersNew = NSToolbarItem.Identifier("dockerContainersNew")
@@ -108,5 +109,5 @@ extension NSToolbarItem.Identifier {
         [.inspectorTrackingSeparator, .licenseBadge, .flexibleSpace]
     static let trailingItemsEnd: [NSToolbarItem.Identifier] =
         // macOS 14 .toggleInspector starts in disabled state, until a selection is made. custom one works
-        [.space, .toggleInspectorButton]
+        [.toggleInspectorButton]
 }

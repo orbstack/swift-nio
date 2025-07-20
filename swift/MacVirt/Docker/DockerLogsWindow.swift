@@ -703,6 +703,8 @@ private struct LogsView: View {
 struct DockerLogsContentView: View {
     @EnvironmentObject private var vmModel: VmViewModel
     @EnvironmentObject private var commandModel: CommandViewModel
+    @EnvironmentObject private var windowTracker: WindowTracker
+
     @StateObject private var model = LogsViewModel()
 
     let cid: DockerContainerId
@@ -745,6 +747,11 @@ struct DockerLogsContentView: View {
                 .onAppear {
                     // save name so we can keep going after container is recreated
                     model.lastContainerName = container.names.first
+                }
+                .onReceive(vmModel.toolbarActionRouter) { action in
+                    if action == .dockerOpenContainerInNewWindow {
+                        container.showLogs(windowTracker: windowTracker)
+                    }
                 }
             } else if let containerName = model.lastContainerName,
                 let container = vmModel.dockerContainers?.byName[containerName]

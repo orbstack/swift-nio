@@ -1,8 +1,9 @@
 import SwiftUI
 
 struct DockerContainerTerminalTab: View {
-    @StateObject private var terminalModel = TerminalViewModel()
+    @EnvironmentObject private var vmModel: VmViewModel
 
+    @StateObject private var terminalModel = TerminalViewModel()
     @State private var useDebugShell = true
 
     let container: DKContainer
@@ -16,11 +17,11 @@ struct DockerContainerTerminalTab: View {
             env: ["DOCKER_HOST=unix://\(Files.dockerSocket)"],
             model: terminalModel
         )
-        // padding that matches terminal bg color
-        .padding(4)
-        .background(Color(NSColor.textBackgroundColor))
         // otherwise terminal leaks behind toolbar when scrolled
         .clipped()
+        // padding that matches terminal bg color
+        .padding(8)
+        .background(Color(NSColor.textBackgroundColor))
         // banner for toggling Debug Shell
         .overlay(alignment: .topTrailing) {
             Toggle("Debug Shell", isOn: $useDebugShell)
@@ -33,6 +34,15 @@ struct DockerContainerTerminalTab: View {
                     .stroke(.gray.opacity(0.25), lineWidth: 0.5)
             )
             .padding(4)
+        }
+        .onReceive(vmModel.toolbarActionRouter) { action in
+            if action == .dockerOpenContainerInNewWindow {
+                if useDebugShell {
+                    container.openDebugShellFallback()
+                } else {
+                    container.openInPlainTerminal()
+                }
+            }
         }
     }
 }

@@ -22,6 +22,8 @@ extension NewMainViewController {
                 self.actionDockerContainersNew(nil)
             case .openContainers:
                 self.actionDockerContainersOpen(nil)
+            case .openContainerInNewWindow:
+                self.actionDockerContainersOpenWindow(nil)
             case .newVolume:
                 self.actionDockerVolumesNew(nil)
             case .openVolumes:

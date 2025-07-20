@@ -114,11 +114,18 @@ struct MacVirtApp: App {
                             Label("New Container", systemImage: "plus")
                         }
                         .keyboardShortcut("n")
+                        
+                        Button {
+                            vmModel.menuActionRouter.send(.openContainerInNewWindow)
+                        } label: {
+                            Label("Open Container in New Window", systemImage: "folder")
+                        }
+                        .keyboardShortcut("i")
 
                         Button {
                             vmModel.menuActionRouter.send(.openContainers)
                         } label: {
-                            Label("Open Container Files", systemImage: "folder")
+                            Label("Show Containers in Finder", systemImage: "folder")
                         }
                         .keyboardShortcut("o")
                     case .dockerVolumes:
@@ -133,7 +140,7 @@ struct MacVirtApp: App {
                         Button {
                             vmModel.menuActionRouter.send(.openVolumes)
                         } label: {
-                            Label("Open Volumes", systemImage: "folder")
+                            Label("Show Volumes in Finder", systemImage: "folder")
                         }
                         .keyboardShortcut("o")
 
@@ -148,7 +155,7 @@ struct MacVirtApp: App {
                         Button {
                             vmModel.menuActionRouter.send(.openImages)
                         } label: {
-                            Label("Open Images", systemImage: "folder")
+                            Label("Show Images in Finder", systemImage: "folder")
                         }
                         .keyboardShortcut("o")
                         Button {

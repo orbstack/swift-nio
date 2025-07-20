@@ -19,18 +19,24 @@ private let maxConsecutiveStatsErrors = 10
 enum MenuActionRouter {
     case newContainer
     case openContainers
+    case openContainerInNewWindow
+
     case newVolume
     case openVolumes
-    case openImages
-    case importMachine
     case importVolume
+
+    case openImages
     case importImage
+
+    case importMachine
     case newMachine
+
     case newNetwork
 }
 
 enum ToolbarAction {
     case activityMonitorStop
+    case dockerOpenContainerInNewWindow
 }
 
 enum VmState: Int, Comparable {

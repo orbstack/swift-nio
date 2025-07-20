@@ -52,6 +52,8 @@ extension NewMainViewController: NSToolbarDelegate, NSToolbarItemValidation {
 
         case .dockerContainersOpen:
             return containersFolderButton
+        case .dockerContainersOpenWindow:
+            return containersOpenWindowButton
         case .dockerContainersSort:
             return containersSortMenu
         case .dockerContainersFilter:
@@ -134,6 +136,10 @@ extension NewMainViewController: NSToolbarDelegate, NSToolbarItemValidation {
 
     @objc func actionDockerContainersOpen(_: NSButton?) {
         NSWorkspace.openFolder(Folders.nfsDockerContainers)
+    }
+
+    @objc func actionDockerContainersOpenWindow(_: NSButton?) {
+        model.toolbarActionRouter.send(.dockerOpenContainerInNewWindow)
     }
 
     @objc func actionDockerContainersTabs(_ sender: NSToolbarItemGroup) {
