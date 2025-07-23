@@ -335,7 +335,9 @@ enum InstalledApps {
                         timestamp: date)
                 }
 
-                return nil
+                return BundleCandidate(
+                    bundle: BundleInfo(id: bundleId, url: bundleUrl), running: false,
+                    timestamp: Date.distantPast)
             }
             // sort by running first, then by last used
             .sorted { a, b in
