@@ -1,89 +1,25 @@
 import SwiftUI
 import Defaults
 import _NIOFileSystem
+import UniformTypeIdentifiers
+
+private let tableCellIdentifier = NSUserInterfaceItemIdentifier("tableCell")
+
+extension NSPasteboard.PasteboardType {
+    static let nodeRowPasteboardType = NSPasteboard.PasteboardType("dev.orbstack.OrbStack.nodeRowPasteboardType")
+}
 
 struct DockerContainerFilesTab: View {
     @EnvironmentObject private var vmModel: VmViewModel
 
-    @StateObject private var model = FilesViewModel()
+    @StateObject private var model = FileManagerOutlineDelegate()
     @State private var sort = AKSortDescriptor(columnId: Columns.name, ascending: true)
     @State private var selection: Set<String> = []
 
     let container: DKContainer
 
     var body: some View {
-        //autosaveName: Defaults.Keys.dockerContainerFiles_autosaveOutline
-        AKList(AKSection.single(model.items), selection: $selection, sort: $sort, rowHeight: 20, flat: false, onExpand: { item in
-            Task {
-                do {
-                    try await model.expandItem(item: item)
-                } catch {
-                    NSLog("Error expanding item: \(error)")
-                }
-            }
-        }, onCollapse: { item in
-            model.collapseItem(item: item)
-        }, columns: [
-            akColumn(id: Columns.name, title: "Name", width: 250, alignment: .left) { item in
-                HStack(spacing: 4) {
-                    Image(nsImage: item.icon)
-                        .resizable()
-                        .frame(width: 16, height: 16)
-
-                    Text(item.name)
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .akListContextMenu {
-                    Button {
-                        NSWorkspace.shared.open(URL(fileURLWithPath: item.path))
-                    } label: {
-                        Label("Open", systemImage: "arrow.up.right.square")
-                    }
-
-                    Button {
-                        NSWorkspace.shared.selectFile(item.path, inFileViewerRootedAtPath: item.path)
-                    } label: {
-                        Label("Show in Finder", systemImage: "folder")
-                    }
-
-                    Divider()
-
-                    Button {
-                        Task {
-                            do {
-                                try await FileSystem.shared.removeItem(at: FilePath(item.path), recursively: true)
-                        } catch {
-                                NSLog("Error removing file: \(error)")
-                            }
-                        }
-                    } label: {
-                        Label("Delete", systemImage: "trash")
-                    }
-                }
-                .akListOnDoubleClick {
-                    if item.type != .directory {
-                        NSWorkspace.shared.open(URL(fileURLWithPath: item.path))
-                    }
-                }
-            },
-            akColumn(id: Columns.modified, title: "Date Modified", width: 175, alignment: .left) { item in
-                Text(item.modified.formatted(date: .abbreviated, time: .shortened))
-                    .foregroundColor(.secondary)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-            },
-            akColumn(id: Columns.size, title: "Size", width: 72, alignment: .right) { item in
-                if item.type == .regular {
-                    Text(item.size.formatted(.byteCount(style: .file)))
-                        .foregroundColor(.secondary)
-                        .frame(maxWidth: .infinity, alignment: .trailing)
-                }
-            },
-            akColumn(id: Columns.type, title: "Kind", width: 100, alignment: .left) { item in
-                Text(item.type.description)
-                    .foregroundColor(.secondary)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-            }
-        ])
+        FileManagerView(delegate: model)
         .onReceive(vmModel.toolbarActionRouter) { action in
             if action == .dockerOpenContainerInNewWindow {
                 container.openFolder()
@@ -98,18 +34,68 @@ struct DockerContainerFilesTab: View {
                 }
             }
         }
-        .onChange(of: sort) { _, newSort in
-            model.sortDesc = newSort
-            model.reSort()
-        }
     }
 }
 
-private class FilesViewModel: ObservableObject {
-    var sortDesc = AKSortDescriptor(columnId: Columns.name, ascending: true)
+private struct FileManagerView: NSViewRepresentable {
+    let delegate: FileManagerOutlineDelegate
+
+    func makeNSView(context: Context) -> NSScrollView {
+        let view = NSOutlineView()
+
+        delegate.view = view
+        view.delegate = delegate // weak
+        view.dataSource = delegate // weak
+
+        view.setDraggingSourceOperationMask([.copy, .delete], forLocal: false)
+        view.registerForDraggedTypes(NSFilePromiseReceiver.readableDraggedTypes.map { NSPasteboard.PasteboardType($0) })
+        view.registerForDraggedTypes([.nodeRowPasteboardType, .fileURL])
+
+        view.menu = NSMenu()
+        view.headerView = NSTableHeaderView()
+        view.usesAlternatingRowBackgroundColors = true
+
+        let colName = NSTableColumn(identifier: .init(Columns.name))
+        colName.title = "Name"
+        colName.isEditable = true
+        colName.sortDescriptorPrototype = NSSortDescriptor(key: Columns.name, ascending: true)
+        view.addTableColumn(colName)
+
+        let colModified = NSTableColumn(identifier: .init(Columns.modified))
+        colModified.title = "Modified"
+        colModified.isEditable = false
+        colModified.sortDescriptorPrototype = NSSortDescriptor(key: Columns.modified, ascending: false)
+        view.addTableColumn(colModified)
+
+        let colSize = NSTableColumn(identifier: .init(Columns.size))
+        colSize.title = "Size"
+        colSize.isEditable = false
+        colSize.sortDescriptorPrototype = NSSortDescriptor(key: Columns.size, ascending: false)
+        view.addTableColumn(colSize)
+
+        let colType = NSTableColumn(identifier: .init(Columns.type))
+        colType.title = "Kind"
+        colType.isEditable = false
+        colType.sortDescriptorPrototype = NSSortDescriptor(key: Columns.type, ascending: false)
+        view.addTableColumn(colType)
+
+        let scrollView = NSScrollView()
+        scrollView.documentView = view
+        scrollView.hasVerticalScroller = true
+        return scrollView
+    }
+
+    func updateNSView(_ nsView: NSScrollView, context: Context) {
+    }
+}
+
+private class FileManagerOutlineDelegate: NSObject, NSOutlineViewDelegate, NSOutlineViewDataSource, ObservableObject {
+    var view: NSOutlineView!
+
+    private var sortDesc = AKSortDescriptor(columnId: Columns.name, ascending: true)
 
     private var expandedPaths = Set<String>()
-    @Published var items: [FileItem] = []
+    private var rootItems: [FileItem] = []
 
     private func getDirectoryItems(path: String) async throws -> [FileItem] {
         var items = [FileItem]()
@@ -149,24 +135,177 @@ private class FilesViewModel: ObservableObject {
     @MainActor
     func loadRoot(container: DKContainer) async throws {
         expandedPaths.removeAll()
-        self.items = try await getDirectoryItems(path: container.nfsPath)
+        self.rootItems = try await getDirectoryItems(path: container.nfsPath)
+        view.reloadData()
     }
 
     @MainActor
     func expandItem(item: FileItem) async throws {
         expandedPaths.insert(item.path)
         item.children = try await getDirectoryItems(path: item.path)
-        self.items = items.map { FileItem(path: $0.path, name: $0.name, type: $0.type, size: $0.size + 1, modified: $0.modified, icon: $0.icon, children: $0.children) }
-        print("expanded item \(item.path) children=\(item.children)")
     }
 
-    @MainActor
     func collapseItem(item: FileItem) {
         expandedPaths.remove(item.path)
     }
 
     func reSort() {
-        items.sort(desc: sortDesc)
+        rootItems.sort(desc: sortDesc)
+        view.reloadData()
+    }
+
+    // MARK: - dataSrc
+    func outlineView(_ outlineView: NSOutlineView, numberOfChildrenOfItem item: Any?) -> Int {
+        if let item = item as? FileItem {
+            return item.children?.count ?? 0
+        } else {
+            return rootItems.count
+        }
+    }
+
+    func outlineView(_ outlineView: NSOutlineView, isItemExpandable item: Any) -> Bool {
+        if let item = item as? FileItem {
+            return item.children != nil
+        } else {
+            return false
+        }
+    }
+
+    func outlineView(_ outlineView: NSOutlineView, child index: Int, ofItem item: Any?) -> Any {
+        if item == nil {
+            return rootItems[index]
+        } else if let item = item as? FileItem {
+            return item.children![index]
+        } else {
+            fatalError("invalid item")
+        }
+    }
+
+    // MARK: - delegat
+    func outlineView(_ outlineView: NSOutlineView, viewFor tableColumn: NSTableColumn?, item: Any) -> NSView? {
+        let item = item as! FileItem
+        switch tableColumn?.identifier.rawValue {
+        case Columns.name:
+            return TextFieldCellView(value: item.name, editable: true, image: item.icon)
+        case Columns.modified:
+            return TextFieldCellView(value: item.modified.formatted(date: .abbreviated, time: .shortened))
+        case Columns.size:
+            return TextFieldCellView(value: item.size.formatted(.byteCount(style: .file)))
+        case Columns.type:
+            return TextFieldCellView(value: item.type.description)
+        default:
+        print("unknown col")
+            return nil
+        }
+    }
+    // func outlineView(_ outlineView: NSOutlineView, objectValueFor tableColumn: NSTableColumn?, byItem item: Any?) -> Any? {
+    //     let item = item as! FileItem
+    //     switch tableColumn?.identifier.rawValue {
+    //     case Columns.name:
+    //         print("supply name: \(item.name)")
+    //         return item.name
+    //     case Columns.modified:
+    //         return item.modified.formatted(date: .abbreviated, time: .shortened)
+    //     case Columns.size:
+    //         if item.type == .regular {
+    //             return item.size.formatted(.byteCount(style: .file))
+    //         } else {
+    //             return nil
+    //         }
+    //     case Columns.type:
+    //         return item.type.description
+    //     default:
+    //     print("unknown col")
+    //         return nil
+    //     }
+    // }
+
+    func outlineView(_ outlineView: NSOutlineView, typeSelectStringFor tableColumn: NSTableColumn?, item: Any) -> String? {
+        if let item = item as? FileItem {
+            return item.name
+        } else {
+            return nil
+        }
+    }
+
+    func outlineView(
+        _ outlineView: NSOutlineView, userCanChangeVisibilityOf column: NSTableColumn
+    ) -> Bool {
+        return column.identifier.rawValue != Columns.name
+    }
+
+
+    func outlineView(
+        _ outlineView: NSOutlineView,
+        sortDescriptorsDidChange oldDescriptors: [NSSortDescriptor]
+    ) {
+        if let newNsSort = outlineView.sortDescriptors.first,
+            let nsSortKey = newNsSort.key
+        {
+            let newSort = AKSortDescriptor(columnId: nsSortKey, ascending: newNsSort.ascending)
+            sortDesc = newSort
+            reSort()
+        }
+    }
+
+//    func outlineView(_ outlineView: NSOutlineView, pasteboardWriterForItem item: Any) -> NSPasteboardWriting? {
+//    }
+
+    func outlineViewItemWillExpand(_ notification: Notification) {
+        if let view =  notification.object as? NSOutlineView,
+            let node = notification.userInfo?["NSObject"] as? FileItem {
+            Task {
+                do {
+                    try await expandItem(item: node)
+                } catch {
+                    NSLog("Error expanding item: \(error)")
+                }
+            }
+
+            print("expanding \(node.name)")
+            view.beginUpdates()
+            view.insertItems(at: IndexSet(integersIn: 0..<node.children!.count), inParent: node, withAnimation: .effectGap)
+            view.endUpdates()
+        }
+    }
+
+    func outlineViewItemWillCollapse(_ notification: Notification) {
+        if let node = notification.userInfo?["NSObject"] as? FileItem {
+            view.beginUpdates()
+            view.removeItems(at: IndexSet(integersIn: 0..<node.children!.count), inParent: node, withAnimation: .effectGap)
+            view.endUpdates()
+
+            collapseItem(item: node)
+        }
+    }
+}
+
+private class TextFieldCellView: NSTableCellView {
+    private let _textField: NSTextField
+    private let _imageView: NSImageView?
+
+    init(value: String, editable: Bool = false, image: NSImage? = nil) {
+        _textField = NSTextField(labelWithString: value)
+        _imageView = image.map { NSImageView(image: $0) }
+
+        super.init(frame: .zero)
+
+        if editable {
+            _textField.isEditable = true
+        }
+
+        self.imageView = _imageView
+        self.textField = _textField
+    }
+
+    override func draw(_ dirtyRect: NSRect) {
+        super.draw(dirtyRect)
+        _textField.draw(dirtyRect)
+        _imageView?.draw(dirtyRect)
+    }
+
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
     }
 }
 
@@ -198,7 +337,7 @@ private extension [FileItem] {
     }
 }
 
-private class FileItem: Identifiable, AKListItem, Equatable {
+private class FileItem: Identifiable, AKListItem, Equatable, Hashable {
     let path: String
     let name: String
     let type: FileItemType
@@ -219,6 +358,16 @@ private class FileItem: Identifiable, AKListItem, Equatable {
 
     static func == (lhs: FileItem, rhs: FileItem) -> Bool {
         lhs.path == rhs.path && lhs.name == rhs.name && lhs.type == rhs.type && lhs.size == rhs.size && lhs.modified == rhs.modified && lhs.icon == rhs.icon && lhs.children == rhs.children
+    }
+
+    func hash(into hasher: inout Hasher) {
+        hasher.combine(path)
+        hasher.combine(name)
+        hasher.combine(type)
+        hasher.combine(size)
+        hasher.combine(modified)
+        hasher.combine(icon)
+        hasher.combine(children)
     }
 
     var listChildren: [any AKListItem]? {

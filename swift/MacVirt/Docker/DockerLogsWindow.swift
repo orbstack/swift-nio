@@ -157,15 +157,19 @@ class CommandViewModel: ObservableObject {
     let copyAllCommand = PassthroughSubject<Void, Never>()
 }
 
-private class LogsViewModel: ObservableObject {
+private struct LogLine: Identifiable {
+    let id: UUID
+    let text: NSAttributedString
+}
 
+private class LogsViewModel: ObservableObject {
     enum EditAction {
-        case append(NSAttributedString)
-        case replace(range: NSRange, replacementString: NSAttributedString)
+        case append
+        case appendAndTruncate
         case clear
     }
 
-    let contents = NSMutableAttributedString()
+    var lines = [LogLine]()
     let updateEvent = PassthroughSubject<EditAction, Never>()
 
     var process: Process?
@@ -446,22 +450,21 @@ private class LogsViewModel: ObservableObject {
     }
 
     @MainActor
-    private func add(attributedString: NSMutableAttributedString) {
-        contents.append(attributedString)
-        // publish
-        updateEvent.send(.append(attributedString))
+    private func add(attributedString: NSAttributedString) {
+        let line = LogLine(id: UUID(), text: attributedString)
+        lines.append(line)
         // truncate if needed
-        if contents.length > maxChars {
-            let truncateRange = NSRange(location: 0, length: contents.length - maxChars)
-            contents.deleteCharacters(in: truncateRange)
-            updateEvent.send(
-                .replace(range: truncateRange, replacementString: NSAttributedString()))
+        if lines.count > maxLines {
+            lines.removeFirst()
+            updateEvent.send(.appendAndTruncate)
+        } else {
+            updateEvent.send(.append)
         }
     }
 
     @MainActor
     private func add(error: String) {
-        let str = NSMutableAttributedString(string: error + "\n")
+        let str = NSMutableAttributedString(string: error)
         // bold font
         str.addAttribute(
             .font, value: terminalFontBold, range: NSRange(location: 0, length: str.length))
@@ -488,191 +491,135 @@ private class LogsViewModel: ObservableObject {
 
     @MainActor
     func clear() {
-        contents.setAttributedString(NSAttributedString())
+        lines = []
         updateEvent.send(.clear)
     }
 
     func copyAll() {
-        NSPasteboard.copy(contents.string)
+        NSPasteboard.copy(lines.map { $0.text.string }.joined(separator: "\n"))
     }
 }
 
-private class LineHeightDelegate: NSObject, NSLayoutManagerDelegate {
-    private let fontLineHeight: CGFloat
-
-    init(layoutManager: NSLayoutManager) {
-        // cache this calculation for perf
-        fontLineHeight = layoutManager.defaultLineHeight(for: terminalFont)
-    }
-
-    // this is the only good way to set line height.
-    // paragraphStyle.lineHeightMultiple breaks incremental text search and adds all space to top of line
-    // paragraphStyle.lineSpacing makes selection ugly (it's spacing *between* lines)
-    // lineSpacingAfterGlyphAt causes visible line recycling on scroll (appearing/disappearing at top/bottom)
-    // this method: search works, no ugly selection, centered spacing, no recycling
-    // https://christiantietze.de/posts/2017/07/nstextview-proper-line-height/
-    func layoutManager(
-        _: NSLayoutManager,
-        shouldSetLineFragmentRect lineFragmentRect: UnsafeMutablePointer<NSRect>,
-        lineFragmentUsedRect: UnsafeMutablePointer<NSRect>,
-        baselineOffset: UnsafeMutablePointer<CGFloat>,
-        in _: NSTextContainer,
-        forGlyphRange _: NSRange
-    ) -> Bool {
-        let lineHeight = fontLineHeight * terminalLineHeight
-        let baselineNudge =
-            (lineHeight - fontLineHeight)
-            // The following factor is a result of experimentation:
-            * 0.6
-
-        var rect = lineFragmentRect.pointee
-        rect.size.height = lineHeight
-
-        var usedRect = lineFragmentUsedRect.pointee
-        usedRect.size.height = max(lineHeight, usedRect.size.height)  // keep emoji sizes
-
-        lineFragmentRect.pointee = rect
-        lineFragmentUsedRect.pointee = usedRect
-        baselineOffset.pointee = baselineOffset.pointee + baselineNudge
-
-        return true
-    }
-
-    // this works, but puts all padding at the bottom,
-    // and causes visible lines appearing/disappearing at top/bottom when scrolling slowly
-    /*
-     func layoutManager(_ layoutManager: NSLayoutManager, lineSpacingAfterGlyphAt glyphIndex: Int,
-                        withProposedLineFragmentRect rect: NSRect) -> CGFloat {
-         5
-     }
-      */
-}
-
-private struct LogsTextView: NSViewRepresentable {
+private struct LogsTableView: NSViewRepresentable {
     let model: LogsViewModel
     let commandModel: CommandViewModel
-    let wordWrap: Bool
 
-    class Coordinator {
+    class Coordinator: NSObject, NSTableViewDelegate, NSTableViewDataSource {
+        let model: LogsViewModel
         var cancellables = Set<AnyCancellable>()
-        var layoutManagerDelegate: NSLayoutManagerDelegate?
-        var lastWordWrap = true
+
+        init(model: LogsViewModel) {
+            self.model = model
+        }
+
+        func numberOfRows(in tableView: NSTableView) -> Int {
+            model.lines.count
+        }
+
+        func tableView(_ tableView: NSTableView, viewFor tableColumn: NSTableColumn?, row: Int) -> NSView? {
+            let textView = NSTextView(frame: NSRect(x: 0, y:0, width: 1000, height: 16))
+            textView.isEditable = false
+            textView.isSelectable = false
+            textView.backgroundColor = .clear
+            textView.textStorage?.append(model.lines[row].text)
+            textView.textContainer?.maximumNumberOfLines = 1
+
+            let cellView = NSTableCellView()
+            cellView.addSubview(textView)
+            return cellView
+        }
     }
 
     func makeNSView(context: Context) -> NSScrollView {
-        let scrollView = NSTextView.scrollableTextView()
-        let textView = scrollView.documentView as! NSTextView
-
-        // enable horizontal scroll for non-wrapped case
-        textView.isHorizontallyResizable = true
+        let scrollView = NSScrollView()
         scrollView.hasHorizontalScroller = true
-        textView.maxSize = CGSize(
-            width: CGFloat.greatestFiniteMagnitude, height: CGFloat.greatestFiniteMagnitude)
+        scrollView.findBarPosition = .aboveContent
 
-        // textView.font and textView.isAutomaticLinkDetectionEnabled don't work
-        if let layoutManager = textView.layoutManager {
-            // keep strong ref (layoutManager.delegate = weak)
-            context.coordinator.layoutManagerDelegate = LineHeightDelegate(
-                layoutManager: layoutManager)
-            layoutManager.delegate = context.coordinator.layoutManagerDelegate
-        }
-        textView.textContainerInset = NSSize(width: 8, height: 8)
-        textView.isAutomaticDataDetectionEnabled = false
-        textView.isIncrementalSearchingEnabled = true
+        let tableView = NSTableView()
+        scrollView.documentView = tableView
 
-        // char wrap, line height
-        let paragraphStyle =
-            NSMutableParagraphStyle.default.mutableCopy() as! NSMutableParagraphStyle
-        paragraphStyle.lineBreakMode = .byCharWrapping
-        textView.defaultParagraphStyle = paragraphStyle
+        tableView.delegate = context.coordinator
+        tableView.dataSource = context.coordinator
 
-        textView.isEditable = false
-        textView.usesFindBar = true
+        tableView.allowsMultipleSelection = true
+        tableView.headerView = nil
+        tableView.usesAlternatingRowBackgroundColors = true
+
+        let column = NSTableColumn(identifier: NSUserInterfaceItemIdentifier("column"))
+        tableView.addTableColumn(column)
 
         let debouncedScrollToEnd = Debouncer(delay: 0.05) {
-            if let clipView = textView.enclosingScrollView?.contentView,
-                let layoutManager = textView.layoutManager,
-                let textContainer = textView.textContainer
-            {
-                layoutManager.ensureLayout(for: textContainer)
-                let userRect = layoutManager.usedRect(for: textContainer)
-                clipView.bounds.origin = CGPoint(
-                    x: textView.textContainerInset.width / 2, y: userRect.maxY)
-            }
+            tableView.scrollRowToVisible(tableView.numberOfRows - 1)
         }
 
         model.updateEvent
             .receive(on: DispatchQueue.main)
-            .sink { [weak textView] editAction in
-                guard let textView else { return }
+            .sink { [weak tableView] editAction in
+                guard let tableView else { return }
 
                 switch editAction {
-                case .append(let string):
-                    textView.textStorage?.append(string)
-
-                    if let clipView = textView.enclosingScrollView?.contentView {
-                        let shouldScroll = (clipView.bounds.maxY >= textView.bounds.maxY - 1)
-                        if shouldScroll {
-                            debouncedScrollToEnd.call()
-                        }
-                    }
-                case .replace(let range, let replacementString):
-                    textView.textStorage?.replaceCharacters(in: range, with: replacementString)
+                case .append:
+                    tableView.beginUpdates()
+                    tableView.insertRows(at: IndexSet(integer: tableView.numberOfRows))
+                    tableView.endUpdates()
+                    debouncedScrollToEnd.call()
+                case .appendAndTruncate:
+                    tableView.beginUpdates()
+                    tableView.removeRows(at: IndexSet(integer: 0))
+                    tableView.insertRows(at: IndexSet(integer: tableView.numberOfRows))
+                    tableView.endUpdates()
+                    debouncedScrollToEnd.call()
                 case .clear:
-                    textView.string = ""
+                    tableView.beginUpdates()
+                    tableView.removeRows(at: IndexSet(integersIn: 0..<tableView.numberOfRows))
+                    tableView.endUpdates()
                 }
             }.store(in: &context.coordinator.cancellables)
 
-        commandModel.searchCommand.sink { [weak textView] _ in
-            guard let textView else { return }
-            // need .tag holder
-            let button = NSButton()
-            button.tag = NSTextFinder.Action.showFindInterface.rawValue
-            textView.performFindPanelAction(button)
-        }.store(in: &context.coordinator.cancellables)
+        // commandModel.searchCommand.sink { [weak tableView] _ in
+        //     guard let tableView else { return }
+        //     // need .tag holder
+        //     let button = NSButton()
+        //     button.tag = NSTextFinder.Action.showFindInterface.rawValue
+        //     tableView.performFindPanelAction(button)
+        // }.store(in: &context.coordinator.cancellables)
 
         DispatchQueue.main.async {
-            textView.window?.makeFirstResponder(textView)
+            tableView.window?.makeFirstResponder(tableView)
         }
 
         return scrollView
     }
 
     func updateNSView(_ nsView: NSScrollView, context: Context) {
-        if wordWrap != context.coordinator.lastWordWrap {
-            setWordWrap(scrollView: nsView, wrap: wordWrap)
-            context.coordinator.lastWordWrap = wordWrap
-        }
     }
 
     func makeCoordinator() -> Coordinator {
-        Coordinator()
+        Coordinator(model: model)
+    }
+}
+
+private class LogTableCellView: NSTableCellView {
+    private let _textView: NSTextView
+
+    init(textView: NSTextView) {
+        _textView = textView
+        super.init(frame: NSRect())
+        addSubview(_textView)
     }
 
-    func setWordWrap(scrollView: NSScrollView, wrap: Bool) {
-        let textView = scrollView.documentView as! NSTextView
+    override func draw(_ dirtyRect: NSRect) {
+        super.draw(dirtyRect)
+        _textView.draw(dirtyRect)
+    }
 
-        if wrap {
-            let sz = scrollView.contentSize
-            textView.frame = CGRect(x: 0, y: 0, width: sz.width, height: 0)
-            textView.textContainer?.containerSize = CGSize(
-                width: sz.width, height: CGFloat.greatestFiniteMagnitude)
-            textView.textContainer?.widthTracksTextView = true
-        } else {
-            textView.textContainer?.widthTracksTextView = false
-            textView.textContainer?.containerSize = CGSize(
-                width: CGFloat.greatestFiniteMagnitude, height: CGFloat.greatestFiniteMagnitude)
-        }
-
-        // otherwise it scrolls to top when re-enabling word wrap
-        textView.scrollToEndOfDocument(nil)
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
     }
 }
 
 private struct LogsView: View {
     @EnvironmentObject private var commandModel: CommandViewModel
-
-    @Default(.logsWordWrap) private var wordWrap
 
     let cmdExe: String
     let args: [String]
@@ -681,20 +628,20 @@ private struct LogsView: View {
     let model: LogsViewModel
 
     var body: some View {
-        LogsTextView(model: model, commandModel: commandModel, wordWrap: wordWrap)
+        LogsTableView(model: model, commandModel: commandModel)
             .onAppear {
                 model.start(cmdExe: cmdExe, args: args + extraArgs)
             }
             .onDisappear {
                 model.stop()
             }
-            .onChange(of: args) { newArgs in
+            .onChange(of: args) { _, newArgs in
                 model.start(cmdExe: cmdExe, args: newArgs + extraArgs)
             }
-            .onChange(of: extraArgs) { newExtraArgs in
+            .onChange(of: extraArgs) { _, newExtraArgs in
                 model.start(cmdExe: cmdExe, args: args + newExtraArgs, clearAndRestart: true)
             }
-            .onChange(of: extraState) { _ in
+            .onChange(of: extraState) { _, _ in
                 model.start(cmdExe: cmdExe, args: args + extraArgs, clearAndRestart: true)
             }
     }
@@ -982,8 +929,8 @@ struct DockerComposeLogsWindow: View {
         .onAppear {
             selection = savedSelection
         }
-        .onChange(of: selection) {
-            savedSelection = $0
+        .onChange(of: selection) { _, newSelection in
+            savedSelection = newSelection
         }
         .if(composeProject != nil) {
             $0.navigationTitle(composeProject!)
@@ -1163,8 +1110,8 @@ struct K8SPodLogsWindow: View {
         .onAppear {
             selection = savedSelection
         }
-        .onChange(of: selection) {
-            savedSelection = $0
+        .onChange(of: selection) { _, newSelection in
+            savedSelection = newSelection
         }
         .toolbar(forCommands: commandModel, hasSidebar: true)
     }
