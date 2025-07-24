@@ -343,13 +343,6 @@ enum InstalledApps {
             }
             // sort by running first, then by last used
             .sorted { a, b in
-                // it's unlikely that a user with other terminal emulators installed wants
-                // to use the macOS terminal emulator, even if it was the last one launched –
-                // it's way more likely that it was launched unintentionally
-                if a.bundle.id == appleTerminal || b.bundle.id == appleTerminal {
-                    return a.bundle.id != appleTerminal
-                }
-                
                 if a.running != b.running {
                     return a.running
                 }
