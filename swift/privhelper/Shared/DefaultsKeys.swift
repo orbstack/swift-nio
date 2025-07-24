@@ -302,6 +302,11 @@ extension Defaults.Keys {
     static let networkHttpsDismissCount = Key<Int>(
         "network_httpsDismissCount", default: 0, suite: suite)
 
+    // bundle id of the selected terminal emulator, such as com.apple.Terminal
+    // "" means last used
+    static let defaultTerminalEmulator = Key<String>(
+        "defaultTerminalEmulator", default: "", suite: suite)
+
     // login
     static let drmLastState = Key<DrmState?>("drm_lastState", default: nil, suite: suite)
 

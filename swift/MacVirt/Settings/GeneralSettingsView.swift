@@ -13,6 +13,7 @@ struct GeneralSettingsView: View {
     let updaterController: SPUStandardUpdaterController
 
     @Default(.globalShowMenubarExtra) private var showMenubarExtra
+    @Default(.defaultTerminalEmulator) private var defaultTerminalEmulator
 
     var body: some View {
         SettingsForm {
@@ -30,6 +31,18 @@ struct GeneralSettingsView: View {
                         "Keep running when app is quit"
                     }
                 Defaults.Toggle(bgLabel, key: .globalStayInBackground)
+
+                Picker(selection: $defaultTerminalEmulator) {
+                    if InstalledApps.terminals.count > 0 {
+                        ForEach(InstalledApps.terminals, id: \.self.id) { term in
+                            Text(term.name).tag(term.id)
+                        }
+                        Divider()
+                    }
+                    Text("Last used").tag("")
+                } label: {
+                    Text("Terminal emulator")
+                }.disabled(InstalledApps.terminals.count == 0)
             }
 
             Section {

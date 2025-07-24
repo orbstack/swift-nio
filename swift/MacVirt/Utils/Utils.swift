@@ -3,6 +3,7 @@
 //
 
 import AppKit
+import Defaults
 
 // TODO: based on beta
 private let KILLSWITCH_EXPIRE_DAYS = -1.0
@@ -67,7 +68,7 @@ private func escapeShellArgs(_ args: [String]) -> String {
 func openTerminal(_ command: String, _ args: [String]) async throws {
     NSLog("Run command: \(command) \(args.joined(separator: " "))")
 
-    let terminalBundle = InstalledApps.lastUsedTerminal
+    let terminalBundle = InstalledApps.preferredTerminal
     // exception: Alacritty doesn't support opening .sh
     if terminalBundle.id == InstalledApps.alacritty {
         // if already running
@@ -284,9 +285,7 @@ enum InstalledApps {
         alacritty
     ]
 
-    // cached: lookup takes ~50 ms
-    static let lastUsedTerminal = selectTerminal()
-    static func selectTerminal() -> BundleInfo {
+    static func findTerminalEmulators() -> [BundleInfo] {
         // (Shell, public.unix-executable) is the most reliable type:
         // kitty = Editor for *.sh; Shell for public.unix-executable
         // iTerm = Editor for *.sh; Shell for public.unix-executable
@@ -319,25 +318,27 @@ enum InstalledApps {
                     return BundleCandidate?(nil)
                 }
 
+                let bundleName = Bundle(url: bundleUrl)?.infoDictionary?[kCFBundleNameKey as String] as? String
+
                 if let runningApp = NSRunningApplication.runningApplications(
                     withBundleIdentifier: bundleId
                 ).first,
                     let launchDate = runningApp.launchDate
                 {
                     return BundleCandidate(
-                        bundle: BundleInfo(id: bundleId, url: bundleUrl), running: true,
+                        bundle: BundleInfo(id: bundleId, url: bundleUrl, bundleName: bundleName), running: true,
                         timestamp: launchDate)
                 }
 
                 if let date = attributes.value(forAttribute: kMDItemLastUsedDate as String) as? Date
                 {
                     return BundleCandidate(
-                        bundle: BundleInfo(id: bundleId, url: bundleUrl), running: false,
+                        bundle: BundleInfo(id: bundleId, url: bundleUrl, bundleName: bundleName), running: false,
                         timestamp: date)
                 }
 
                 return BundleCandidate(
-                    bundle: BundleInfo(id: bundleId, url: bundleUrl), running: false,
+                    bundle: BundleInfo(id: bundleId, url: bundleUrl, bundleName: bundleName), running: false,
                     timestamp: Date.distantPast)
             }
             // sort by running first, then by last used
@@ -354,14 +355,49 @@ enum InstalledApps {
                 }
                 
                 return a.timestamp > b.timestamp
+            }.compactMap { b in
+                b?.bundle
             }
-            .first?.bundle ?? BundleInfo(id: appleTerminal, url: URL(fileURLWithPath: ""))
+    }
+
+    // cached: lookup takes ~50 ms
+    static let terminals = findTerminalEmulators()
+
+    static var preferredTerminal: BundleInfo {
+        var terminalBundle: BundleInfo?
+        if Defaults[.defaultTerminalEmulator] != "" {
+            terminalBundle = terminals.first(where: { term in
+                term.id == Defaults[.defaultTerminalEmulator]
+            })
+        }
+
+        // check here, instead of in an `else` – this way it'll also
+        // run if the user has configured a preferred terminal but it
+        // has since been removed
+        if terminalBundle.isNil {
+            terminalBundle = terminals.first
+        }
+
+        return terminalBundle ?? BundleInfo(id: appleTerminal, url: URL(fileURLWithPath: ""), bundleName: nil)
     }
 }
 
-struct BundleInfo {
+struct BundleInfo: Hashable {
     let id: String
     let url: URL
+    internal let bundleName: String?
+
+    var name: String {
+        if id == InstalledApps.appleTerminal {
+            return "Terminal (macOS)"
+        }
+
+        if bundleName.isNil {
+            return String(id.split(separator: ".").last!)
+        }
+
+        return bundleName!
+    }
 }
 
 enum K8sConstants {
