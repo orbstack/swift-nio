@@ -41,25 +41,6 @@ struct DockerContainerDetails: View {
                 }
             }
 
-            DetailsButtonSection {
-                if isRunning {
-                    DetailsButton {
-                        container.openFolder()
-                    } label: {
-                        Label("Files", systemImage: "folder")
-                    }
-
-                    if container.image == "docker/getting-started" {
-                        // special case for more seamless onboarding
-                        DetailsButton {
-                            NSWorkspace.shared.open(URL(string: "http://localhost")!)
-                        } label: {
-                            Label("Tutorial", systemImage: "questionmark.circle")
-                        }
-                    }
-                }
-            }
-
             if !container.ports.isEmpty {
                 DetailsListSection("Ports") {
                     ForEach(container.ports) { port in

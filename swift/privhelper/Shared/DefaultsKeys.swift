@@ -265,6 +265,7 @@ extension Defaults.Keys {
         "docker_migrationDismissed", default: false, suite: suite)
     // for AKList autosaveName
     static let docker_autosaveOutline = "docker_autosaveOutline"
+    static let dockerContainerFiles_autosaveOutline = "dockerContainerFiles_autosaveOutline"
     // rotated in v1.11.1 to fix order of newly-added network column, and to use new default sizes
     static let activityMonitor_autosaveOutline = "activityMonitor_autosaveOutline2"
 

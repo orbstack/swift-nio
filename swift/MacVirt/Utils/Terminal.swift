@@ -41,11 +41,11 @@ class LocalProcessTerminalController: NSViewController {
         view.configureNativeColors()
         // remove NSScroller subview to fix weird broken scrollbar
         // ghostty still doesn't even have scrollbar so this is fine
-         for subview in view.subviews {
-             if subview is NSScroller {
-                 subview.removeFromSuperview()
-             }
-         }
+        for subview in view.subviews {
+            if subview is NSScroller {
+                subview.removeFromSuperview()
+            }
+        }
 
         self.view = view
     }
@@ -234,6 +234,8 @@ open class LocalProcessTerminalViewCustom: TerminalView, TerminalViewDelegate, L
             lastExecutable = executable
             lastArgs = args
             lastEnvironment = environment
+            
+            window?.makeFirstResponder(self)
             
             if let process, process.running {
                 kill(process.shellPid, SIGKILL)

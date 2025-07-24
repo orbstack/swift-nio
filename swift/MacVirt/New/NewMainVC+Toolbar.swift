@@ -110,6 +110,9 @@ extension NewMainViewController: NSToolbarDelegate, NSToolbarItemValidation {
         case .licenseBadge:
             return licenseBadgeItem
 
+        case .contentListTrackingSeparator:
+            return NSTrackingSeparatorToolbarItem(identifier: .contentListTrackingSeparator, splitView: splitViewController.splitView, dividerIndex: 1)
+
         default:
             break
         }

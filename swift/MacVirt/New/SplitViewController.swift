@@ -14,14 +14,8 @@ class SplitViewController: NSSplitViewController {
     let vcC = InspectorViewController()
 
     lazy var itemA = NSSplitViewItem(sidebarWithViewController: vcA)
-    lazy var itemB = NSSplitViewItem(viewController: vcB)
-    lazy var itemC = NSSplitViewItem(inspectorWithViewController: vcC)
-
-    var itemACurrentlyCollapsed = false
-    var itemCCurrentlyCollapsed = false
-    var lastKnownWidth = CGFloat.zero
-    var userGestureCollapsedPanel: ((Panel) -> Void)?
-    var userGestureExpandedPanel: ((Panel) -> Void)?
+    lazy var itemB = NSSplitViewItem(contentListWithViewController: vcB)
+    lazy var itemC = NSSplitViewItem(viewController: vcC)
 
     init() {
         super.init(nibName: nil, bundle: nil)
@@ -30,49 +24,21 @@ class SplitViewController: NSSplitViewController {
         addSplitViewItem(itemB)
         addSplitViewItem(itemC)
 
-        itemA.minimumThickness = 170
+        itemA.minimumThickness = 160
         itemA.maximumThickness = 250
 
         itemB.minimumThickness = 250
 
-        itemC.minimumThickness = 280
-        itemC.maximumThickness = 600
-        itemC.allowsFullHeightLayout = true
-
-        itemA.canCollapseFromWindowResize = false
+        itemC.minimumThickness = 300
+        itemC.preferredThicknessFraction = 0.3
 
         if let windowId = splitView.window?.identifier?.rawValue {
-            splitView.autosaveName = "\(windowId) : SplitViewController"
+            // splitView.autosaveName = "\(windowId) : SplitViewController"
         }
     }
 
     required init?(coder: NSCoder) {
         super.init(coder: coder)
-    }
-
-    // this gets called both when we manually set `isCollapsed` on window resize,
-    // and also when the user drags to hide the panel.
-    // we differentiate between these two cases by checking if the window width is the same.
-    override func splitViewDidResizeSubviews(_: Notification) {
-        if itemA.isCollapsed != itemACurrentlyCollapsed, lastKnownWidth == view.bounds.width {
-            if itemA.isCollapsed {
-                userGestureCollapsedPanel?(.sidebar)
-            } else {
-                userGestureExpandedPanel?(.sidebar)
-            }
-        }
-
-        if itemC.isCollapsed != itemCCurrentlyCollapsed, lastKnownWidth == view.bounds.width {
-            if itemC.isCollapsed {
-                userGestureCollapsedPanel?(.inspector)
-            } else {
-                userGestureExpandedPanel?(.inspector)
-            }
-        }
-
-        itemACurrentlyCollapsed = itemA.isCollapsed
-        itemCCurrentlyCollapsed = itemC.isCollapsed
-        lastKnownWidth = view.bounds.width
     }
 
     func setOnTabChange(_ onTabChange: @escaping (NavTabId) -> Void) {

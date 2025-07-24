@@ -64,6 +64,8 @@ struct AKList<Item: AKListItem, ItemView: View>: View {
     private var flat = false
     private var expandByDefault = false
     private var autosaveName: String? = nil
+    private var onExpand: ((Item) -> Void)? = nil
+    private var onCollapse: ((Item) -> Void)? = nil
 
     // hierarchical OR flat, with sections, with columns, multiple selection
     init(
@@ -74,6 +76,8 @@ struct AKList<Item: AKListItem, ItemView: View>: View {
         flat: Bool = true,
         expandByDefault: Bool = false,
         autosaveName: String? = nil,
+        onExpand: ((Item) -> Void)? = nil,
+        onCollapse: ((Item) -> Void)? = nil,
         columns: [AKColumn<Item, ItemView>]
     ) {
         self.sections = sections
@@ -84,6 +88,8 @@ struct AKList<Item: AKListItem, ItemView: View>: View {
         self.flat = flat
         self.autosaveName = autosaveName
         self.expandByDefault = expandByDefault
+        self.onExpand = onExpand
+        self.onCollapse = onCollapse
     }
 
     var body: some View {
@@ -96,7 +102,9 @@ struct AKList<Item: AKListItem, ItemView: View>: View {
             expandByDefault: expandByDefault,
             autosaveName: autosaveName,
             defaultSort: sort?.wrappedValue,
-            columns: columns
+            columns: columns,
+            onExpand: onExpand,
+            onCollapse: onCollapse
         )
         // fix toolbar color and blur (fullSizeContentView)
         .ignoresSafeArea()
@@ -324,6 +332,7 @@ private class AKHostingView<V: View>: NSHostingView<V> {
 // type-erased to make env-based view modifiers feasible
 class AKListModel: ObservableObject {
     let doubleClicks = PassthroughSubject<AnyHashable, Never>()
+
     @Published var selection: Set<AnyHashable> = []
     @Published var sort: AKSortDescriptor? = nil
 }
@@ -441,6 +450,8 @@ private struct AKTreeListImpl<Item: AKListItem, ItemView: View>: NSViewRepresent
     let autosaveName: String?
     let defaultSort: AKSortDescriptor?
     let columns: [AKColumn<Item, ItemView>]
+    let onExpand: ((Item) -> Void)?
+    let onCollapse: ((Item) -> Void)?
 
     init(
         envModel: AKListModel,
@@ -451,7 +462,9 @@ private struct AKTreeListImpl<Item: AKListItem, ItemView: View>: NSViewRepresent
         expandByDefault: Bool,
         autosaveName: String?,
         defaultSort: AKSortDescriptor?,
-        columns: [AKColumn<Item, ItemView>]
+        columns: [AKColumn<Item, ItemView>],
+        onExpand: ((Item) -> Void)?,
+        onCollapse: ((Item) -> Void)?
     ) {
         self.envModel = envModel
         self.sections = sections
@@ -462,6 +475,8 @@ private struct AKTreeListImpl<Item: AKListItem, ItemView: View>: NSViewRepresent
         self.autosaveName = autosaveName
         self.defaultSort = defaultSort
         self.columns = columns
+        self.onExpand = onExpand
+        self.onCollapse = onCollapse
     }
 
     private final class AKTableColumn: NSTableColumn {
@@ -696,15 +711,9 @@ private struct AKTreeListImpl<Item: AKListItem, ItemView: View>: NSViewRepresent
             }
             objAccessTracker.append(item.id)
 
-            var nodeChildren = item.listChildren?.map { mapNode(item: $0 as! Item) }
-            // map empty to nil
-            if nodeChildren?.isEmpty ?? false {
-                nodeChildren = nil
-            }
-
             // do we need to update this node? if not, avoid triggering NSTreeController's KVO
             // isLeaf and count are derived from children, so no need to check
-            node.children = nodeChildren
+            node.children = item.listChildren?.map { mapNode(item: $0 as! Item) }
             node.value = item
             return node
         }
@@ -791,6 +800,22 @@ private struct AKTreeListImpl<Item: AKListItem, ItemView: View>: NSViewRepresent
                         parent.envModel.sort = newSort
                     }
                 }
+            }
+        }
+
+        func outlineViewItemWillExpand(_ notification: Notification) {
+            let node = notification.userInfo?["NSObject"] as? AKNode
+            if node?.type == .item {
+                let value = node?.value as! Item
+                parent.onExpand?(value)
+            }
+        }
+
+        func outlineViewItemWillCollapse(_ notification: Notification) {
+            let node = notification.userInfo?["NSObject"] as? AKNode
+            if node?.type == .item {
+                let value = node?.value as! Item
+                parent.onCollapse?(value)
             }
         }
 
@@ -883,6 +908,7 @@ private struct AKTreeListImpl<Item: AKListItem, ItemView: View>: NSViewRepresent
     }
 
     func updateNSView(_ nsView: NSScrollView, context: Context) {
+        // print("updateNSView: \(sections)")
         let coordinator = context.coordinator
         coordinator.parent = self
         guard sections != coordinator.lastSections else {

@@ -96,7 +96,7 @@ class NewMainViewController: NSViewController {
     }()
 
     lazy var containersTabs = {
-        let group = NSToolbarItemGroup(itemIdentifier: .dockerContainersTabs, titles: ["Info", "Logs", "Terminal"], selectionMode: .selectOne, labels: ["info", "logs", "terminal"], target: self, action: #selector(actionDockerContainersTabs))
+        let group = NSToolbarItemGroup(itemIdentifier: .dockerContainersTabs, titles: ["Info", "Logs", "Terminal", "Files"], selectionMode: .selectOne, labels: ["info", "logs", "terminal", "files"], target: self, action: #selector(actionDockerContainersTabs))
         group.setSelected(true, at: 0)
         return group
     }()
@@ -331,34 +331,6 @@ class NewMainViewController: NSViewController {
         // set it here also because when `updateToolbarFromSelectionChange` is first called,
         // the window is still nil.
         window.toolbar = toolbar
-    }
-
-    let principalViewMinimumWidth = CGFloat(300)
-
-    override func viewWillLayout() {
-        super.viewWillLayout()
-
-        let windowWidth = view.bounds.size.width
-        let sidebarWidth = splitViewController.itemA.viewController.view.bounds.width
-        let inspectorWidth = splitViewController.itemC.viewController.view.bounds.width
-
-        if (sidebarWidth + principalViewMinimumWidth + inspectorWidth) > windowWidth {
-            if let collapsedPanelOverride = model.collapsedPanelOverride {
-                switch collapsedPanelOverride {
-                case .sidebar:
-                    splitViewController.itemA.isCollapsed = true
-                case .inspector:
-                    splitViewController.itemC.isCollapsed = true
-                }
-            } else {
-                // if no overrides, then hide the inspector first.
-                splitViewController.itemA.isCollapsed = model.sidebarPrefersCollapsed
-                splitViewController.itemC.isCollapsed = true
-            }
-        } else {
-            splitViewController.itemA.isCollapsed = model.sidebarPrefersCollapsed
-            splitViewController.itemC.isCollapsed = model.inspectorPrefersCollapsed
-        }
     }
 
     override var representedObject: Any? {

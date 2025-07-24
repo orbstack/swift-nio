@@ -9,7 +9,6 @@ struct DockerContainerTerminalTab: View {
     let container: DKContainer
 
     var body: some View {
-        // TODO: focus-on-appear
         SwiftUILocalProcessTerminal(
             executable: useDebugShell ? AppConfig.ctlExe : AppConfig.dockerExe,
             args: useDebugShell ? ["debug", "-f", container.id] : ["exec", "-it", container.id, "sh", "-c", "command -v bash > /dev/null && exec bash || exec sh"],

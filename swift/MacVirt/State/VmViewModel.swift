@@ -494,16 +494,8 @@ class VmViewModel: ObservableObject {
     @Published var presentAuth = false
     @Published var containerTab: ContainerTabId = .info
 
-    // the user's choice when the window is big enough
-    var sidebarPrefersCollapsed = false
-    var inspectorPrefersCollapsed = false
-
-    // when pressing sidebar when super small
-    var collapsedPanelOverride: Panel?
     var menuActionRouter = PassthroughSubject<MenuActionRouter, Never>()
-
     var toolbarActionRouter = PassthroughSubject<ToolbarAction, Never>()
-
     var dockerImageImportRouter = PassthroughSubject<URL, Never>()
 
     // TODO: proper preference-based toolbar system

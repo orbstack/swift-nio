@@ -47,8 +47,12 @@ extension DKContainer {
         }
     }
 
+    var nfsPath: String {
+        "\(Folders.nfsDockerContainers)/\(nameOrId)"
+    }
+
     func openFolder() {
-        NSWorkspace.openFolder("\(Folders.nfsDockerContainers)/\(nameOrId)")
+        NSWorkspace.openFolder(nfsPath)
     }
 
     @MainActor

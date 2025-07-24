@@ -1008,17 +1008,18 @@ private class ActivityMonitorViewModel: ObservableObject {
     }
 }
 
-extension [ActivityMonitorItem] {
+private extension [ActivityMonitorItem] {
     // recursive
-    fileprivate mutating func sort(desc: AKSortDescriptor) {
+    mutating func sort(desc: AKSortDescriptor) {
         // these are structs so we need to mutate in-place
         for index in self.indices {
             self[index].children?.sort(desc: desc)
         }
 
-        self.sort {
-            switch desc.columnId {
-            case Columns.cpuPercent:
+        // switch outside comparator for perf
+        switch desc.columnId {
+        case Columns.cpuPercent:
+            self.sort {
                 if let lhs = $0.cpuPercent,
                     let rhs = $1.cpuPercent,
                     lhs != rhs,
@@ -1027,29 +1028,39 @@ extension [ActivityMonitorItem] {
                 {
                     return desc.compare(lhs, rhs)
                 }
-            case Columns.memoryBytes:
+                return desc.compare($0.textLabel!, $1.textLabel!)
+            }
+        case Columns.memoryBytes:
+            self.sort {
                 let lhs = $0.memoryBytes
                 let rhs = $1.memoryBytes
                 if lhs != rhs {
                     return desc.compare(lhs, rhs)
                 }
-            case Columns.netRxTxBytes:
+                return desc.compare($0.textLabel!, $1.textLabel!)
+            }
+        case Columns.netRxTxBytes:
+            self.sort {
                 if let lhs = $0.netRxTxBytes, let rhs = $1.netRxTxBytes, lhs != rhs {
                     return desc.compare(lhs, rhs)
                 }
-            case Columns.diskRwBytes:
+                return desc.compare($0.textLabel!, $1.textLabel!)
+            }
+        case Columns.diskRwBytes:
+            self.sort {
                 if let lhs = $0.diskRwBytes, let rhs = $1.diskRwBytes, lhs != rhs {
                     return desc.compare(lhs, rhs)
                 }
-            default:
-                break
+                return desc.compare($0.textLabel!, $1.textLabel!)
             }
-
-            return desc.compare($0.textLabel!, $1.textLabel!)
+        default:
+            self.sort {
+                return desc.compare($0.textLabel!, $1.textLabel!)
+            }
         }
     }
 
-    fileprivate func findRecursive(id: ActivityMonitorID) -> ActivityMonitorItem? {
+    func findRecursive(id: ActivityMonitorID) -> ActivityMonitorItem? {
         for item in self {
             if item.entity.id == id {
                 return item
@@ -1062,15 +1073,15 @@ extension [ActivityMonitorItem] {
     }
 }
 
-extension Duration {
-    fileprivate var seconds: Float {
+private extension Duration {
+    var seconds: Float {
         // attoseconds -> femtoseconds -> picoseconds -> nanoseconds (thanks apple)
         return Float(components.seconds) + Float(components.attoseconds) * 1e-18
     }
 }
 
-extension Float {
-    fileprivate func alignUp(to alignBy: Float) -> Float {
+private extension Float {
+    func alignUp(to alignBy: Float) -> Float {
         return (self / alignBy).rounded(.up) * alignBy
     }
 }

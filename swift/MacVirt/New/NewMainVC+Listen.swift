@@ -43,25 +43,6 @@ extension NewMainViewController {
             }
         }
         .store(in: &cancellables)
-
-        splitViewController.userGestureCollapsedPanel = { [weak self] panel in
-            guard let self else { return }
-            switch panel {
-            case .sidebar:
-                didCollapseSidebar()
-            case .inspector:
-                didCollapseInspector()
-            }
-        }
-        splitViewController.userGestureExpandedPanel = { [weak self] panel in
-            guard let self else { return }
-            switch panel {
-            case .sidebar:
-                didExpandSidebar()
-            case .inspector:
-                didExpandInspector()
-            }
-        }
     }
 
     func updateToolbarFromSelectionChange(toolbarIdentifier: NavTabId) {

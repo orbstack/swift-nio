@@ -94,7 +94,14 @@ struct InspectorView: View {
                     // single selection
                     switch selItem {
                     case let .compose(project):
+                    switch model.containerTab {
+                    case .info:
                         DockerComposeGroupDetails(project: project)
+                    case .logs:
+                        DockerComposeLogsTab(project: project)
+                    default:
+                        ContentUnavailableViewCompat("Select a Container")
+                    }
                     case .k8sGroup:
                         K8SGroupDetails()
                     case let .container(id):
@@ -106,6 +113,8 @@ struct InspectorView: View {
                                 DockerContainerLogsTab(container: container)
                             case .terminal:
                                 DockerContainerTerminalTab(container: container)
+                            case .files:
+                                DockerContainerFilesTab(container: container)
                             }
                         } else {
                             ContentUnavailableViewCompat("No Container")

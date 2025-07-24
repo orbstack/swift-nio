@@ -228,7 +228,7 @@ class DockerClient {
     }
 
     func imageImport(url: URL) async throws {
-        // Foundation's FileHandle.bytes is byte-by-byte, so *REALLY* slow (minutes to import 200MB). NIO has a better implementation.
+        // Foundation's FileHandle.bytes is byte-by-byte, so *REALLY* slo
         try await FileSystem.shared.withFileHandle(forReadingAt: url.filePath) { file in
             let info = try await file.info()
             let body = HTTPClientRequest.Body.stream(
