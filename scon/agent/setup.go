@@ -7,6 +7,7 @@ import (
 	"os/exec"
 	"os/user"
 	"path/filepath"
+	"regexp"
 	"slices"
 	"strconv"
 	"strings"
@@ -414,15 +415,52 @@ func configureSystemStandard(args InitialSetupArgs) error {
 	return nil
 }
 
-func (a *AgentServer) createUserAndGroup(username string, uid int, gid int, shell string) error {
+var usernameNotAllowedRegexp = regexp.MustCompile("[^a-z0-9_-]")
+
+const usernameAllowedFirstChars = "abcdefghijklmnopqrstuvwxyz_"
+
+func normalizeUserAndGroupNames(input string) (username string, groupName string) {
+	// allowed group/user names: [a-z_][a-z0-9_-]*[$]? (as per void's manpage)
+	// usernames can be 32 characters long; group names can be 16
+
+	// avoid crash on empty input
+	if input == "" {
+		return
+	}
+
+	username = strings.ToLower(input)
+	username = usernameNotAllowedRegexp.ReplaceAllString(username, "_")
+	// preserve ending '$' if exists
+	if input[len(username)-1] == '$' {
+		username = username[:len(username)-1] + "$"
+	}
+	// filter first char
+	if !strings.Contains(usernameAllowedFirstChars, string(username[0])) {
+		username = "_" + username
+	}
+	// truncate to 32 chars
+	if len(username) > 32 {
+		username = username[:32]
+	}
+
+	groupName = username
+	// preserve ending '$' if exists
+	if input[len(groupName)-1] == '$' {
+		groupName = input[:len(groupName)-1] + "$"
+	}
+	// truncate to 16 chars
+	if len(groupName) > 16 {
+		groupName = groupName[:16]
+	}
+
+	return
+}
+
+func (a *AgentServer) createUserAndGroup(username string, groupName string, uid int, gid int, shell string) error {
 	logrus.Debug("Creating group")
 	uidStr := strconv.Itoa(uid)
 	gidStr := strconv.Itoa(gid)
-	groupName := username
-	// if it's all numeric, add a prefix. groupadd rejects numeric names
-	if _, err := strconv.Atoi(groupName); err == nil {
-		groupName = "g" + groupName
-	}
+
 	err := util.Run("groupadd", "--gid", gidStr, groupName)
 	if err != nil {
 		if errors.Is(err, exec.ErrNotFound) {
@@ -526,6 +564,10 @@ func (a *AgentServer) InitialSetupStage1(args InitialSetupArgs, _ *None) error {
 			return err
 		}
 
+		// get normalized user and group names
+		var groupName string
+		args.Username, groupName = normalizeUserAndGroupNames(args.Username)
+
 		// delete default lxd image users to avoid conflict
 		err = deleteDefaultUsers(args.Username)
 		if err != nil {
@@ -543,7 +585,7 @@ func (a *AgentServer) InitialSetupStage1(args InitialSetupArgs, _ *None) error {
 
 		// create user group
 		gid := args.Uid
-		err = a.createUserAndGroup(args.Username, args.Uid, gid, shell)
+		err = a.createUserAndGroup(args.Username, groupName, args.Uid, gid, shell)
 		// ignore if already exists
 		if err != nil && !strings.Contains(err.Error(), "already exists") {
 			return err
