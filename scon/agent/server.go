@@ -226,7 +226,10 @@ func runAgent(rpcFile *os.File, fdxFile *os.File) error {
 	}()
 
 	// in NixOS, we need to wait for systemd before we do anything else (including running /bin/sh)
-	waitForNixBoot()
+	if !isDocker {
+		// ...except in docker machine, because /etc is symlinked to macOS, and this can be triggered by host nix-darwin
+		waitForNixBoot()
+	}
 
 	// now, run the system shell to get the PATH
 	// we need this for running shell (su) and setup commands
