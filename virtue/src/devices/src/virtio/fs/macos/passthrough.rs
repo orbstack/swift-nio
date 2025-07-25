@@ -976,14 +976,17 @@ impl PassthroughFs {
                     self.num_open_fds.fetch_sub(1, Ordering::Relaxed);
                 }
 
+                let dev_ino = node.dev_ino;
+                drop(node);
+
                 // remove from multikey alt mapping, so that next lookup with (dev,ino) creates a new nodeid
                 // race OK: we make sure K2 will never map to a missing K1
-                self.nodeids.remove_alt(&node.dev_ino);
+                // deadlock OK: we drop node ref to release read lock for the shard; avoid deadlocking on get_alt (using held reference in alt to query main)
+                self.nodeids.remove_alt(&dev_ino);
 
                 // remove nodeid from map. nodeids are never reused
                 // race OK: if there's a race and someone gets K2->K1 mapping, then finds that K1 is missing, it's OK because we'll just create a new nodeid for the same K2
                 // deadlock OK: we drop node ref to release read lock for the shard. avoid .entry() because it takes write shard lock
-                drop(node);
                 self.nodeids.remove_main(&nodeid);
             }
         }
