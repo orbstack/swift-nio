@@ -11,6 +11,7 @@ default:
 	@echo "  scon: Build scli"
 	@echo "  k8s: Build k3s"
 	@echo "  ghostty: Build libghostty"
+	@echo "  swift: Build app"
 	@echo "  clean: Clean all macOS build artifacts except kernel and rootfs"
 	@echo ""
 	@echo "More rarely used targets:"
@@ -20,7 +21,7 @@ default:
 	@echo "  cdn: Sync updates/cdn/ to R2 web CDN"
 
 .PHONY: all
-all: rootfs bins vmgr scon k8s
+all: rootfs bins vmgr scon ghostty swift k8s
 
 .PHONY: rootfs
 rootfs:
@@ -37,6 +38,10 @@ vmgr:
 .PHONY: scon
 scon:
 	cd scon; make
+
+.PHONY: swift
+swift:
+	cd swift; make
 
 .PHONY: k8s
 k8s: rootfs/k8s/k3s-arm64
