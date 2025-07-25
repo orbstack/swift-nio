@@ -254,7 +254,8 @@ func writeShellProfileSnippets() error {
 	// due to a bug in v1.10.1 where init.fish was accidentally added to .zprofile,
 	// we need to use init2.fish and delete init.fish. running init.fish enables xtrace in zsh (set -x),
 	// which breaks things horribly.
-	fishSnippet := fmt.Sprintf(`set -gxa PATH %s`+"\n", shellescape.Quote(bin))
+	// fish_add_path -aP checks for existing presence in $PATH and adds to $PATH instead of fish_user_paths, to avoid persistent changes to user vars
+	fishSnippet := fmt.Sprintf(`fish_add_path -aP %s`+"\n", shellescape.Quote(bin))
 	_ = os.Remove(shells + "/init.fish")
 	err = util.WriteFileIfChanged(shells+"/init2.fish", []byte(fishSnippet), 0644)
 	if err != nil {
