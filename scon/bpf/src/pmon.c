@@ -128,6 +128,22 @@ struct net {
     __u64 net_cookie;
 } __attribute__((preserve_access_index));
 
+typedef struct {
+    struct net *net;
+} __attribute__((preserve_access_index)) possible_net_t;
+
+struct sock_common {
+    possible_net_t skc_net;
+} __attribute__((preserve_access_index));
+
+struct sock {
+    struct sock_common __sk_common;
+} __attribute__((preserve_access_index));
+
+struct socket {
+    struct sock *sk;
+} __attribute__((preserve_access_index));
+
 struct fwd_meta {
     // UDP notification is delayed until first recvmsg
     bool has_udp_meta;
@@ -257,9 +273,10 @@ static bool postbind_common(struct bpf_sock *sk) {
     if (!check_netns(netns_cookie)) {
         return false;
     }
-    // only TCP or UDP
-    if (sk->type != SOCK_STREAM && sk->type != SOCK_DGRAM) {
-        bpf_printk("not tcp or udp");
+
+    // only UDP
+    if (sk->type != SOCK_DGRAM) {
+        bpf_printk("not udp");
         return false;
     }
 
@@ -272,26 +289,21 @@ static bool postbind_common(struct bpf_sock *sk) {
         return true;
     }
 
-    // notify (TCP). UDP delayed until first recvmsg
-    if (sk->type == SOCK_STREAM) {
-        send_notify(LTYPE_TCP, netns_cookie);
-    } else {
-        meta->udp_notify_pending = true;
+    meta->udp_notify_pending = true;
 
-        // start timer
-        struct udp_meta init_udp = {.netns_cookie = netns_cookie};
-        __u64 cookie = bpf_get_socket_cookie(sk);
-        bpf_map_update_elem(&udp_meta_map, &cookie, &init_udp, BPF_ANY);
-        struct udp_meta *udp = bpf_map_lookup_elem(&udp_meta_map, &cookie);
-        if (udp == NULL) {
-            bpf_printk("failed to lookup udp meta");
-            return true;
-        }
-
-        bpf_timer_init(&udp->notify_timer, &udp_meta_map, CLOCK_MONOTONIC);
-        bpf_timer_set_callback(&udp->notify_timer, udp_timer_cb);
-        bpf_timer_start(&udp->notify_timer, UDP_BIND_DEBOUNCE * 1000 * 1000, 0);
+    // start timer
+    struct udp_meta init_udp = {.netns_cookie = netns_cookie};
+    __u64 cookie = bpf_get_socket_cookie(sk);
+    bpf_map_update_elem(&udp_meta_map, &cookie, &init_udp, BPF_ANY);
+    struct udp_meta *udp = bpf_map_lookup_elem(&udp_meta_map, &cookie);
+    if (udp == NULL) {
+        bpf_printk("failed to lookup udp meta");
+        return true;
     }
+
+    bpf_timer_init(&udp->notify_timer, &udp_meta_map, CLOCK_MONOTONIC);
+    bpf_timer_set_callback(&udp->notify_timer, udp_timer_cb);
+    bpf_timer_start(&udp->notify_timer, UDP_BIND_DEBOUNCE * 1000 * 1000, 0);
 
     return true;
 }
@@ -327,9 +339,13 @@ static int sendmsg_common(struct bpf_sock_addr *ctx) {
     return VERDICT_PROCEED;
 }
 
-// this handles 2 cases: UDP connect, and TCP bind-before-connect (for explicit client port)
+// this handles UDP connect
 // returns: whether conditions were met
 static bool connect_common(struct bpf_sock_addr *ctx) {
+    if (ctx->type != SOCK_DGRAM) {
+        return false;
+    }
+
     // be careful of connect(AF_UNSPEC)
     struct fwd_meta *meta = bpf_sk_storage_get(&sk_meta_map, ctx->sk, NULL, 0);
     if (meta == NULL) {
@@ -441,6 +457,23 @@ int pmon_sendmsg6(struct bpf_sock_addr *ctx) {
                bpf_ntohl(ctx->user_ip6[1]), bpf_ntohl(ctx->user_ip6[2]),
                bpf_ntohl(ctx->user_ip6[3]), bpf_ntohs(ctx->user_port));
     return sendmsg_common(ctx);
+}
+
+SEC("fexit/inet_listen")
+int BPF_PROG(pmon_inet_listen, struct socket *sock, int backlog, int ret) {
+    if (ret != 0) {
+        return 0;
+    }
+
+    __u64 netns_cookie = BPF_CORE_READ(sock, sk, __sk_common.skc_net.net, net_cookie);
+
+    // only intended netns
+    if (!check_netns(netns_cookie)) {
+        return 0;
+    }
+
+    send_notify(LTYPE_TCP, netns_cookie);
+    return 0;
 }
 
 /*

@@ -134,6 +134,19 @@ func (p *PortMonitor) attachOneKretprobeLocked(prog *ebpf.Program, fnName string
 	return nil
 }
 
+func (p *PortMonitor) attachOneFexitLocked(prog *ebpf.Program) error {
+	l, err := link.AttachTracing(link.TracingOptions{
+		Program:    prog,
+		AttachType: ebpf.AttachTraceFExit,
+	})
+	if err != nil {
+		return fmt.Errorf("attach: %w", err)
+	}
+
+	p.closers = append(p.closers, l)
+	return nil
+}
+
 func (p *PortMonitor) AttachCgroup(cgroupPath string) error {
 	p.mu.Lock()
 	defer p.mu.Unlock()
@@ -188,6 +201,18 @@ func (p *PortMonitor) AttachKretprobe() error {
 		return err
 	}
 	err = p.attachOneKretprobeLocked(p.pmonObjs.NfTablesDelrule, "nf_tables_delrule")
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (p *PortMonitor) AttachFexit() error {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
+	err := p.attachOneFexitLocked(p.pmonObjs.PmonInetListen)
 	if err != nil {
 		return err
 	}

@@ -23,7 +23,7 @@ require (
 require (
 	github.com/armon/go-radix v1.0.1-0.20221118154546-54df44f2176c
 	github.com/briandowns/spinner v1.23.2
-	github.com/cilium/ebpf v0.18.0
+	github.com/cilium/ebpf v0.19.0
 	github.com/creachadair/jrpc2 v1.3.1
 	github.com/docker/docker-credential-helpers v0.9.3
 	github.com/docker/libkv v0.2.1
