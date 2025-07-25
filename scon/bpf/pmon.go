@@ -124,16 +124,6 @@ func (p *PortMonitor) attachOneCgLocked(typ ebpf.AttachType, prog *ebpf.Program,
 	return nil
 }
 
-func (p *PortMonitor) attachOneKretprobeLocked(prog *ebpf.Program, fnName string) error {
-	l, err := link.Kretprobe(fnName, prog, nil)
-	if err != nil {
-		return fmt.Errorf("attach: %w", err)
-	}
-
-	p.closers = append(p.closers, l)
-	return nil
-}
-
 func (p *PortMonitor) attachOneFexitLocked(prog *ebpf.Program) error {
 	l, err := link.AttachTracing(link.TracingOptions{
 		Program:    prog,
@@ -192,27 +182,19 @@ func (p *PortMonitor) AttachCgroup(cgroupPath string) error {
 	return nil
 }
 
-func (p *PortMonitor) AttachKretprobe() error {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-
-	err := p.attachOneKretprobeLocked(p.pmonObjs.NfTablesNewrule, "nf_tables_newrule")
-	if err != nil {
-		return err
-	}
-	err = p.attachOneKretprobeLocked(p.pmonObjs.NfTablesDelrule, "nf_tables_delrule")
-	if err != nil {
-		return err
-	}
-
-	return nil
-}
-
 func (p *PortMonitor) AttachFexit() error {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
-	err := p.attachOneFexitLocked(p.pmonObjs.PmonInetListen)
+	err := p.attachOneFexitLocked(p.pmonObjs.NfTablesNewrule)
+	if err != nil {
+		return err
+	}
+	err = p.attachOneFexitLocked(p.pmonObjs.NfTablesDelrule)
+	if err != nil {
+		return err
+	}
+	err = p.attachOneFexitLocked(p.pmonObjs.PmonInetListen)
 	if err != nil {
 		return err
 	}

@@ -194,10 +194,6 @@ func (n *Network) Start() error {
 	if err != nil {
 		return fmt.Errorf("new pmon: %w", err)
 	}
-	err = n.portMonitor.AttachKretprobe()
-	if err != nil {
-		return fmt.Errorf("attach kretprobe: %w", err)
-	}
 	err = n.portMonitor.AttachFexit()
 	if err != nil {
 		return fmt.Errorf("attach fexit: %w", err)

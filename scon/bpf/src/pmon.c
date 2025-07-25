@@ -483,8 +483,8 @@ int BPF_PROG(pmon_inet_listen, struct socket *sock, int backlog, int ret) {
  * hooking nft works because docker machine uses iptables-nft
  */
 
-static int nft_change_common(struct pt_regs *ctx) {
-    if (PT_REGS_RC(ctx) != 0) {
+static int nft_change_common(int ret) {
+    if (ret != 0) {
         return 0;
     }
 
@@ -501,17 +501,15 @@ static int nft_change_common(struct pt_regs *ctx) {
     return 0;
 }
 
-// nft_trans_rule_add is generic, but we use kretprobe to be safe - guaranteed that it's done
-// use kretprobe instead of fexit (which is faster) because cilium ebpf loads entire vmlinux BTF and
-// uses ~70M memory to link fexit maybe we should use C libbpf instead...
-SEC("kretprobe/nf_tables_newrule")
-int nf_tables_newrule(struct pt_regs *ctx) {
-    return nft_change_common(ctx);
+// nft_trans_rule_add is generic, but we use fexit to be safe - guaranteed that it's done
+SEC("fexit/nf_tables_newrule")
+int BPF_PROG(nf_tables_newrule, void *skb, void *info, void *nla, int ret) {
+    return nft_change_common(ret);
 }
 
-SEC("kretprobe/nf_tables_delrule")
-int nf_tables_delrule(struct pt_regs *ctx) {
-    return nft_change_common(ctx);
+SEC("fexit/nf_tables_delrule")
+int BPF_PROG(nf_tables_delrule, void *skb, void *info, void *nla, int ret) {
+    return nft_change_common(ret);
 }
 
 // required for BPF timer API
