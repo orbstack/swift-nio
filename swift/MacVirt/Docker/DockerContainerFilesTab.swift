@@ -2,6 +2,7 @@ import SwiftUI
 import Defaults
 import _NIOFileSystem
 import UniformTypeIdentifiers
+import QuickLookUI
 
 private let tableCellIdentifier = NSUserInterfaceItemIdentifier("tableCell")
 
@@ -33,7 +34,7 @@ struct DockerContainerFilesTab: View {
                     NSLog("Error loading files: \(error)")
                 }
             }
-        }
+        } 
     }
 }
 
@@ -41,7 +42,7 @@ private struct FileManagerView: NSViewRepresentable {
     let delegate: FileManagerOutlineDelegate
 
     func makeNSView(context: Context) -> NSScrollView {
-        let view = NSOutlineView()
+        let view = FileManagerOutlineView()
 
         delegate.view = view
         view.delegate = delegate // weak
@@ -86,6 +87,54 @@ private struct FileManagerView: NSViewRepresentable {
     }
 
     func updateNSView(_ nsView: NSScrollView, context: Context) {
+    }
+}
+
+private class FileManagerOutlineView: NSOutlineView, QLPreviewPanelDataSource {
+    // open quick look on space key pressed
+    override func keyDown(with event: NSEvent) {
+        if event.charactersIgnoringModifiers == " " {
+            guard let panel = QLPreviewPanel.shared() else {
+                return
+            }
+
+            panel.makeKeyAndOrderFront(nil)
+        } else {
+            super.keyDown(with: event)
+        }
+    }
+    
+    func numberOfPreviewItems(in panel: QLPreviewPanel!) -> Int {
+        // number of selected items
+        return self.selectedRowIndexes.count
+    }
+
+    func previewPanel(_ panel: QLPreviewPanel!, previewItemAt index: Int) -> QLPreviewItem! {
+        let viewIndex = Array(self.selectedRowIndexes)[index]
+        let item = self.item(atRow: viewIndex) as! FileItem
+        return FileManagerPreviewItem(url: URL(fileURLWithPath: item.path))
+    }
+
+    override func acceptsPreviewPanelControl(_ panel: QLPreviewPanel!) -> Bool {
+        return true
+    }
+
+    override func beginPreviewPanelControl(_ panel: QLPreviewPanel!) {
+        panel.dataSource = self
+    }
+
+    override func endPreviewPanelControl(_ panel: QLPreviewPanel!) {
+        panel.dataSource = nil
+    }
+    
+}
+
+private class FileManagerPreviewItem: NSObject, QLPreviewItem {
+    var previewItemURL: URL!
+
+    init(url: URL) {
+        super.init()
+        previewItemURL = url
     }
 }
 
