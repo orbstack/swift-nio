@@ -517,6 +517,10 @@ private struct LogsTableView: NSViewRepresentable {
         }
 
         func tableView(_ tableView: NSTableView, viewFor tableColumn: NSTableColumn?, row: Int) -> NSView? {
+            if row >= model.lines.count {
+                return nil
+            }
+
             let textView = NSTextView(frame: NSRect(x: 0, y:0, width: 1000, height: 16))
             textView.isEditable = false
             textView.isSelectable = false
