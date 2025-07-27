@@ -94,11 +94,7 @@ private class FileManagerOutlineView: NSOutlineView, QLPreviewPanelDataSource {
     // open quick look on space key pressed
     override func keyDown(with event: NSEvent) {
         if event.charactersIgnoringModifiers == " " {
-            guard let panel = QLPreviewPanel.shared() else {
-                return
-            }
-
-            panel.makeKeyAndOrderFront(nil)
+            QLPreviewPanel.shared()?.makeKeyAndOrderFront(nil)
         } else {
             super.keyDown(with: event)
         }
