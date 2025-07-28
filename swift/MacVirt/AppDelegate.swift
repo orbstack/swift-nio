@@ -40,7 +40,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
         {
             print("App is already running")
             // activate first
-            existingApp.activate(options: .activateIgnoringOtherApps)
+            NSApp.yieldActivation(to: existingApp)
+            existingApp.activate()
 
             // send reopen event to open main window if necessary
             let targetDescriptor = NSAppleEventDescriptor(

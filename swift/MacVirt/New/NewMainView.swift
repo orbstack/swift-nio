@@ -68,7 +68,7 @@ struct NewMainView: View {
         .sheet(isPresented: $model.presentAuth) {
             AuthView(sheetPresented: $model.presentAuth)
         }
-        .onChange(of: model.presentAuth) { isPresented in
+        .onChange(of: model.presentAuth) { _, isPresented in
             if !isPresented {
                 // sheet dismissed
                 // reopen force SSO sign-in dialog if not signed in (i.e. auth flow dismissed)

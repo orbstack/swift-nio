@@ -33,7 +33,8 @@ class SplitViewController: NSSplitViewController {
         itemC.preferredThicknessFraction = 0.3
 
         if let windowId = splitView.window?.identifier?.rawValue {
-            // splitView.autosaveName = "\(windowId) : SplitViewController"
+            // new save ID after changing to master-detail layout
+            splitView.autosaveName = "\(windowId) : SplitViewController2"
         }
     }
 

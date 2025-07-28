@@ -73,10 +73,10 @@ struct DockerSettingsView: View {
                 await save()
             }
         }
-        .onChange(of: vmModel.dockerConfigJson) { newValue in
+        .onChange(of: vmModel.dockerConfigJson) { _, newValue in
             configJson = newValue
         }
-        .onChange(of: vmModel.dockerEnableIPv6) { newValue in
+        .onChange(of: vmModel.dockerEnableIPv6) { _, newValue in
             enableIPv6 = newValue
         }
     }

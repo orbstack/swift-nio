@@ -540,7 +540,7 @@ struct ActivityMonitorRootView: View {
                     }
                 }
             }
-            .onChange(of: sort) { newSort in
+            .onChange(of: sort) { _, newSort in
                 model.reSort(desc: newSort)
             }
             .onReceive(timer) { _ in
@@ -624,7 +624,7 @@ struct ActivityMonitorRootView: View {
         .onAppear {
             vmModel.activityMonitorStopEnabled = !selection.isEmpty
         }
-        .onChange(of: selection) { newSelection in
+        .onChange(of: selection) { _, newSelection in
             vmModel.activityMonitorStopEnabled = !newSelection.isEmpty
         }
     }

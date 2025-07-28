@@ -117,7 +117,7 @@ struct DockerMigrationWindow: View {
                 presentConfirmExisting = true
             }
         }
-        .onChange(of: model.done) { done in
+        .onChange(of: model.done) { _, done in
             if done {
                 if model.errors.isEmpty {
                     // successful migration counts as dismissed

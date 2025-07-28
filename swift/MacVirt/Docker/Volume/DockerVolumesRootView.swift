@@ -47,7 +47,7 @@ struct DockerVolumesRootView: View {
                     .onAppear {
                         maybeRefreshDf()
                     }
-                    .onChange(of: controlActiveState) { state in
+                    .onChange(of: controlActiveState) { _, state in
                         if state == .key {
                             maybeRefreshDf()
                         }

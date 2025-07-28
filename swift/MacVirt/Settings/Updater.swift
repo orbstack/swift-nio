@@ -57,7 +57,7 @@ struct UpdaterSettingsView: View {
                 .onAppear {
                     automaticallyDownloadsUpdates = updater.automaticallyDownloadsUpdates
                 }
-                .onChange(of: automaticallyDownloadsUpdates) { newValue in
+                .onChange(of: automaticallyDownloadsUpdates) { _, newValue in
                     updater.automaticallyDownloadsUpdates = newValue
                 }
 

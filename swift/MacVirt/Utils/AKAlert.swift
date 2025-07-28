@@ -19,13 +19,13 @@ struct AKAlert<T: Equatable>: ViewModifier {
     func body(content: Content) -> some View {
         content
             .windowHolder(windowHolder)
-            .onChange(of: presentedData) { presentedData in
+            .onChange(of: presentedData) { _, presentedData in
                 if let presentedData {
                     showAlert(contentBuilder(presentedData))
                 }
             }
             // effectively onAppear
-            .onChange(of: windowHolder.window) { window in
+            .onChange(of: windowHolder.window) { _, window in
                 guard window != nil else { return }
                 if let presentedData {
                     showAlert(contentBuilder(presentedData))

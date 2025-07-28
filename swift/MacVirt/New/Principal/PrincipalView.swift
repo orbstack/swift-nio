@@ -62,10 +62,7 @@ struct PrincipalView: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .onAppear {
-            onTabChange(selectedTab)
-        }
-        .onChange(of: selectedTab) { tab in
+        .onChange(of: selectedTab, initial: true) { _, tab in
             // clear inspector view when tab changes
             navModel.inspectorView = nil
             navModel.inspectorSelection = []

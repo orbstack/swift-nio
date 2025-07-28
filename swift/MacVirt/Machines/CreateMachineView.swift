@@ -158,19 +158,19 @@ struct CreateMachineView: View {
             }
             isPresented = false
         }
-        .onChange(of: distro) {
+        .onChange(of: distro) { _, distro in
             if !nameChanged {
-                name = $0.rawValue
+                name = distro.rawValue
             }
 
             #if arch(arm64)
                 // NixOS doesn't work with Rosetta
-                if $0 == .nixos {
+                if distro == .nixos {
                     arch = "arm64"
                 }
             #endif
 
-            version = $0.versions.last!.key
+            version = distro.versions.last!.key
         }
         .windowHolder(windowHolder)
     }

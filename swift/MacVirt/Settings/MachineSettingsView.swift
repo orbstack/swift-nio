@@ -114,13 +114,8 @@ struct MachineSettingsView: View {
                     .keyboardShortcut("s")
                 }
             }
-            .onChange(of: vmModel.config) { config in
+            .onChange(of: vmModel.config, initial: true) { _, config in
                 if let config {
-                    updateFrom(config)
-                }
-            }
-            .onAppear {
-                if let config = vmModel.config {
                     updateFrom(config)
                 }
             }

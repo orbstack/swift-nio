@@ -37,11 +37,11 @@ struct SidebarView: View {
         List(selection: $selectedTab) {
             listContents
         }
-        .onChange(of: defaultsSelectedTab) {
-            selectedTab = $0
+        .onChange(of: defaultsSelectedTab) { _, tab in
+            selectedTab = tab
         }
-        .onChange(of: selectedTab) {
-            if let sel = $0, sel != Defaults[.selectedTab] {
+        .onChange(of: selectedTab) { _, sel in
+            if let sel, sel != Defaults[.selectedTab] {
                 Defaults[.selectedTab] = sel
             }
         }

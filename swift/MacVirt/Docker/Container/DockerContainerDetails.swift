@@ -13,8 +13,6 @@ struct DockerContainerDetails: View {
 
     var body: some View {
         DetailsStack {
-            let isRunning = container.running
-
             DetailsKvSection {
                 DetailsRow("ID") {
                     CopyableText(String(container.id.prefix(12)), copyAs: container.id)
