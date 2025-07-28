@@ -31,22 +31,6 @@ struct DockerImageDetails: View {
 
             DetailsButtonSection {
                 DetailsButton {
-                    image.summary.openFolder()
-                } label: {
-                    Label("Files", systemImage: "folder")
-                }.disabled(image.summary.repoTags?.isEmpty != false)
-
-                DetailsButton {
-                    if vmModel.isLicensed {
-                        image.summary.openDebugShell()
-                    } else {
-                        vmModel.presentRequiresLicense = true
-                    }
-                } label: {
-                    Label("Debug Shell", systemImage: "ladybug")
-                }
-
-                DetailsButton {
                     image.summary.openExportPanel(
                         windowHolder: windowHolder,
                         actionTracker: actionTracker,

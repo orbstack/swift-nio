@@ -1008,9 +1008,9 @@ private class ActivityMonitorViewModel: ObservableObject {
     }
 }
 
-private extension [ActivityMonitorItem] {
+extension [ActivityMonitorItem] {
     // recursive
-    mutating func sort(desc: AKSortDescriptor) {
+    fileprivate mutating func sort(desc: AKSortDescriptor) {
         // these are structs so we need to mutate in-place
         for index in self.indices {
             self[index].children?.sort(desc: desc)
@@ -1060,7 +1060,7 @@ private extension [ActivityMonitorItem] {
         }
     }
 
-    func findRecursive(id: ActivityMonitorID) -> ActivityMonitorItem? {
+    fileprivate func findRecursive(id: ActivityMonitorID) -> ActivityMonitorItem? {
         for item in self {
             if item.entity.id == id {
                 return item
@@ -1073,15 +1073,15 @@ private extension [ActivityMonitorItem] {
     }
 }
 
-private extension Duration {
-    var seconds: Float {
+extension Duration {
+    fileprivate var seconds: Float {
         // attoseconds -> femtoseconds -> picoseconds -> nanoseconds (thanks apple)
         return Float(components.seconds) + Float(components.attoseconds) * 1e-18
     }
 }
 
-private extension Float {
-    func alignUp(to alignBy: Float) -> Float {
+extension Float {
+    fileprivate func alignUp(to alignBy: Float) -> Float {
         return (self / alignBy).rounded(.up) * alignBy
     }
 }

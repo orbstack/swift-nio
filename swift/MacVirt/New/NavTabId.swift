@@ -221,7 +221,8 @@ extension NSToolbarItem.Identifier {
 
     static let licenseBadge = NSToolbarItem.Identifier("licenseBadge")
 
-    static let contentListTrackingSeparator = NSToolbarItem.Identifier("contentListTrackingSeparator")
+    static let contentListTrackingSeparator = NSToolbarItem.Identifier(
+        "contentListTrackingSeparator")
 
     static let leadingItems: [NSToolbarItem.Identifier] =
         [.toggleSidebar, .sidebarTrackingSeparator]

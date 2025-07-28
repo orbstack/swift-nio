@@ -114,7 +114,7 @@ struct MacVirtApp: App {
                             Label("New Container", systemImage: "plus")
                         }
                         .keyboardShortcut("n")
-                        
+
                         Button {
                             vmModel.menuActionRouter.send(.openContainerInNewWindow)
                         } label: {

@@ -2,7 +2,7 @@ import AppKit
 import Combine
 
 /*
- * 
+ *
  */
 
 @resultBuilder
@@ -15,7 +15,9 @@ struct AKToolbarItemsBuilder {
         first
     }
 
-    static func buildPartialBlock(accumulated: [NSToolbarItem], next: NSToolbarItem) -> [NSToolbarItem] {
+    static func buildPartialBlock(accumulated: [NSToolbarItem], next: NSToolbarItem)
+        -> [NSToolbarItem]
+    {
         accumulated + [next]
     }
 
@@ -40,7 +42,10 @@ final class AKToolbarItem: NSToolbarItem {
     private let closure: () -> Void
     private let cancellable: AnyCancellable? = nil
 
-    init(id: String, title: String, systemIcon: String? = nil, tooltip: String? = nil, action: @escaping () -> Void) {
+    init(
+        id: String, title: String, systemIcon: String? = nil, tooltip: String? = nil,
+        action: @escaping () -> Void
+    ) {
         self.closure = action
 
         super.init(itemIdentifier: NSToolbarItem.Identifier(id))

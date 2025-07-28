@@ -1,13 +1,14 @@
-import SwiftUI
 import Defaults
-import _NIOFileSystem
-import UniformTypeIdentifiers
 import QuickLookUI
+import SwiftUI
+import UniformTypeIdentifiers
+import _NIOFileSystem
 
 private let tableCellIdentifier = NSUserInterfaceItemIdentifier("tableCell")
 
 extension NSPasteboard.PasteboardType {
-    static let nodeRowPasteboardType = NSPasteboard.PasteboardType("dev.orbstack.OrbStack.nodeRowPasteboardType")
+    static let nodeRowPasteboardType = NSPasteboard.PasteboardType(
+        "dev.orbstack.OrbStack.nodeRowPasteboardType")
 }
 
 struct FileManagerView: View {
@@ -19,15 +20,15 @@ struct FileManagerView: View {
 
     var body: some View {
         FileManagerNSView(delegate: model)
-        .onChange(of: rootPath, initial: true) { _, newRootPath in
-            Task {
-                do {
-                    try await model.loadRoot(rootPath: newRootPath)
-                } catch {
-                    NSLog("Error loading files: \(error)")
+            .onChange(of: rootPath, initial: true) { _, newRootPath in
+                Task {
+                    do {
+                        try await model.loadRoot(rootPath: newRootPath)
+                    } catch {
+                        NSLog("Error loading files: \(error)")
+                    }
                 }
             }
-        } 
     }
 }
 
@@ -38,39 +39,48 @@ private struct FileManagerNSView: NSViewRepresentable {
         let view = FileManagerOutlineView()
 
         delegate.view = view
-        view.delegate = delegate // weak
-        view.dataSource = delegate // weak
+        view.delegate = delegate  // weak
+        view.dataSource = delegate  // weak
 
         view.setDraggingSourceOperationMask([.copy, .delete], forLocal: false)
-        view.registerForDraggedTypes(NSFilePromiseReceiver.readableDraggedTypes.map { NSPasteboard.PasteboardType($0) })
+        view.registerForDraggedTypes(
+            NSFilePromiseReceiver.readableDraggedTypes.map { NSPasteboard.PasteboardType($0) })
         view.registerForDraggedTypes([.nodeRowPasteboardType, .fileURL])
 
         view.menu = NSMenu()
         view.headerView = NSTableHeaderView()
         view.usesAlternatingRowBackgroundColors = true
+        view.allowsMultipleSelection = true
+
+        view.sortDescriptors = [NSSortDescriptor(key: Columns.name, ascending: true)]
 
         let colName = NSTableColumn(identifier: .init(Columns.name))
         colName.title = "Name"
         colName.isEditable = true
         colName.sortDescriptorPrototype = NSSortDescriptor(key: Columns.name, ascending: true)
+        colName.width = 250
         view.addTableColumn(colName)
 
         let colModified = NSTableColumn(identifier: .init(Columns.modified))
-        colModified.title = "Modified"
+        colModified.title = "Date Modified"
         colModified.isEditable = false
-        colModified.sortDescriptorPrototype = NSSortDescriptor(key: Columns.modified, ascending: false)
+        colModified.sortDescriptorPrototype = NSSortDescriptor(
+            key: Columns.modified, ascending: false)
+        colModified.width = 175
         view.addTableColumn(colModified)
 
         let colSize = NSTableColumn(identifier: .init(Columns.size))
         colSize.title = "Size"
         colSize.isEditable = false
         colSize.sortDescriptorPrototype = NSSortDescriptor(key: Columns.size, ascending: false)
+        colSize.width = 100
         view.addTableColumn(colSize)
 
         let colType = NSTableColumn(identifier: .init(Columns.type))
         colType.title = "Kind"
         colType.isEditable = false
         colType.sortDescriptorPrototype = NSSortDescriptor(key: Columns.type, ascending: false)
+        colType.width = 100
         view.addTableColumn(colType)
 
         let scrollView = NSScrollView()
@@ -92,7 +102,7 @@ private class FileManagerOutlineView: NSOutlineView, QLPreviewPanelDataSource {
             super.keyDown(with: event)
         }
     }
-    
+
     func numberOfPreviewItems(in panel: QLPreviewPanel!) -> Int {
         // number of selected items
         return self.selectedRowIndexes.count
@@ -115,7 +125,7 @@ private class FileManagerOutlineView: NSOutlineView, QLPreviewPanelDataSource {
     override func endPreviewPanelControl(_ panel: QLPreviewPanel!) {
         panel.dataSource = nil
     }
-    
+
 }
 
 private class FileManagerPreviewItem: NSObject, QLPreviewItem {
@@ -127,7 +137,9 @@ private class FileManagerPreviewItem: NSObject, QLPreviewItem {
     }
 }
 
-private class FileManagerOutlineDelegate: NSObject, NSOutlineViewDelegate, NSOutlineViewDataSource, ObservableObject {
+private class FileManagerOutlineDelegate: NSObject, NSOutlineViewDelegate, NSOutlineViewDataSource,
+    ObservableObject
+{
     var view: NSOutlineView!
 
     private var sortDesc = AKSortDescriptor(columnId: Columns.name, ascending: true)
@@ -139,13 +151,19 @@ private class FileManagerOutlineDelegate: NSObject, NSOutlineViewDelegate, NSOut
         var items = [FileItem]()
         try await FileSystem.shared.withDirectoryHandle(atPath: FilePath(path)) { dir in
             for try await file in dir.listContents() {
-                guard let info = try await FileSystem.shared.info(forFileAt: file.path, infoAboutSymbolicLink: true) else {
+                guard
+                    let info = try await FileSystem.shared.info(
+                        forFileAt: file.path, infoAboutSymbolicLink: true)
+                else {
                     continue
                 }
 
                 let path = file.path.string
                 let icon = NSWorkspace.shared.icon(forFile: path)
-                let item = FileItem(path: path, name: file.name.string, type: FileItemType(from: file.type), size: info.size, modified: info.lastDataModificationTime.date, icon: icon, children: file.type == .directory ? [] : nil)
+                let item = FileItem(
+                    path: path, name: file.name.string, type: FileItemType(from: file.type),
+                    size: info.size, modified: info.lastDataModificationTime.date, icon: icon,
+                    children: file.type == .directory ? [] : nil)
                 if file.type == .directory && expandedPaths.contains(path) {
                     item.children = try await getDirectoryItems(path: path)
                 }
@@ -220,19 +238,22 @@ private class FileManagerOutlineDelegate: NSObject, NSOutlineViewDelegate, NSOut
     }
 
     // MARK: - delegat
-    func outlineView(_ outlineView: NSOutlineView, viewFor tableColumn: NSTableColumn?, item: Any) -> NSView? {
+    func outlineView(_ outlineView: NSOutlineView, viewFor tableColumn: NSTableColumn?, item: Any)
+        -> NSView?
+    {
         let item = item as! FileItem
         switch tableColumn?.identifier.rawValue {
         case Columns.name:
             return TextFieldCellView(value: item.name, editable: true, image: item.icon)
         case Columns.modified:
-            return TextFieldCellView(value: item.modified.formatted(date: .abbreviated, time: .shortened))
+            return TextFieldCellView(
+                value: item.modified.formatted(date: .abbreviated, time: .shortened))
         case Columns.size:
             return TextFieldCellView(value: item.size.formatted(.byteCount(style: .file)))
         case Columns.type:
             return TextFieldCellView(value: item.type.description)
         default:
-        print("unknown col")
+            print("unknown col")
             return nil
         }
     }
@@ -258,7 +279,9 @@ private class FileManagerOutlineDelegate: NSObject, NSOutlineViewDelegate, NSOut
     //     }
     // }
 
-    func outlineView(_ outlineView: NSOutlineView, typeSelectStringFor tableColumn: NSTableColumn?, item: Any) -> String? {
+    func outlineView(
+        _ outlineView: NSOutlineView, typeSelectStringFor tableColumn: NSTableColumn?, item: Any
+    ) -> String? {
         if let item = item as? FileItem {
             return item.name
         } else {
@@ -271,7 +294,6 @@ private class FileManagerOutlineDelegate: NSObject, NSOutlineViewDelegate, NSOut
     ) -> Bool {
         return column.identifier.rawValue != Columns.name
     }
-
 
     func outlineView(
         _ outlineView: NSOutlineView,
@@ -286,12 +308,13 @@ private class FileManagerOutlineDelegate: NSObject, NSOutlineViewDelegate, NSOut
         }
     }
 
-//    func outlineView(_ outlineView: NSOutlineView, pasteboardWriterForItem item: Any) -> NSPasteboardWriting? {
-//    }
+    //    func outlineView(_ outlineView: NSOutlineView, pasteboardWriterForItem item: Any) -> NSPasteboardWriting? {
+    //    }
 
     func outlineViewItemWillExpand(_ notification: Notification) {
-        if let view =  notification.object as? NSOutlineView,
-            let node = notification.userInfo?["NSObject"] as? FileItem {
+        if let view = notification.object as? NSOutlineView,
+            let node = notification.userInfo?["NSObject"] as? FileItem
+        {
             Task {
                 do {
                     try await expandItem(item: node)
@@ -302,7 +325,9 @@ private class FileManagerOutlineDelegate: NSObject, NSOutlineViewDelegate, NSOut
 
             print("expanding \(node.name)")
             view.beginUpdates()
-            view.insertItems(at: IndexSet(integersIn: 0..<node.children!.count), inParent: node, withAnimation: .effectGap)
+            view.insertItems(
+                at: IndexSet(integersIn: 0..<node.children!.count), inParent: node,
+                withAnimation: .effectGap)
             view.endUpdates()
         }
     }
@@ -310,7 +335,9 @@ private class FileManagerOutlineDelegate: NSObject, NSOutlineViewDelegate, NSOut
     func outlineViewItemWillCollapse(_ notification: Notification) {
         if let node = notification.userInfo?["NSObject"] as? FileItem {
             view.beginUpdates()
-            view.removeItems(at: IndexSet(integersIn: 0..<node.children!.count), inParent: node, withAnimation: .effectGap)
+            view.removeItems(
+                at: IndexSet(integersIn: 0..<node.children!.count), inParent: node,
+                withAnimation: .effectGap)
             view.endUpdates()
 
             collapseItem(item: node)
@@ -319,27 +346,17 @@ private class FileManagerOutlineDelegate: NSObject, NSOutlineViewDelegate, NSOut
 }
 
 private class TextFieldCellView: NSTableCellView {
-    private let _textField: NSTextField
-    private let _imageView: NSImageView?
-
     init(value: String, editable: Bool = false, image: NSImage? = nil) {
-        _textField = NSTextField(labelWithString: value)
-        _imageView = image.map { NSImageView(image: $0) }
-
         super.init(frame: .zero)
 
-        if editable {
-            _textField.isEditable = true
+        if let image {
+            let imageView = NSImageView(image: image)
+            addSubview(imageView)
         }
 
-        self.imageView = _imageView
-        self.textField = _textField
-    }
-
-    override func draw(_ dirtyRect: NSRect) {
-        super.draw(dirtyRect)
-        _textField.draw(dirtyRect)
-        _imageView?.draw(dirtyRect)
+        let textField = NSTextField(labelWithString: value)
+        textField.isEditable = editable
+        addSubview(textField)
     }
 
     required init?(coder: NSCoder) {
@@ -347,7 +364,9 @@ private class TextFieldCellView: NSTableCellView {
     }
 }
 
-private func compareWithDesc<T: Comparable>(lhs: T, rhs: T, lhsName: String, rhsName: String, desc: AKSortDescriptor) -> Bool {
+private func compareWithDesc<T: Comparable>(
+    lhs: T, rhs: T, lhsName: String, rhsName: String, desc: AKSortDescriptor
+) -> Bool {
     if lhs == rhs {
         return desc.compare(lhsName, rhsName)
     }
@@ -355,8 +374,8 @@ private func compareWithDesc<T: Comparable>(lhs: T, rhs: T, lhsName: String, rhs
     return desc.compare(lhs, rhs)
 }
 
-private extension [FileItem] {
-    mutating func sort(desc: AKSortDescriptor) {
+extension [FileItem] {
+    fileprivate mutating func sort(desc: AKSortDescriptor) {
         // these are structs so we need to mutate in-place
         for index in self.indices {
             self[index].children?.sort(desc: desc)
@@ -364,11 +383,21 @@ private extension [FileItem] {
 
         switch desc.columnId {
         case Columns.modified:
-            self.sort { compareWithDesc(lhs: $0.modified, rhs: $1.modified, lhsName: $0.path, rhsName: $1.path, desc: desc) }
+            self.sort {
+                compareWithDesc(
+                    lhs: $0.modified, rhs: $1.modified, lhsName: $0.path, rhsName: $1.path,
+                    desc: desc)
+            }
         case Columns.size:
-            self.sort { compareWithDesc(lhs: $0.size, rhs: $1.size, lhsName: $0.path, rhsName: $1.path, desc: desc) }
+            self.sort {
+                compareWithDesc(
+                    lhs: $0.size, rhs: $1.size, lhsName: $0.path, rhsName: $1.path, desc: desc)
+            }
         case Columns.type:
-            self.sort { compareWithDesc(lhs: $0.type, rhs: $1.type, lhsName: $0.path, rhsName: $1.path, desc: desc) }
+            self.sort {
+                compareWithDesc(
+                    lhs: $0.type, rhs: $1.type, lhsName: $0.path, rhsName: $1.path, desc: desc)
+            }
         default:
             self.sort { desc.compare($0.name, $1.name) }
         }
@@ -384,7 +413,10 @@ private class FileItem: Identifiable, AKListItem, Equatable, Hashable {
     let icon: NSImage
     var children: [FileItem]?
 
-    init(path: String, name: String, type: FileItemType, size: Int64, modified: Date, icon: NSImage, children: [FileItem]?) {
+    init(
+        path: String, name: String, type: FileItemType, size: Int64, modified: Date, icon: NSImage,
+        children: [FileItem]?
+    ) {
         self.path = path
         self.name = name
         self.type = type
@@ -395,7 +427,8 @@ private class FileItem: Identifiable, AKListItem, Equatable, Hashable {
     }
 
     static func == (lhs: FileItem, rhs: FileItem) -> Bool {
-        lhs.path == rhs.path && lhs.name == rhs.name && lhs.type == rhs.type && lhs.size == rhs.size && lhs.modified == rhs.modified && lhs.icon == rhs.icon && lhs.children == rhs.children
+        lhs.path == rhs.path && lhs.name == rhs.name && lhs.type == rhs.type && lhs.size == rhs.size
+            && lhs.modified == rhs.modified && lhs.icon == rhs.icon && lhs.children == rhs.children
     }
 
     func hash(into hasher: inout Hasher) {
@@ -463,8 +496,10 @@ private enum FileItemType: Comparable {
     }
 }
 
-private extension FileInfo.Timespec {
-    var date: Date {
-        Date(timeIntervalSince1970: TimeInterval(seconds) + TimeInterval(nanoseconds) / 1_000_000_000)
+extension FileInfo.Timespec {
+    fileprivate var date: Date {
+        Date(
+            timeIntervalSince1970: TimeInterval(seconds) + TimeInterval(nanoseconds) / 1_000_000_000
+        )
     }
 }

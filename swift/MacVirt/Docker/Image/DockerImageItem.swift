@@ -73,50 +73,6 @@ struct DockerImageItem: View, Equatable {
                 }
             }
 
-            Button {
-                image.summary.openFolder()
-            } label: {
-                Image(systemName: "folder.fill")
-                    // match ProgressIconButton size
-                    .frame(width: 24, height: 24)
-            }
-            .buttonStyle(.borderless)
-            .disabled(image.summary.repoTags?.isEmpty != false || actionInProgress)
-            .help("Open image")
-            .if(isFirstInList) {
-                $0.popover(isPresented: $tipsImageMountsShow, arrowEdge: .leading) {
-                    HStack {
-                        Image(systemName: "folder.circle")
-                            .resizable()
-                            .frame(width: 32, height: 32)
-                            .foregroundColor(.accentColor)
-                            .padding(.trailing, 4)
-
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text("New: Direct image access")
-                                .font(.headline)
-
-                            Text("Explore image files in Finder and other tools")
-                                .font(.body)
-                                .foregroundColor(.secondary)
-                        }
-                    }
-                    .padding(20)
-                    .overlay(alignment: .topLeading) {  // opposite side of arrow edge
-                        Button {
-                            tipsImageMountsShow = false
-                        } label: {
-                            Image(systemName: "xmark")
-                                .resizable()
-                                .frame(width: 8, height: 8)
-                                .foregroundColor(.secondary)
-                        }
-                        .buttonStyle(.plain)
-                        .padding(8)
-                    }
-                }
-            }
-
             ProgressIconButton(
                 systemImage: "trash.fill",
                 actionInProgress: actionInProgress,

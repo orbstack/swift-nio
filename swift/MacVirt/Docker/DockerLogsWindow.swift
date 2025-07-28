@@ -516,12 +516,14 @@ private struct LogsTableView: NSViewRepresentable {
             model.lines.count
         }
 
-        func tableView(_ tableView: NSTableView, viewFor tableColumn: NSTableColumn?, row: Int) -> NSView? {
+        func tableView(_ tableView: NSTableView, viewFor tableColumn: NSTableColumn?, row: Int)
+            -> NSView?
+        {
             if row >= model.lines.count {
                 return nil
             }
 
-            let textView = NSTextView(frame: NSRect(x: 0, y:0, width: 1000, height: 16))
+            let textView = NSTextView(frame: NSRect(x: 0, y: 0, width: 1000, height: 16))
             textView.isEditable = false
             textView.isSelectable = false
             textView.backgroundColor = .clear
@@ -600,25 +602,6 @@ private struct LogsTableView: NSViewRepresentable {
 
     func makeCoordinator() -> Coordinator {
         Coordinator(model: model)
-    }
-}
-
-private class LogTableCellView: NSTableCellView {
-    private let _textView: NSTextView
-
-    init(textView: NSTextView) {
-        _textView = textView
-        super.init(frame: NSRect())
-        addSubview(_textView)
-    }
-
-    override func draw(_ dirtyRect: NSRect) {
-        super.draw(dirtyRect)
-        _textView.draw(dirtyRect)
-    }
-
-    required init?(coder: NSCoder) {
-        fatalError("init(coder:) has not been implemented")
     }
 }
 

@@ -58,20 +58,6 @@ struct MachineDetails: View {
 
             DetailsButtonSection {
                 DetailsButton {
-                    info.record.openNfsDirectory()
-                } label: {
-                    Label("Files", systemImage: "folder")
-                }
-
-                DetailsButton {
-                    Task {
-                        await info.record.openInTerminal()
-                    }
-                } label: {
-                    Label("Terminal", systemImage: "terminal")
-                }
-
-                DetailsButton {
                     info.record.openExportPanel(
                         windowHolder: windowHolder,
                         actionTracker: actionTracker,

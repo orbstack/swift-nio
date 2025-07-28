@@ -82,12 +82,6 @@ struct DockerVolumeDetails: View {
 
             DetailsButtonSection {
                 DetailsButton {
-                    volume.openNfsDirectory()
-                } label: {
-                    Label("Files", systemImage: "folder")
-                }
-
-                DetailsButton {
                     volume.openExportPanel(
                         windowHolder: windowHolder,
                         actionTracker: actionTracker,

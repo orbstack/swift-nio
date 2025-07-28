@@ -56,7 +56,7 @@ class NewMainViewController: NSViewController {
         title: "Files",
         action: #selector(actionDockerContainersOpen)
     )
-    
+
     lazy var containersOpenWindowButton = makeToolbarItem(
         itemIdentifier: .dockerContainersOpenWindow,
         icon: "arrow.up.forward.app",
@@ -96,7 +96,11 @@ class NewMainViewController: NSViewController {
     }()
 
     lazy var containersTabs = {
-        let group = NSToolbarItemGroup(itemIdentifier: .dockerContainersTabs, titles: ContainerTabId.allCases.map { $0.description }, selectionMode: .selectOne, labels: ContainerTabId.allCases.map { $0.description }, target: self, action: #selector(actionDockerContainersTabs))
+        let group = NSToolbarItemGroup(
+            itemIdentifier: .dockerContainersTabs,
+            titles: ContainerTabId.allCases.map { $0.description }, selectionMode: .selectOne,
+            labels: ContainerTabId.allCases.map { $0.description }, target: self,
+            action: #selector(actionDockerContainersTabs))
         group.setSelected(true, at: 0)
         return group
     }()
@@ -123,7 +127,10 @@ class NewMainViewController: NSViewController {
     )
 
     lazy var volumesTabs = {
-        let group = NSToolbarItemGroup(itemIdentifier: .dockerVolumesTabs, titles: VolumeTabId.allCases.map { $0.description }, selectionMode: .selectOne, labels: VolumeTabId.allCases.map { $0.description }, target: self, action: #selector(actionDockerVolumesTabs))
+        let group = NSToolbarItemGroup(
+            itemIdentifier: .dockerVolumesTabs, titles: VolumeTabId.allCases.map { $0.description },
+            selectionMode: .selectOne, labels: VolumeTabId.allCases.map { $0.description },
+            target: self, action: #selector(actionDockerVolumesTabs))
         group.setSelected(true, at: 0)
         return group
     }()
@@ -170,7 +177,10 @@ class NewMainViewController: NSViewController {
     }()
 
     lazy var imagesTabs = {
-        let group = NSToolbarItemGroup(itemIdentifier: .dockerImagesTabs, titles: ImageTabId.allCases.map { $0.description }, selectionMode: .selectOne, labels: ImageTabId.allCases.map { $0.description }, target: self, action: #selector(actionDockerImagesTabs))
+        let group = NSToolbarItemGroup(
+            itemIdentifier: .dockerImagesTabs, titles: ImageTabId.allCases.map { $0.description },
+            selectionMode: .selectOne, labels: ImageTabId.allCases.map { $0.description },
+            target: self, action: #selector(actionDockerImagesTabs))
         group.setSelected(true, at: 0)
         return group
     }()
@@ -200,7 +210,11 @@ class NewMainViewController: NSViewController {
     }()
 
     lazy var networksTabs = {
-        let group = NSToolbarItemGroup(itemIdentifier: .dockerNetworksTabs, titles: NetworkTabId.allCases.map { $0.description }, selectionMode: .selectOne, labels: NetworkTabId.allCases.map { $0.description }, target: self, action: #selector(actionDockerNetworksTabs))
+        let group = NSToolbarItemGroup(
+            itemIdentifier: .dockerNetworksTabs,
+            titles: NetworkTabId.allCases.map { $0.description }, selectionMode: .selectOne,
+            labels: NetworkTabId.allCases.map { $0.description }, target: self,
+            action: #selector(actionDockerNetworksTabs))
         group.setSelected(true, at: 0)
         return group
     }()
@@ -243,7 +257,10 @@ class NewMainViewController: NSViewController {
     }()
 
     lazy var podsTabs = {
-        let group = NSToolbarItemGroup(itemIdentifier: .k8sPodsTabs, titles: PodsTabId.allCases.map { $0.description }, selectionMode: .selectOne, labels: PodsTabId.allCases.map { $0.description }, target: self, action: #selector(actionK8sPodsTabs))
+        let group = NSToolbarItemGroup(
+            itemIdentifier: .k8sPodsTabs, titles: PodsTabId.allCases.map { $0.description },
+            selectionMode: .selectOne, labels: PodsTabId.allCases.map { $0.description },
+            target: self, action: #selector(actionK8sPodsTabs))
         group.setSelected(true, at: 0)
         return group
     }()
@@ -278,7 +295,10 @@ class NewMainViewController: NSViewController {
     }()
 
     lazy var servicesTabs = {
-        let group = NSToolbarItemGroup(itemIdentifier: .k8sServicesTabs, titles: ServicesTabId.allCases.map { $0.description }, selectionMode: .selectOne, labels: ServicesTabId.allCases.map { $0.description }, target: self, action: #selector(actionK8sServicesTabs))
+        let group = NSToolbarItemGroup(
+            itemIdentifier: .k8sServicesTabs, titles: ServicesTabId.allCases.map { $0.description },
+            selectionMode: .selectOne, labels: ServicesTabId.allCases.map { $0.description },
+            target: self, action: #selector(actionK8sServicesTabs))
         group.setSelected(true, at: 0)
         return group
     }()
@@ -312,11 +332,14 @@ class NewMainViewController: NSViewController {
     )
 
     lazy var machinesTabs = {
-        let group = NSToolbarItemGroup(itemIdentifier: .machinesTabs, titles: MachineTabId.allCases.map { $0.description }, selectionMode: .selectOne, labels: MachineTabId.allCases.map { $0.description }, target: self, action: #selector(actionMachinesTabs))
+        let group = NSToolbarItemGroup(
+            itemIdentifier: .machinesTabs, titles: MachineTabId.allCases.map { $0.description },
+            selectionMode: .selectOne, labels: MachineTabId.allCases.map { $0.description },
+            target: self, action: #selector(actionMachinesTabs))
         group.setSelected(true, at: 0)
         return group
     }()
-    
+
     lazy var machinesOpenInNewWindowButton = makeToolbarItem(
         itemIdentifier: .machinesOpenInNewWindow,
         icon: "arrow.up.forward.app",

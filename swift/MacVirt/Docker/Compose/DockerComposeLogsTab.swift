@@ -6,7 +6,10 @@ struct DockerComposeLogsTab: View {
     @StateObject private var commandModel = CommandViewModel()
 
     var body: some View {
-        DockerLogsContentView(cid: .compose(project: project), standalone: true, extraComposeArgs: [], allDisabled: false)
+        DockerLogsContentView(
+            cid: .compose(project: project), standalone: true, extraComposeArgs: [],
+            allDisabled: false
+        )
         .environmentObject(commandModel)
     }
 }

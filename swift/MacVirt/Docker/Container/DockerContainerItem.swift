@@ -125,48 +125,6 @@ struct DockerContainerItem: View, Equatable, BaseDockerContainerItem {
                 }
             }
 
-            if isRunning {
-                ProgressIconButton(systemImage: "folder.fill", actionInProgress: false) {
-                    container.openFolder()
-                }
-                .help("Open Files")
-                // show domains first, then files
-                .if(isFirstInList && !tipsContainerDomainsShow) {
-                    // TODO: fix code dupe
-                    $0.popover(isPresented: $tipsContainerFilesShow, arrowEdge: .leading) {
-                        HStack {
-                            Image(systemName: "folder.circle")
-                                .resizable()
-                                .frame(width: 32, height: 32)
-                                .foregroundColor(.accentColor)
-                                .padding(.trailing, 4)
-
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text("New: Container files in Finder & terminal")
-                                    .font(.headline)
-
-                                Text("Easily edit and copy files natively")
-                                    .font(.body)
-                                    .foregroundColor(.secondary)
-                            }
-                        }
-                        .padding(20)
-                        .overlay(alignment: .topLeading) {  // opposite side of arrow edge
-                            Button {
-                                tipsContainerFilesShow = false
-                            } label: {
-                                Image(systemName: "xmark")
-                                    .resizable()
-                                    .frame(width: 8, height: 8)
-                                    .foregroundColor(.secondary)
-                            }
-                            .buttonStyle(.plain)
-                            .padding(8)
-                        }
-                    }
-                }
-            }
-
             // don't allow messing with k8s containers -- it'll break things
             if !container.isK8s {
                 if isRunning {

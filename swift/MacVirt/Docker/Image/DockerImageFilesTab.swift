@@ -7,10 +7,10 @@ struct DockerImageFilesTab: View {
 
     var body: some View {
         FileManagerView(rootPath: image.summary.nfsPath)
-        .onReceive(vmModel.toolbarActionRouter) { action in
-            if action == .dockerOpenImageInNewWindow {
-                image.summary.openFolder()
+            .onReceive(vmModel.toolbarActionRouter) { action in
+                if action == .dockerOpenImageInNewWindow {
+                    image.summary.openFolder()
+                }
             }
-        }
     }
 }

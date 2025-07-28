@@ -635,7 +635,7 @@ struct DKSystemDf: Codable {
 struct DKNetworkCreateResponse: Decodable {
     let id: String
     let warning: String?
-    
+
     enum CodingKeys: String, CodingKey {
         case id = "Id"
         case warning = "Warning"

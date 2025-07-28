@@ -56,17 +56,6 @@ struct DockerVolumeItem: View {
             }
             Spacer()
 
-            Button {
-                volume.openNfsDirectory()
-            } label: {
-                Image(systemName: "folder.fill")
-                    // match ProgressIconButton size
-                    .frame(width: 24, height: 24)
-            }
-            .buttonStyle(.borderless)
-            .disabled(actionInProgress)
-            .help("Open volume")
-
             ProgressIconButton(
                 systemImage: "trash.fill",
                 actionInProgress: actionInProgress

@@ -73,6 +73,8 @@ extension NewMainViewController: NSToolbarDelegate, NSToolbarItemValidation {
             return volumesSortMenu
         case .dockerVolumesTabs:
             return volumesTabs
+        case .dockerVolumesOpenWindow:
+            return volumesOpenWindowButton
 
         case .dockerImagesOpen:
             return imagesFolderButton
@@ -82,6 +84,8 @@ extension NewMainViewController: NSToolbarDelegate, NSToolbarItemValidation {
             return imagesImportButton
         case .dockerImagesTabs:
             return imagesTabs
+        case .dockerImagesOpenWindow:
+            return imagesOpenWindowButton
 
         case .dockerNetworksNew:
             return networksPlusButton
@@ -96,11 +100,15 @@ extension NewMainViewController: NSToolbarDelegate, NSToolbarItemValidation {
             return podsFilterMenu
         case .k8sPodsTabs:
             return podsTabs
+        case .k8sPodsOpenWindow:
+            return k8sPodsOpenWindowButton
 
         case .k8sServicesFilter:
             return servicesFilterMenu
         case .k8sServicesTabs:
             return servicesTabs
+        case .k8sServicesOpenWindow:
+            return k8sServicesOpenWindowButton
 
         case .machinesOpen:
             return machinesFolderButton
@@ -126,7 +134,9 @@ extension NewMainViewController: NSToolbarDelegate, NSToolbarItemValidation {
             return licenseBadgeItem
 
         case .contentListTrackingSeparator:
-            return NSTrackingSeparatorToolbarItem(identifier: .contentListTrackingSeparator, splitView: splitViewController.splitView, dividerIndex: 1)
+            return NSTrackingSeparatorToolbarItem(
+                identifier: .contentListTrackingSeparator, splitView: splitViewController.splitView,
+                dividerIndex: 1)
 
         default:
             break

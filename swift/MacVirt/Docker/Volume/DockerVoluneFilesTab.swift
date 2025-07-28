@@ -7,10 +7,10 @@ struct DockerVolumeFilesTab: View {
 
     var body: some View {
         FileManagerView(rootPath: volume.nfsPath)
-        .onReceive(vmModel.toolbarActionRouter) { action in
-            if action == .dockerOpenVolumeInNewWindow {
-                volume.openNfsDirectory()
+            .onReceive(vmModel.toolbarActionRouter) { action in
+                if action == .dockerOpenVolumeInNewWindow {
+                    volume.openNfsDirectory()
+                }
             }
-        }
     }
 }
