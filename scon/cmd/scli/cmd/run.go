@@ -193,7 +193,7 @@ See "orb create --help" for supported distros and options.
 					checkCLI(err)
 				}
 			}
-			containerName = c.Name
+			containerName = c.ID
 		}
 
 		if flagUsePath {

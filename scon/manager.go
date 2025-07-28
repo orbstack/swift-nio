@@ -467,6 +467,17 @@ func (m *ConManager) GetByID(id string) (*Container, error) {
 	return c, nil
 }
 
+func (m *ConManager) GetByIDOrName(idOrName string) (*Container, error) {
+	m.containersMu.RLock()
+	defer m.containersMu.RUnlock()
+
+	c, ok := m.containersByID[idOrName]
+	if ok {
+		return c, nil
+	}
+	return m.getByNameLocked(idOrName)
+}
+
 func (m *ConManager) ListContainers() []*Container {
 	m.containersMu.RLock()
 	defer m.containersMu.RUnlock()

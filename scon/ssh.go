@@ -181,7 +181,7 @@ func (sv *SSHServer) resolveUser(ctx ssh.Context) (c *Container, user string, is
 
 	// if we only got one component, and it's not default, try it as a container first
 	if !isDefaultUserComp(containerName) {
-		c, err = sv.m.GetByName(containerName)
+		c, err = sv.m.GetByIDOrName(containerName)
 		// if not found, and there was a requested user AND container, bail
 		if err != nil && len(userParts) == 2 {
 			return
