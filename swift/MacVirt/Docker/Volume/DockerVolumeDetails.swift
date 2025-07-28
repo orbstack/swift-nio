@@ -103,8 +103,12 @@ struct DockerVolumeDetails: View {
 }
 
 extension DKVolume {
+    var nfsPath: String {
+        "\(Folders.nfsDockerVolumes)/\(name)"
+    }
+
     func openNfsDirectory() {
-        NSWorkspace.openFolder("\(Folders.nfsDockerVolumes)/\(name)")
+        NSWorkspace.openFolder(nfsPath)
     }
 
     func openExportPanel(

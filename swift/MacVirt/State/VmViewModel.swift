@@ -36,7 +36,15 @@ enum MenuActionRouter {
 
 enum ToolbarAction {
     case activityMonitorStop
+
     case dockerOpenContainerInNewWindow
+    case dockerOpenImageInNewWindow
+    case dockerOpenVolumeInNewWindow
+
+    case k8sPodOpenInNewWindow
+    case k8sServiceOpenInNewWindow
+
+    case machineOpenInNewWindow
 }
 
 enum VmState: Int, Comparable {
@@ -492,7 +500,14 @@ class VmViewModel: ObservableObject {
     @Published var searchText = ""
     @Published var initialDockerContainerSelection: Set<DockerContainerId> = []
     @Published var presentAuth = false
+
     @Published var containerTab: ContainerTabId = .info
+    @Published var volumesTab: VolumeTabId = .info
+    @Published var imagesTab: ImageTabId = .info
+    @Published var networksTab: NetworkTabId = .info
+    @Published var machineTab: MachineTabId = .info
+    @Published var podsTab: PodsTabId = .info
+    @Published var servicesTab: ServicesTabId = .info
 
     var menuActionRouter = PassthroughSubject<MenuActionRouter, Never>()
     var toolbarActionRouter = PassthroughSubject<ToolbarAction, Never>()

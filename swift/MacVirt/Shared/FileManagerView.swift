@@ -10,26 +10,19 @@ extension NSPasteboard.PasteboardType {
     static let nodeRowPasteboardType = NSPasteboard.PasteboardType("dev.orbstack.OrbStack.nodeRowPasteboardType")
 }
 
-struct DockerContainerFilesTab: View {
-    @EnvironmentObject private var vmModel: VmViewModel
-
+struct FileManagerView: View {
     @StateObject private var model = FileManagerOutlineDelegate()
     @State private var sort = AKSortDescriptor(columnId: Columns.name, ascending: true)
     @State private var selection: Set<String> = []
 
-    let container: DKContainer
+    let rootPath: String
 
     var body: some View {
-        FileManagerView(delegate: model)
-        .onReceive(vmModel.toolbarActionRouter) { action in
-            if action == .dockerOpenContainerInNewWindow {
-                container.openFolder()
-            }
-        }
-        .onChange(of: container, initial: true) { _, newContainer in
+        FileManagerNSView(delegate: model)
+        .onChange(of: rootPath, initial: true) { _, newRootPath in
             Task {
                 do {
-                    try await model.loadRoot(container: newContainer)
+                    try await model.loadRoot(rootPath: newRootPath)
                 } catch {
                     NSLog("Error loading files: \(error)")
                 }
@@ -38,7 +31,7 @@ struct DockerContainerFilesTab: View {
     }
 }
 
-private struct FileManagerView: NSViewRepresentable {
+private struct FileManagerNSView: NSViewRepresentable {
     let delegate: FileManagerOutlineDelegate
 
     func makeNSView(context: Context) -> NSScrollView {
@@ -178,9 +171,9 @@ private class FileManagerOutlineDelegate: NSObject, NSOutlineViewDelegate, NSOut
     }
 
     @MainActor
-    func loadRoot(container: DKContainer) async throws {
+    func loadRoot(rootPath: String) async throws {
         expandedPaths.removeAll()
-        self.rootItems = try await getDirectoryItems(path: container.nfsPath)
+        self.rootItems = try await getDirectoryItems(path: rootPath)
         view.reloadData()
     }
 

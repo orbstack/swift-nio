@@ -85,8 +85,12 @@ extension DKContainer {
 }
 
 extension DKImage {
+    var nfsPath: String {
+        "\(Folders.nfsDockerImages)/\(userTag)"
+    }
+
     func openFolder() {
-        NSWorkspace.openFolder("\(Folders.nfsDockerImages)/\(userTag)")
+        NSWorkspace.openFolder(nfsPath)
     }
 
     func openDebugShell() {

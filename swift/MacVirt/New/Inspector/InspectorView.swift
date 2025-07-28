@@ -52,9 +52,7 @@ private struct InspectorSelectionList<Item, ID: Hashable, Seq: Sequence<Item>, C
             ContentUnavailableViewCompat("No Selection")
         } else if selectedItems.count == 1 {
             // single selection
-            ScrollView {
-                content(selectedItems[0])
-            }
+            content(selectedItems[0])
         } else {
             // multiple selections
             // TODO: outline view
@@ -94,16 +92,18 @@ struct InspectorView: View {
                     // single selection
                     switch selItem {
                     case let .compose(project):
-                    switch model.containerTab {
-                    case .info:
-                        DockerComposeGroupDetails(project: project)
-                    case .logs:
-                        DockerComposeLogsTab(project: project)
-                    default:
-                        ContentUnavailableViewCompat("Select a Container")
-                    }
+                        switch model.containerTab {
+                        case .info:
+                            DockerComposeGroupDetails(project: project)
+                        case .logs:
+                            DockerComposeLogsTab(project: project)
+                        default:
+                            ContentUnavailableViewCompat("Select a Container")
+                        }
+
                     case .k8sGroup:
                         K8SGroupDetails()
+
                     case let .container(id):
                         if let container = model.dockerContainers?.byId[id] {
                             switch model.containerTab {
@@ -117,8 +117,9 @@ struct InspectorView: View {
                                 DockerContainerFilesTab(container: container)
                             }
                         } else {
-                            ContentUnavailableViewCompat("No Container")
+                            ContentUnavailableViewCompat("No Selection")
                         }
+
                     default:
                         EmptyView()
                     }
@@ -131,42 +132,72 @@ struct InspectorView: View {
                 InspectorSelectionList(
                     model.dockerVolumes?.values, selection: navModel.inspectorSelection
                 ) {
-                    DockerVolumeDetails(volume: $0)
+                    switch model.volumesTab {
+                    case .info:
+                        DockerVolumeDetails(volume: $0)
+                    case .files:
+                        DockerVolumeFilesTab(volume: $0)
+                    }
                 }
             case .dockerImages:
                 InspectorSelectionList(
                     model.dockerImages?.values, selection: navModel.inspectorSelection
                 ) {
-                    DockerImageDetails(image: $0)
+                    switch model.imagesTab {
+                    case .info:
+                        DockerImageDetails(image: $0)
+                    case .terminal:
+                        DockerImageTerminalTab(image: $0)
+                    case .files:
+                        DockerImageFilesTab(image: $0)
+                    }
                 }
             case .dockerNetworks:
                 InspectorSelectionList(
                     model.dockerNetworks?.values, selection: navModel.inspectorSelection
                 ) {
-                    DockerNetworkDetails(network: $0)
+                    switch model.networksTab {
+                    case .info:
+                        DockerNetworkDetails(network: $0)
+                    }
                 }
             case .k8sPods:
                 InspectorSelectionList(model.k8sPods, selection: navModel.inspectorSelection) {
-                    K8SPodDetails(pod: $0)
+                    switch model.podsTab {
+                    case .info:
+                        K8SPodDetails(pod: $0)
+                    }
                 }
             case .k8sServices:
                 InspectorSelectionList(model.k8sServices, selection: navModel.inspectorSelection) {
-                    K8SServiceDetails(service: $0)
+                    switch model.servicesTab {
+                    case .info:
+                        K8SServiceDetails(service: $0)
+                    }
                 }
             case .machines:
                 InspectorSelectionList(
                     model.machines?.values, selection: navModel.inspectorSelection
                 ) {
-                    MachineDetails(info: $0)
+                    switch model.machineTab {
+                    case .info:
+                        MachineDetails(info: $0)
+                    case .logs:
+                        MachineLogsTab(machine: $0)
+                    case .terminal:
+                        MachineTerminalTab(machine: $0)
+                    case .files:
+                        MachineFilesTab(machine: $0)
+                    }
                 }
-            case .activityMonitor:
+
+            // SwiftUI inspectorView affordance
+            default:
                 if let view = navModel.inspectorView {
                     view.value
                 } else {
                     EmptyView()
                 }
-            default:
-                EmptyView()
             }
         }
         // you don't need this when you have a scroll view,

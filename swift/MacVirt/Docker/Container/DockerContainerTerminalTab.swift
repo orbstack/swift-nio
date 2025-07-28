@@ -3,26 +3,17 @@ import SwiftUI
 struct DockerContainerTerminalTab: View {
     @EnvironmentObject private var vmModel: VmViewModel
 
-    @StateObject private var terminalModel = TerminalViewModel()
     @State private var useDebugShell = true
 
     let container: DKContainer
 
     var body: some View {
-        SwiftUILocalProcessTerminal(
+        TerminalTabView(
             executable: useDebugShell ? AppConfig.ctlExe : AppConfig.dockerExe,
             args: useDebugShell ? ["debug", "-f", container.id] : ["exec", "-it", container.id, "sh", "-c", "command -v bash > /dev/null && exec bash || exec sh"],
             // env is more robust, user can mess with context
-            env: ["DOCKER_HOST=unix://\(Files.dockerSocket)"],
-            model: terminalModel
+            env: ["DOCKER_HOST=unix://\(Files.dockerSocket)"]
         )
-        // otherwise terminal leaks behind toolbar when scrolled
-        .clipped()
-        // padding that matches terminal bg color
-        // this causes toolbar to match bg color, so remove top padding -- it looks like toolbar padding contributes to vertical spacing
-        .padding(.horizontal, 8)
-        .padding(.bottom, 8)
-        .background(Color(NSColor.textBackgroundColor))
         // banner for toggling Debug Shell
         .overlay(alignment: .topTrailing) {
             Toggle("Debug Shell", isOn: $useDebugShell)

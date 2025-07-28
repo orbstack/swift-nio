@@ -71,6 +71,8 @@ extension NewMainViewController: NSToolbarDelegate, NSToolbarItemValidation {
             return volumesPlusButton
         case .dockerVolumesSort:
             return volumesSortMenu
+        case .dockerVolumesTabs:
+            return volumesTabs
 
         case .dockerImagesOpen:
             return imagesFolderButton
@@ -78,18 +80,27 @@ extension NewMainViewController: NSToolbarDelegate, NSToolbarItemValidation {
             return imagesSortMenu
         case .dockerImagesImport:
             return imagesImportButton
+        case .dockerImagesTabs:
+            return imagesTabs
 
         case .dockerNetworksNew:
             return networksPlusButton
         case .dockerNetworksSort:
             return networksSortMenu
+        case .dockerNetworksTabs:
+            return networksTabs
 
         case .k8sEnable:
             return podsStartToggle
         case .k8sPodsFilter:
             return podsFilterMenu
+        case .k8sPodsTabs:
+            return podsTabs
+
         case .k8sServicesFilter:
             return servicesFilterMenu
+        case .k8sServicesTabs:
+            return servicesTabs
 
         case .machinesOpen:
             return machinesFolderButton
@@ -97,6 +108,10 @@ extension NewMainViewController: NSToolbarDelegate, NSToolbarItemValidation {
             return machinesImportButton
         case .machinesNew:
             return machinesPlusButton
+        case .machinesOpenInNewWindow:
+            return machinesOpenInNewWindowButton
+        case .machinesTabs:
+            return machinesTabs
 
         case .cliHelp:
             return commandsHelpButton
@@ -161,8 +176,16 @@ extension NewMainViewController: NSToolbarDelegate, NSToolbarItemValidation {
         NSWorkspace.openFolder(Folders.nfsDockerImages)
     }
 
+    @objc func actionDockerImagesOpenWindow(_: NSButton?) {
+        model.toolbarActionRouter.send(.dockerOpenImageInNewWindow)
+    }
+
     @objc func actionDockerNetworksNew(_: NSButton?) {
         model.presentCreateNetwork = true
+    }
+
+    @objc func actionDockerVolumesOpenWindow(_: NSButton?) {
+        model.toolbarActionRouter.send(.dockerOpenVolumeInNewWindow)
     }
 
     @objc func actionK8sToggle(_ sender: NSSwitch?) {
@@ -172,8 +195,16 @@ extension NewMainViewController: NSToolbarDelegate, NSToolbarItemValidation {
         }
     }
 
+    @objc func actionK8sPodsOpenWindow(_: NSButton?) {
+        model.toolbarActionRouter.send(.k8sPodOpenInNewWindow)
+    }
+
     @objc func actionK8sPodsFilter1(_: Any?) {
         Defaults[.k8sFilterShowSystemNs].toggle()
+    }
+
+    @objc func actionK8sServicesOpenWindow(_: NSButton?) {
+        model.toolbarActionRouter.send(.k8sServiceOpenInNewWindow)
     }
 
     @objc func actionK8sServicesFilter1(_: Any?) {
@@ -205,6 +236,34 @@ extension NewMainViewController: NSToolbarDelegate, NSToolbarItemValidation {
                 self.model.presentImportMachine = url
             }
         }
+    }
+
+    @objc func actionMachinesOpenInNewWindow(_ toolbarItem: NSToolbarItem?) {
+        model.toolbarActionRouter.send(.machineOpenInNewWindow)
+    }
+
+    @objc func actionMachinesTabs(_ sender: NSToolbarItemGroup) {
+        model.machineTab = MachineTabId.allCases[sender.selectedIndex]
+    }
+
+    @objc func actionDockerVolumesTabs(_ sender: NSToolbarItemGroup) {
+        model.volumesTab = VolumeTabId.allCases[sender.selectedIndex]
+    }
+
+    @objc func actionDockerImagesTabs(_ sender: NSToolbarItemGroup) {
+        model.imagesTab = ImageTabId.allCases[sender.selectedIndex]
+    }
+
+    @objc func actionDockerNetworksTabs(_ sender: NSToolbarItemGroup) {
+        model.networksTab = NetworkTabId.allCases[sender.selectedIndex]
+    }
+
+    @objc func actionK8sPodsTabs(_ sender: NSToolbarItemGroup) {
+        model.podsTab = PodsTabId.allCases[sender.selectedIndex]
+    }
+
+    @objc func actionK8sServicesTabs(_ sender: NSToolbarItemGroup) {
+        model.servicesTab = ServicesTabId.allCases[sender.selectedIndex]
     }
 
     @objc func actionDockerVolumesImport(_ toolbarItem: NSToolbarItem?) {

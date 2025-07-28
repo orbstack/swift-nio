@@ -15,7 +15,11 @@ extension ContainerRecord {
         }
     }
 
+    var nfsPath: String {
+        "\(Folders.nfs)/\(name)"
+    }
+
     func openNfsDirectory() {
-        NSWorkspace.openFolder("\(Folders.nfs)/\(name)")
+        NSWorkspace.openFolder(nfsPath)
     }
 }

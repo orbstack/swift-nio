@@ -63,7 +63,32 @@ class LocalProcessTerminalController: NSViewController {
     }
 }
 
-struct SwiftUILocalProcessTerminal: NSViewControllerRepresentable {
+struct TerminalTabView: View {
+    @StateObject private var terminalModel = TerminalViewModel()
+
+    let executable: String
+    let args: [String]
+    let env: [String]
+
+    init(executable: String, args: [String], env: [String] = []) {
+        self.executable = executable
+        self.args = args
+        self.env = env
+    }
+
+    var body: some View {
+        SwiftUILocalProcessTerminal(executable: executable, args: args, env: env, model: terminalModel)
+        // otherwise terminal leaks behind toolbar when scrolled
+        .clipped()
+        // padding that matches terminal bg color
+        // this causes toolbar to match bg color, so remove top padding -- it looks like toolbar padding contributes to vertical spacing
+        .padding(.horizontal, 8)
+        .padding(.bottom, 8)
+        .background(Color(NSColor.textBackgroundColor))
+    }
+}
+
+private struct SwiftUILocalProcessTerminal: NSViewControllerRepresentable {
     let executable: String
     let args: [String]
     let env: [String]

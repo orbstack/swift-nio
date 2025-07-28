@@ -96,7 +96,7 @@ class NewMainViewController: NSViewController {
     }()
 
     lazy var containersTabs = {
-        let group = NSToolbarItemGroup(itemIdentifier: .dockerContainersTabs, titles: ["Info", "Logs", "Terminal", "Files"], selectionMode: .selectOne, labels: ["info", "logs", "terminal", "files"], target: self, action: #selector(actionDockerContainersTabs))
+        let group = NSToolbarItemGroup(itemIdentifier: .dockerContainersTabs, titles: ContainerTabId.allCases.map { $0.description }, selectionMode: .selectOne, labels: ContainerTabId.allCases.map { $0.description }, target: self, action: #selector(actionDockerContainersTabs))
         group.setSelected(true, at: 0)
         return group
     }()
@@ -120,6 +120,19 @@ class NewMainViewController: NSViewController {
         icon: "square.and.arrow.down",
         title: "Import",
         action: #selector(actionDockerVolumesImport)
+    )
+
+    lazy var volumesTabs = {
+        let group = NSToolbarItemGroup(itemIdentifier: .dockerVolumesTabs, titles: VolumeTabId.allCases.map { $0.description }, selectionMode: .selectOne, labels: VolumeTabId.allCases.map { $0.description }, target: self, action: #selector(actionDockerVolumesTabs))
+        group.setSelected(true, at: 0)
+        return group
+    }()
+
+    lazy var volumesOpenWindowButton = makeToolbarItem(
+        itemIdentifier: .dockerVolumesOpenWindow,
+        icon: "arrow.up.forward.app",
+        title: "Open in New Window",
+        action: #selector(actionDockerVolumesOpenWindow)
     )
 
     private lazy var volumesSortDelegate = EnumMenuDelegate<DockerGenericSortDescriptor>(
@@ -156,6 +169,19 @@ class NewMainViewController: NSViewController {
             requiresVmRunning: false, menu: menu)
     }()
 
+    lazy var imagesTabs = {
+        let group = NSToolbarItemGroup(itemIdentifier: .dockerImagesTabs, titles: ImageTabId.allCases.map { $0.description }, selectionMode: .selectOne, labels: ImageTabId.allCases.map { $0.description }, target: self, action: #selector(actionDockerImagesTabs))
+        group.setSelected(true, at: 0)
+        return group
+    }()
+
+    lazy var imagesOpenWindowButton = makeToolbarItem(
+        itemIdentifier: .dockerImagesOpenWindow,
+        icon: "arrow.up.forward.app",
+        title: "Open in New Window",
+        action: #selector(actionDockerImagesOpenWindow)
+    )
+
     lazy var networksPlusButton = makeToolbarItem(
         itemIdentifier: .dockerNetworksNew,
         icon: "plus",
@@ -171,6 +197,12 @@ class NewMainViewController: NSViewController {
         return self.makeMenuToolbarItem(
             itemIdentifier: .dockerNetworksSort, icon: "arrow.up.arrow.down", title: "Sort",
             requiresVmRunning: false, menu: menu)
+    }()
+
+    lazy var networksTabs = {
+        let group = NSToolbarItemGroup(itemIdentifier: .dockerNetworksTabs, titles: NetworkTabId.allCases.map { $0.description }, selectionMode: .selectOne, labels: NetworkTabId.allCases.map { $0.description }, target: self, action: #selector(actionDockerNetworksTabs))
+        group.setSelected(true, at: 0)
+        return group
     }()
 
     lazy var podsStartToggle = {
@@ -210,6 +242,19 @@ class NewMainViewController: NSViewController {
         return item
     }()
 
+    lazy var podsTabs = {
+        let group = NSToolbarItemGroup(itemIdentifier: .k8sPodsTabs, titles: PodsTabId.allCases.map { $0.description }, selectionMode: .selectOne, labels: PodsTabId.allCases.map { $0.description }, target: self, action: #selector(actionK8sPodsTabs))
+        group.setSelected(true, at: 0)
+        return group
+    }()
+
+    lazy var k8sPodsOpenWindowButton = makeToolbarItem(
+        itemIdentifier: .k8sPodsOpenWindow,
+        icon: "arrow.up.forward.app",
+        title: "Open in New Window",
+        action: #selector(actionK8sPodsOpenWindow)
+    )
+
     lazy var servicesFilterMenu = {
         let menuItem1 = NSMenuItem(
             title: "Show System Namespace", action: #selector(actionK8sServicesFilter1),
@@ -232,6 +277,19 @@ class NewMainViewController: NSViewController {
         return item
     }()
 
+    lazy var servicesTabs = {
+        let group = NSToolbarItemGroup(itemIdentifier: .k8sServicesTabs, titles: ServicesTabId.allCases.map { $0.description }, selectionMode: .selectOne, labels: ServicesTabId.allCases.map { $0.description }, target: self, action: #selector(actionK8sServicesTabs))
+        group.setSelected(true, at: 0)
+        return group
+    }()
+
+    lazy var k8sServicesOpenWindowButton = makeToolbarItem(
+        itemIdentifier: .k8sServicesOpenWindow,
+        icon: "arrow.up.forward.app",
+        title: "Open in New Window",
+        action: #selector(actionK8sServicesOpenWindow)
+    )
+
     lazy var machinesFolderButton = makeToolbarItem(
         itemIdentifier: .machinesOpen,
         icon: "externaldrive",
@@ -251,6 +309,19 @@ class NewMainViewController: NSViewController {
         icon: "plus",
         title: "New",
         action: #selector(actionMachinesNew)
+    )
+
+    lazy var machinesTabs = {
+        let group = NSToolbarItemGroup(itemIdentifier: .machinesTabs, titles: MachineTabId.allCases.map { $0.description }, selectionMode: .selectOne, labels: MachineTabId.allCases.map { $0.description }, target: self, action: #selector(actionMachinesTabs))
+        group.setSelected(true, at: 0)
+        return group
+    }()
+    
+    lazy var machinesOpenInNewWindowButton = makeToolbarItem(
+        itemIdentifier: .machinesOpenInNewWindow,
+        icon: "arrow.up.forward.app",
+        title: "Open in New Window",
+        action: #selector(actionMachinesOpenInNewWindow)
     )
 
     lazy var commandsHelpButton = makeToolbarItem(
