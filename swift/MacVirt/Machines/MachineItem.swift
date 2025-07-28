@@ -53,7 +53,7 @@ struct MachineItem: View {
                 ) {
                     finishStop()
                 }
-                .help("Stop \(info.record.name)")
+                .help("Stop")
             } else {
                 ProgressIconButton(
                     systemImage: "play.fill",
@@ -61,7 +61,7 @@ struct MachineItem: View {
                 ) {
                     finishStart()
                 }
-                .help("Start \(info.record.name)")
+                .help("Start")
             }
         }
         .padding(.vertical, 8)

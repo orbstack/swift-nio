@@ -39,6 +39,7 @@ struct StateWrapperView<Content: View>: View {
                     .keyboardShortcut(.defaultAction)
                     .controlSize(.large)
                 }
+                .padding(16)
             case .spawning:
                 ProgressView(label: {
                     Text("Updating")

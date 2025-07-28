@@ -28,6 +28,7 @@ struct ContentUnavailableViewCompat: View {
             Text(title)
                 .font(.largeTitle.weight(.semibold))
                 .foregroundColor(.secondary)
+                .multilineTextAlignment(.center)
 
             if let desc {
                 Text(desc)

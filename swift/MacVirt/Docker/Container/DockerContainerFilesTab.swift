@@ -6,11 +6,31 @@ struct DockerContainerFilesTab: View {
     let container: DKContainer
 
     var body: some View {
-        FileManagerView(rootPath: container.nfsPath)
+        if container.running {
+            FileManagerView(rootPath: container.nfsPath)
             .onReceive(vmModel.toolbarActionRouter) { action in
                 if action == .dockerOpenContainerInNewWindow {
                     container.openFolder()
                 }
             }
+        } else {
+            VStack(spacing: 16) {  // match ContentUnavailableViewCompat desc padding
+                ContentUnavailableViewCompat(
+                    "Container Not Running", systemImage: "moon.zzz.fill")
+
+                Button {
+                    Task {
+                        await vmModel.tryDockerContainerStart(container.id)
+                    }
+                } label: {
+                    Text("Start")
+                        .padding(.horizontal, 4)
+                }
+                .buttonStyle(.borderedProminent)
+                .keyboardShortcut(.defaultAction)
+                .controlSize(.large)
+            }
+            .padding(16)
+        }
     }
 }
