@@ -378,10 +378,12 @@ private class TextFieldCellView: NSTableCellView {
         stack.spacing = 4
 
         if let image {
-            let imageView = NSImageView(frame: NSRect(x: 0, y: 0, width: 16, height: 16))
-            imageView.bounds = NSRect(x: 0, y: 0, width: 16, height: 16)
+            let imageView = NSImageView()
+            imageView.translatesAutoresizingMaskIntoConstraints = false
             imageView.image = image
             imageView.imageScaling = .scaleProportionallyDown
+            imageView.widthAnchor.constraint(equalToConstant: 16).isActive = true
+            imageView.heightAnchor.constraint(equalToConstant: 16).isActive = true
             stack.addView(imageView, in: .leading)
         }
 
