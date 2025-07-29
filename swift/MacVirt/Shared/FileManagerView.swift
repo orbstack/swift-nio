@@ -101,8 +101,14 @@ private class FileManagerOutlineView: NSOutlineView, QLPreviewPanelDataSource {
     override func keyDown(with event: NSEvent) {
         if event.charactersIgnoringModifiers == " " {
             QLPreviewPanel.shared()?.makeKeyAndOrderFront(nil)
-        } else if event.modifierFlags.contains(.command) && event.charactersIgnoringModifiers == "c" {
-            copyItem()
+        } else if event.modifierFlags.contains(.command) {
+            if event.charactersIgnoringModifiers == "c" {
+                copyItem()
+            } else if event.charactersIgnoringModifiers == "v" {
+                pasteItem()
+            } else {
+                super.keyDown(with: event)
+            }
         } else {
             super.keyDown(with: event)
         }
@@ -134,22 +140,31 @@ private class FileManagerOutlineView: NSOutlineView, QLPreviewPanelDataSource {
     override func menu(for event: NSEvent) -> NSMenu? {
         let point = convert(event.locationInWindow, from: nil)
         let row = row(at: point)
-        guard let _ = item(atRow: row) as? FileItem else { return nil }
 
-        if !selectedRowIndexes.contains(row) {
+        if row != -1 && !selectedRowIndexes.contains(row) {
             selectRowIndexes(IndexSet(integer: row), byExtendingSelection: false)
         }
 
         let menu = NSMenu(title: "File")
-        
-        let copyItem = NSMenuItem(title: "Copy", action: #selector(copyItem), keyEquivalent: "c")
-        menu.addItem(copyItem)
-        
+
+        if selectedRowIndexes.count >= 1 {
+            let copyItem = NSMenuItem(
+                title: "Copy", action: #selector(copyItem), keyEquivalent: "c")
+            menu.addItem(copyItem)
+        }
+
+        if selectedRowIndexes.count <= 1 {
+            let pasteItem = NSMenuItem(
+                title: "Paste", action: #selector(pasteItem), keyEquivalent: "v")
+            menu.addItem(pasteItem)
+        }
+
         if selectedRowIndexes.count == 1 {
-            let openItem = NSMenuItem(title: "Open in Finder", action: #selector(openInFinderItem), keyEquivalent: "")
+            let openItem = NSMenuItem(
+                title: "Open in Finder", action: #selector(openInFinderItem), keyEquivalent: "")
             menu.addItem(openItem)
         }
-        
+
         return menu
     }
 
@@ -160,6 +175,44 @@ private class FileManagerOutlineView: NSOutlineView, QLPreviewPanelDataSource {
         pasteboard.clearContents()
         for item in items {
             pasteboard.writeObjects([URL(filePath: item.path) as NSURL])
+        }
+    }
+
+    @objc func pasteItem() {
+        var destinationPath: URL
+        if selectedRowIndexes.count == 1 {
+            let selectedFile = item(atRow: selectedRowIndexes.first!) as! FileItem
+            destinationPath = URL(filePath: selectedFile.path)
+            if selectedFile.type != .directory {
+                destinationPath = destinationPath.deletingLastPathComponent()
+            }
+        } else if selectedRowIndexes.count == 0 {
+            if let delegate = self.delegate as? FileManagerOutlineDelegate,
+                let rootPath = delegate.rootPath
+            {
+                destinationPath = URL(filePath: rootPath)
+            } else {
+                return
+            }
+        } else {
+            return
+        }
+
+        let pasteboard = NSPasteboard.general
+        guard let items = pasteboard.readObjects(forClasses: [NSURL.self], options: nil) as? [NSURL]
+        else { return }
+        for item in items {
+            do {
+                if let lastPathComponent = item.lastPathComponent {
+                    try FileManager.default.copyItem(
+                        at: item as URL,
+                        to: destinationPath.appendingPathComponent(lastPathComponent))
+                } else {
+                    NSLog("Error copying item: \(item) has no last path component")
+                }
+            } catch {
+                NSLog("Error copying item: \(error)")
+            }
         }
     }
 
@@ -183,6 +236,7 @@ private class FileManagerOutlineDelegate: NSObject, NSOutlineViewDelegate, NSOut
     ObservableObject
 {
     var view: NSOutlineView!
+    var rootPath: String?
 
     private var sortDesc = AKSortDescriptor(columnId: Columns.name, ascending: true)
 
@@ -233,6 +287,7 @@ private class FileManagerOutlineDelegate: NSObject, NSOutlineViewDelegate, NSOut
     @MainActor
     func loadRoot(rootPath: String) async throws {
         expandedPaths.removeAll()
+        self.rootPath = rootPath
         self.rootItems = try await getDirectoryItems(path: rootPath)
         view.reloadData()
     }
