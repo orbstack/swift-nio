@@ -55,14 +55,10 @@ class LocalProcessTerminalController: NSViewController {
         terminalView.startProcess(executable: executable, args: args, environment: environment)
     }
 
-    func updateTheme(_ theme: TerminalTheme?) {
+    func updateTheme(_ theme: TerminalTheme) {
         if lastTheme != theme {
             lastTheme = theme
-            if let theme {
-                terminalView.installTheme(theme)
-            } else {
-                terminalView.configureNativeColors()
-            }
+            terminalView.installTheme(theme)
         }
     }
 
@@ -102,7 +98,7 @@ struct TerminalTabView: View {
         // this causes toolbar to match bg color, so remove top padding -- it looks like toolbar padding contributes to vertical spacing
         .padding(.horizontal, 8)
         .padding(.bottom, 8)
-        .background(Color(theme?.background ?? NSColor.textBackgroundColor))
+        .background(Color(theme.background))
     }
 }
 
@@ -112,7 +108,7 @@ private struct SwiftUILocalProcessTerminal: NSViewControllerRepresentable {
     let env: [String]
     let model: TerminalViewModel
 
-    let theme: TerminalTheme?
+    let theme: TerminalTheme
 
     func makeNSViewController(context: Context) -> LocalProcessTerminalController {
         return LocalProcessTerminalController(model: model)

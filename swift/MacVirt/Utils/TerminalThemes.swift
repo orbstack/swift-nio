@@ -65,9 +65,8 @@ private extension SwiftTerm.Color {
 }
 
 extension TerminalTheme {
-    // nil for no theme
-    static let defaultDark: TerminalTheme? = ghosttyAppleSystemColors
-    static let defaultLight: TerminalTheme? = ghosttyAppleSystemColorsLight
+    static let defaultDark: TerminalTheme = ghosttyAppleSystemColors
+    static let defaultLight: TerminalTheme = ghosttyAppleSystemColorsLight
 
     // palette from SwiftTerm.Color private
     static let terminalApp = TerminalTheme(
