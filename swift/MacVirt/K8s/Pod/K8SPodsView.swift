@@ -34,7 +34,7 @@ private struct K8SPodsList: View {
     var body: some View {
         VStack(spacing: 0) {
             if !listItems.isEmpty {
-                AKList(listItems, selection: $selection, rowHeight: 48) { item in
+                AKList(listItems, selection: $selection, rowHeight: 46) { item in
                     // single list row content item for perf: https://developer.apple.com/videos/play/wwdc2023/10160/
                     K8SPodItemView(pod: item)
                         .equatable()

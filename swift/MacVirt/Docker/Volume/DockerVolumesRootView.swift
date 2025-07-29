@@ -33,7 +33,7 @@ struct DockerVolumesRootView: View {
                             "Unused", filteredVolumes.filter { !vmModel.volumeIsMounted($0) }),
                     ]
 
-                    AKList(listData, selection: $selection, rowHeight: 48) { volume in
+                    AKList(listData, selection: $selection, rowHeight: 46) { volume in
                         // TODO: optimize: pass isMounted section info
                         DockerVolumeItem(volume: volume)
                             .id(volume.name)

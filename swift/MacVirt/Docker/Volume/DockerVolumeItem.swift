@@ -34,8 +34,7 @@ struct DockerVolumeItem: View {
                 Image(systemName: "externaldrive.fill")
                     .resizable()
                     .aspectRatio(contentMode: .fit)
-                    .frame(width: 32, height: 32)
-                    .padding(.trailing, 8)
+                    .frame(width: 28, height: 28)
                     .foregroundColor(color)
 
                 VStack(alignment: .leading) {
