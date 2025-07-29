@@ -133,7 +133,7 @@ private class AsyncPipeReader {
                     continue
                 }
 
-                buf.append(10)  // \n
+                // do not append \n
                 callback(String(decoding: buf, as: UTF8.self))
                 buf.removeAll(keepingCapacity: true)
             } else {
