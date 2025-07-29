@@ -245,6 +245,10 @@ open class LocalProcessTerminalViewCustom: TerminalView, TerminalViewDelegate, L
         //
     }
 
+    public func bell(source: TerminalView) {
+        // nothing (disables bell)
+    }
+
     /**
      * Launches a child process inside a pseudo-terminal.
      * - Parameter executable: The executable to launch inside the pseudo terminal, defaults to /bin/bash
