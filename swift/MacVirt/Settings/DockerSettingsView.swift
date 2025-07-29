@@ -44,7 +44,7 @@ struct DockerSettingsView: View {
                 if vmModel.state == .running,
                     let dockerMachine = vmModel.dockerMachine
                 {
-                    Button("Apply") {
+                    Button("Apply and Restart") {
                         Task.detached {
                             let saved = await save()
                             if saved {

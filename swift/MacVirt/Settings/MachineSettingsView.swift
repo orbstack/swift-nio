@@ -107,7 +107,7 @@ struct MachineSettingsView: View {
                             await vmModel.tryRestart()
                         }
                     } label: {
-                        Text("Apply")
+                        Text("Apply and Restart")
                         // TODO: dockerSetContext doesn't require restart
                     }
                     .disabled(vmModel.appliedConfig == vmModel.config)

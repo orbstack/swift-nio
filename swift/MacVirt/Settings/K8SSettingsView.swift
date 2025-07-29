@@ -48,7 +48,7 @@ struct K8SSettingsView: View {
                             await vmModel.tryStartStopK8s(enable: k8sEnable, force: true)
                         }
                     } label: {
-                        Text("Apply")
+                        Text("Apply and Restart")
                     }
                     .disabled(vmModel.appliedConfig == vmModel.config)
                     .keyboardShortcut("s")

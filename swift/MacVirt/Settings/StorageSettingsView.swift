@@ -102,7 +102,7 @@ struct StorageSettingsView: View {
                             await vmModel.tryRestart()
                         }
                     } label: {
-                        Text("Apply")
+                        Text("Apply and Restart")
                         // TODO: dataAllowBackup doesn't require restart
                     }
                     .disabled(vmModel.appliedConfig == vmModel.config)
