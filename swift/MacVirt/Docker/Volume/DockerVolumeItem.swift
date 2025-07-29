@@ -29,22 +29,30 @@ struct DockerVolumeItem: View {
             ? "Delete \(deletionList.count) volumes?" : "Delete \(deletionList.joined())?"
 
         HStack {
-            VStack(alignment: .leading) {
-                Text(volume.name)
-                    .font(.body)
-                    .truncationMode(.tail)
-                    .lineLimit(1)
+            HStack {
+                let color = SystemColors.forString(volume.name)
+                Image(systemName: "externaldrive.fill")
+                    .resizable()
+                    .aspectRatio(contentMode: .fit)
+                    .frame(width: 28, height: 28)
+                    .foregroundColor(color)
 
-                // can we find the size from system df?
-                if let usageData = vmModel.dockerDf?.volumes[volume.name]?.usageData {
-                    let fmtSize = ByteCountFormatter.string(
-                        fromByteCount: usageData.size, countStyle: .file)
-                    Text("\(fmtSize)")
-                        .font(.subheadline)
-                        .foregroundColor(.secondary)
+                VStack(alignment: .leading) {
+                    Text(volume.name)
+                        .font(.body)
+                        .truncationMode(.tail)
+                        .lineLimit(1)
+
+                    // can we find the size from system df?
+                    if let usageData = vmModel.dockerDf?.volumes[volume.name]?.usageData {
+                        let fmtSize = ByteCountFormatter.string(
+                            fromByteCount: usageData.size, countStyle: .file)
+                        Text("\(fmtSize)")
+                            .font(.subheadline)
+                            .foregroundColor(.secondary)
+                    }
                 }
             }
-
             Spacer()
 
             ProgressButtonRow {
