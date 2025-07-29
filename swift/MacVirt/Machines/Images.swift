@@ -86,7 +86,7 @@ enum Distro: String, CaseIterable {
         case .centos: return [ /* v("7"), */v("9-Stream", as: "9 (Stream)")]
         case .debian:
             return [
-                v("buster", as: "10 (Buster)"), v("bullseye", as: "11 (Bullseye)"),
+                v("bullseye", as: "11 (Bullseye)"),
                 v("trixie", as: "13 (Trixie, testing)"), v("bookworm", as: "12 (Bookworm)"),
             ]
         case .devuan:
@@ -97,14 +97,13 @@ enum Distro: String, CaseIterable {
         case .fedora: return [v("40"), v("41"), v("42")]
         case .gentoo: return [v("current", as: "Latest")]
         case .kali: return [v("current", as: "Latest")]
-        case .nixos: return [v("unstable", as: "Unstable"), v("24.11"), v("25.05")]
+        case .nixos: return [v("unstable", as: "Unstable"), v("25.05")]
         case .openeuler: return [v("20.03"), v("22.03"), v("24.03"), v("25.03")]
         case .opensuse: return [v("tumbleweed", as: "Tumbleweed"), v("15.5"), v("15.6")]
         case .oracle: return [v("8"), v("9")]
         case .rocky: return [v("8"), v("9")]
         case .ubuntu:
             return [
-                v("focal", as: "20.04 LTS (Focal Fossa)"),
                 v("jammy", as: "22.04 LTS (Jammy Jellyfish)"),
                 v("noble", as: "24.04 LTS (Noble Numbat)"),
                 v("oracular", as: "24.10 (Oracular Oriole)"),
