@@ -101,34 +101,36 @@ struct DockerComposeGroupItem: View, Equatable, BaseDockerContainerItem {
 
             Spacer()
 
-            if isRunning {
-                ProgressIconButton(
-                    systemImage: "stop.fill",
-                    actionInProgress: actionInProgress?.isStartStop == true
-                ) {
-                    finishStop()
+            ProgressButtonRow {
+                if isRunning {
+                    ProgressIconButton(
+                        systemImage: "stop.fill",
+                        actionInProgress: actionInProgress?.isStartStop == true
+                    ) {
+                        finishStop()
+                    }
+                    .disabled(actionInProgress != nil || !composeGroup.isRealCompose)
+                    .help("Stop")
+                } else {
+                    ProgressIconButton(
+                        systemImage: "play.fill",
+                        actionInProgress: actionInProgress?.isStartStop == true
+                    ) {
+                        finishStart()
+                    }
+                    .disabled(actionInProgress != nil || !composeGroup.isRealCompose)
+                    .help("Start")
                 }
-                .disabled(actionInProgress != nil || !composeGroup.isRealCompose)
-                .help("Stop project")
-            } else {
-                ProgressIconButton(
-                    systemImage: "play.fill",
-                    actionInProgress: actionInProgress?.isStartStop == true
-                ) {
-                    finishStart()
-                }
-                .disabled(actionInProgress != nil || !composeGroup.isRealCompose)
-                .help("Start project")
-            }
 
-            ProgressIconButton(
-                systemImage: "trash.fill",
-                actionInProgress: actionInProgress == .delete
-            ) {
-                presentConfirmDelete = true
+                ProgressIconButton(
+                    systemImage: "trash.fill",
+                    actionInProgress: actionInProgress == .delete
+                ) {
+                    presentConfirmDelete = true
+                }
+                .disabled(actionInProgress != nil || !composeGroup.isRealCompose)
+                .help("Delete")
             }
-            .disabled(actionInProgress != nil || !composeGroup.isRealCompose)
-            .help("Delete project")
         }
         .padding(.vertical, 8)
         // projects are always multiple containers, so no need to change msg

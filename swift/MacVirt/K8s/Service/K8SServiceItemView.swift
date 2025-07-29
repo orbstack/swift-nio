@@ -59,26 +59,28 @@ struct K8SServiceItemView: View, Equatable, BaseK8SResourceItem {
 
             Spacer()
 
-            if let urlStr = service.wrapURL(host: service.preferredDomain) {
-                ProgressIconButton(
-                    systemImage: "link",
-                    actionInProgress: false
-                ) {
-                    if let url = URL(string: urlStr) {
-                        NSWorkspace.shared.open(url)
+            ProgressButtonRow {
+                if let urlStr = service.wrapURL(host: service.preferredDomain) {
+                    ProgressIconButton(
+                        systemImage: "link",
+                        actionInProgress: false
+                    ) {
+                        if let url = URL(string: urlStr) {
+                            NSWorkspace.shared.open(url)
+                        }
                     }
+                    .help("Open in Browser")
                 }
-                .help("Open in Browser")
-            }
 
-            ProgressIconButton(
-                systemImage: "trash.fill",
-                actionInProgress: actionInProgress == .delete
-            ) {
-                finishDelete()
+                ProgressIconButton(
+                    systemImage: "trash.fill",
+                    actionInProgress: actionInProgress == .delete
+                ) {
+                    finishDelete()
+                }
+                .disabled(actionInProgress != nil)
+                .help("Delete")
             }
-            .disabled(actionInProgress != nil)
-            .help("Delete Service")
         }
         .padding(.vertical, 8)
         .akListOnDoubleClick {

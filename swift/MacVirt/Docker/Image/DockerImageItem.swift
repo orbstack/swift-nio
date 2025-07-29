@@ -73,15 +73,17 @@ struct DockerImageItem: View, Equatable {
                 }
             }
 
-            ProgressIconButton(
-                systemImage: "trash.fill",
-                actionInProgress: actionInProgress,
-                role: .destructive
-            ) {
-                finishDelete()
+            ProgressButtonRow {
+                ProgressIconButton(
+                    systemImage: "trash.fill",
+                    actionInProgress: actionInProgress,
+                    role: .destructive
+                ) {
+                    finishDelete()
+                }
+                .disabled(actionInProgress || isInUse)
+                .help(isInUse ? "Image in use" : "Delete")
             }
-            .disabled(actionInProgress || isInUse)
-            .help(isInUse ? "Image in use" : "Delete image")
         }
         .padding(.vertical, 8)
         .akListOnDoubleClick {

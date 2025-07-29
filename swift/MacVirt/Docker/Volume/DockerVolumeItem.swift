@@ -56,19 +56,21 @@ struct DockerVolumeItem: View {
             }
             Spacer()
 
-            ProgressIconButton(
-                systemImage: "trash.fill",
-                actionInProgress: actionInProgress
-            ) {
-                // skip confirmation if Option pressed
-                if CGKeyCode.optionKeyPressed {
-                    finishDelete()
-                } else {
-                    self.presentConfirmDelete = true
+            ProgressButtonRow {
+                ProgressIconButton(
+                    systemImage: "trash.fill",
+                    actionInProgress: actionInProgress
+                ) {
+                    // skip confirmation if Option pressed
+                    if CGKeyCode.optionKeyPressed {
+                        finishDelete()
+                    } else {
+                        self.presentConfirmDelete = true
+                    }
                 }
+                .disabled(actionInProgress || isMounted)
+                .help(isMounted ? "Volume in use" : "Delete volume\n(Option to confirm)")
             }
-            .disabled(actionInProgress || isMounted)
-            .help(isMounted ? "Volume in use" : "Delete volume\n(Option to confirm)")
         }
         .padding(.vertical, 8)
         .akListOnDoubleClick {

@@ -91,14 +91,16 @@ struct K8SPodItemView: View, Equatable, BaseK8SResourceItem {
 
             Spacer()
 
-            ProgressIconButton(
-                systemImage: "trash.fill",
-                actionInProgress: actionInProgress == .delete
-            ) {
-                finishDelete()
+            ProgressButtonRow {
+                ProgressIconButton(
+                    systemImage: "trash.fill",
+                    actionInProgress: actionInProgress == .delete
+                ) {
+                    finishDelete()
+                }
+                .disabled(actionInProgress != nil)
+                .help("Delete")
             }
-            .disabled(actionInProgress != nil)
-            .help("Delete Pod")
         }
         .padding(.vertical, 8)
         .akListOnDoubleClick {

@@ -39,3 +39,13 @@ struct ProgressIconButton: View {
         .disabled(actionInProgress)
     }
 }
+
+struct ProgressButtonRow<Content: View>: View {
+    @ViewBuilder let content: () -> Content
+
+    var body: some View {
+        HStack(alignment: .center, spacing: 0) {
+            content()
+        }
+    }
+}

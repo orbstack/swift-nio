@@ -44,15 +44,17 @@ struct DockerNetworkItem: View, Equatable {
 
             Spacer()
 
-            ProgressIconButton(
-                systemImage: "trash.fill",
-                actionInProgress: actionInProgress,
-                role: .destructive
-            ) {
-                finishDelete()
+            ProgressButtonRow {
+                ProgressIconButton(
+                    systemImage: "trash.fill",
+                    actionInProgress: actionInProgress,
+                    role: .destructive
+                ) {
+                    finishDelete()
+                }
+                .disabled(actionInProgress || isInUse)
+                .help(isInUse ? "Network in use" : "Delete")
             }
-            .disabled(actionInProgress || isInUse)
-            .help(isInUse ? "Network in use" : "Delete network")
         }
         .padding(.vertical, 8)
         .akListContextMenu {

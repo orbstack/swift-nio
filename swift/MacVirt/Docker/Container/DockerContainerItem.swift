@@ -81,83 +81,85 @@ struct DockerContainerItem: View, Equatable, BaseDockerContainerItem {
 
             Spacer()
 
-            if isRunning, let domain = container.preferredDomain {
-                ProgressIconButton(systemImage: "link", actionInProgress: false) {
-                    if let url = URL(
-                        string: "\(container.getPreferredProto(vmModel))://\(domain)")
-                    {
-                        NSWorkspace.shared.open(url)
-                    }
-                }
-                .help("Open in Browser")
-                .if(isFirstInList) {
-                    $0.popover(isPresented: $tipsContainerDomainsShow, arrowEdge: .leading) {
-                        HStack {
-                            Image(systemName: "network")
-                                .resizable()
-                                .frame(width: 32, height: 32)
-                                .foregroundColor(.accentColor)
-                                .padding(.trailing, 4)
-
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text("New: Domain names for services")
-                                    .font(.headline)
-
-                                Text("See all containers at [orb.local](http://orb.local)")
-                                    .font(.body)
-                                    .foregroundColor(.secondary)
-                            }
+            ProgressButtonRow {
+                if isRunning, let domain = container.preferredDomain {
+                    ProgressIconButton(systemImage: "link", actionInProgress: false) {
+                        if let url = URL(
+                            string: "\(container.getPreferredProto(vmModel))://\(domain)")
+                        {
+                            NSWorkspace.shared.open(url)
                         }
-                        .padding(20)
-                        .overlay(alignment: .topLeading) {  // opposite side of arrow edge
-                            Button {
-                                tipsContainerDomainsShow = false
-                            } label: {
-                                Image(systemName: "xmark")
+                    }
+                    .help("Open in Browser")
+                    .if(isFirstInList) {
+                        $0.popover(isPresented: $tipsContainerDomainsShow, arrowEdge: .leading) {
+                            HStack {
+                                Image(systemName: "network")
                                     .resizable()
-                                    .frame(width: 8, height: 8)
-                                    .foregroundColor(.secondary)
+                                    .frame(width: 32, height: 32)
+                                    .foregroundColor(.accentColor)
+                                    .padding(.trailing, 4)
+
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text("New: Domain names for services")
+                                        .font(.headline)
+
+                                    Text("See all containers at [orb.local](http://orb.local)")
+                                        .font(.body)
+                                        .foregroundColor(.secondary)
+                                }
                             }
-                            .buttonStyle(.plain)
-                            .padding(8)
+                            .padding(20)
+                            .overlay(alignment: .topLeading) {  // opposite side of arrow edge
+                                Button {
+                                    tipsContainerDomainsShow = false
+                                } label: {
+                                    Image(systemName: "xmark")
+                                        .resizable()
+                                        .frame(width: 8, height: 8)
+                                        .foregroundColor(.secondary)
+                                }
+                                .buttonStyle(.plain)
+                                .padding(8)
+                            }
                         }
                     }
                 }
-            }
 
-            // don't allow messing with k8s containers -- it'll break things
-            if !container.isK8s {
-                if isRunning {
+                // don't allow messing with k8s containers -- it'll break things
+                if !container.isK8s {
+                    if isRunning {
+                        ProgressIconButton(
+                            systemImage: "stop.fill",
+                            actionInProgress: actionInProgress?.isStartStop == true
+                        ) {
+                            finishStop()
+                        }
+                        .disabled(actionInProgress != nil)
+                        .help("Stop")
+                    } else {
+                        ProgressIconButton(
+                            systemImage: "play.fill",
+                            actionInProgress: actionInProgress?.isStartStop == true
+                        ) {
+                            finishStart()
+                        }
+                        .disabled(actionInProgress != nil)
+                        .help("Start")
+                    }
+                }
+
+                // allow deleting stopped k8s containers because cri-dockerd leaves phantom ones
+                if !(container.isK8s && isRunning) {
                     ProgressIconButton(
-                        systemImage: "stop.fill",
-                        actionInProgress: actionInProgress?.isStartStop == true
+                        systemImage: "trash.fill",
+                        actionInProgress: actionInProgress == .delete
                     ) {
-                        finishStop()
+                        presentConfirmDelete = true
                     }
                     .disabled(actionInProgress != nil)
-                    .help("Stop container")
-                } else {
-                    ProgressIconButton(
-                        systemImage: "play.fill",
-                        actionInProgress: actionInProgress?.isStartStop == true
-                    ) {
-                        finishStart()
-                    }
-                    .disabled(actionInProgress != nil)
-                    .help("Start container")
+                    .help("Delete")
                 }
-            }
-
-            // allow deleting stopped k8s containers because cri-dockerd leaves phantom ones
-            if !(container.isK8s && isRunning) {
-                ProgressIconButton(
-                    systemImage: "trash.fill",
-                    actionInProgress: actionInProgress == .delete
-                ) {
-                    presentConfirmDelete = true
-                }
-                .disabled(actionInProgress != nil)
-                .help("Delete container")
             }
         }
         .padding(.vertical, 8)

@@ -52,30 +52,32 @@ struct DockerK8sGroupItem: View, Equatable {
 
             Spacer()
 
-            if isRunning {
-                ProgressIconButton(systemImage: "stop.fill", actionInProgress: actionInProgress) {
-                    Task { @MainActor in
-                        await actionTracker.with(cid: .k8sGroup, action: .stop) {
-                            await vmModel.tryStartStopK8s(enable: false)
+            ProgressButtonRow {
+                if isRunning {
+                    ProgressIconButton(systemImage: "stop.fill", actionInProgress: actionInProgress) {
+                        Task { @MainActor in
+                            await actionTracker.with(cid: .k8sGroup, action: .stop) {
+                                await vmModel.tryStartStopK8s(enable: false)
+                            }
                         }
                     }
-                }
-                .help("Stop Kubernetes")
-            } else {
-                ProgressIconButton(systemImage: "play.fill", actionInProgress: actionInProgress) {
-                    Task { @MainActor in
-                        await actionTracker.with(cid: .k8sGroup, action: .start) {
-                            await vmModel.tryStartStopK8s(enable: true)
+                    .help("Stop Kubernetes")
+                } else {
+                    ProgressIconButton(systemImage: "play.fill", actionInProgress: actionInProgress) {
+                        Task { @MainActor in
+                            await actionTracker.with(cid: .k8sGroup, action: .start) {
+                                await vmModel.tryStartStopK8s(enable: true)
+                            }
                         }
                     }
+                    .help("Start Kubernetes")
                 }
-                .help("Start Kubernetes")
-            }
 
-            ProgressIconButton(systemImage: "gear", actionInProgress: false) {
-                Defaults[.selectedTab] = .k8sPods
+                ProgressIconButton(systemImage: "ellipsis.circle.fill", actionInProgress: false) {
+                    Defaults[.selectedTab] = .k8sPods
+                }
+                .help("Go to Pods")
             }
-            .help("Go to Pods")
         }
         .padding(.vertical, 8)
         .akListContextMenu {

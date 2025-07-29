@@ -46,22 +46,24 @@ struct MachineItem: View {
 
             Spacer()
 
-            if running {
-                ProgressIconButton(
-                    systemImage: "stop.fill",
-                    actionInProgress: actionInProgress || info.record.state.isInitializing
-                ) {
-                    finishStop()
+            ProgressButtonRow {
+                if running {
+                    ProgressIconButton(
+                        systemImage: "stop.fill",
+                        actionInProgress: actionInProgress || info.record.state.isInitializing
+                    ) {
+                        finishStop()
+                    }
+                    .help("Stop")
+                } else {
+                    ProgressIconButton(
+                        systemImage: "play.fill",
+                        actionInProgress: actionInProgress || info.record.state.isInitializing
+                    ) {
+                        finishStart()
+                    }
+                    .help("Start")
                 }
-                .help("Stop")
-            } else {
-                ProgressIconButton(
-                    systemImage: "play.fill",
-                    actionInProgress: actionInProgress || info.record.state.isInitializing
-                ) {
-                    finishStart()
-                }
-                .help("Start")
             }
         }
         .padding(.vertical, 8)
