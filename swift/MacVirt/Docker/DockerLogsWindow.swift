@@ -523,15 +523,20 @@ private struct LogsTableView: NSViewRepresentable {
                 return nil
             }
 
-            let textView = NSTextView(frame: NSRect(x: 0, y: 0, width: 1000, height: 16))
-            textView.isEditable = false
-            textView.isSelectable = false
-            textView.backgroundColor = .clear
-            textView.textStorage?.append(model.lines[row].text)
-            textView.textContainer?.maximumNumberOfLines = 1
+            let textView = NSTextField(labelWithAttributedString: model.lines[row].text)
+            textView.translatesAutoresizingMaskIntoConstraints = false
+            textView.usesSingleLineMode = true
 
             let cellView = NSTableCellView()
+            cellView.textField = textView
             cellView.addSubview(textView)
+            NSLayoutConstraint.activate([
+                textView.leadingAnchor.constraint(equalTo: cellView.leadingAnchor),
+                textView.trailingAnchor.constraint(equalTo: cellView.trailingAnchor),
+                textView.centerYAnchor.constraint(equalTo: cellView.centerYAnchor),
+                textView.heightAnchor.constraint(equalToConstant: 16),
+            ])
+
             return cellView
         }
     }
@@ -549,9 +554,14 @@ private struct LogsTableView: NSViewRepresentable {
 
         tableView.allowsMultipleSelection = true
         tableView.headerView = nil
-        tableView.usesAlternatingRowBackgroundColors = true
+        tableView.usesAlternatingRowBackgroundColors = false
+        tableView.columnAutoresizingStyle = .noColumnAutoresizing  // Prevent auto-resizing for better horizontal scrolling
+        tableView.rowHeight = 20  // Set fixed row height for consistent vertical centering
 
         let column = NSTableColumn(identifier: NSUserInterfaceItemIdentifier("column"))
+        column.minWidth = 400  // Set a reasonable minimum width
+        column.width = 800     // Set initial width
+        column.maxWidth = 10000 // Allow very wide columns for long log lines
         tableView.addTableColumn(column)
 
         let debouncedScrollToEnd = Debouncer(delay: 0.05) {
