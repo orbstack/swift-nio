@@ -560,8 +560,8 @@ private struct LogsTableView: NSViewRepresentable {
 
         let column = NSTableColumn(identifier: NSUserInterfaceItemIdentifier("column"))
         column.minWidth = 400  // Set a reasonable minimum width
-        column.width = 800     // Set initial width
-        column.maxWidth = 10000 // Allow very wide columns for long log lines
+        column.width = 800  // Set initial width
+        column.maxWidth = 10000  // Allow very wide columns for long log lines
         tableView.addTableColumn(column)
 
         let debouncedScrollToEnd = Debouncer(delay: 0.05) {

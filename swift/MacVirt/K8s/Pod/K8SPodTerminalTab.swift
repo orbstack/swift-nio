@@ -6,14 +6,21 @@ struct K8SPodTerminalTab: View {
     let pod: K8SPod
 
     var body: some View {
-        TerminalTabView(
-            executable: AppConfig.kubectlExe,
-            args: pod.terminalArgs,
-        )
-        .onReceive(vmModel.toolbarActionRouter) { action in
-            if action == .k8sPodOpenInNewWindow {
-                pod.openInTerminal()
+        if pod.uiState == .running {
+            TerminalTabView(
+                executable: AppConfig.kubectlExe,
+                args: pod.terminalArgs,
+            )
+            .onReceive(vmModel.toolbarActionRouter) { action in
+                if action == .k8sPodOpenInNewWindow {
+                    pod.openInTerminal()
+                }
             }
+        } else {
+            ContentUnavailableViewCompat(
+                "Pod Not Running", systemImage: "moon.zzz.fill"
+            )
+            .padding(16)
         }
     }
 }

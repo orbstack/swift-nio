@@ -59,7 +59,9 @@ struct CreateVolumeView: View {
                     let panel = NSOpenPanel()
                     panel.canChooseFiles = true
                     // ideally we can filter for .tar.zst but that's not possible :(
-                    panel.allowedContentTypes = [UTType(filenameExtension: "zst", conformingTo: .data)!]
+                    panel.allowedContentTypes = [
+                        UTType(filenameExtension: "zst", conformingTo: .data)!
+                    ]
                     panel.canChooseDirectories = false
                     panel.canCreateDirectories = false
                     panel.message = "Select volume (.tar.zst) to import"

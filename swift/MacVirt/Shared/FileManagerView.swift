@@ -249,7 +249,8 @@ private class FileManagerOutlineDelegate: NSObject, NSOutlineViewDelegate, NSOut
             return TextFieldCellView(value: item.name, editable: true, image: item.icon)
         case Columns.modified:
             return TextFieldCellView(
-                value: item.modified.formatted(date: .abbreviated, time: .shortened), color: .secondaryLabelColor)
+                value: item.modified.formatted(date: .abbreviated, time: .shortened),
+                color: .secondaryLabelColor)
         case Columns.size:
             if item.type == .regular {
                 return TextFieldCellView(

@@ -50,7 +50,10 @@ extension K8SPod {
     }
 
     var terminalArgs: [String] {
-        ["exec", "--context", K8sConstants.context, "-it", "-n", namespace, "pod/\(name)", "--", "sh"]
+        [
+            "exec", "--context", K8sConstants.context, "-it", "-n", namespace, "pod/\(name)", "--",
+            "sh",
+        ]
     }
 
     func openInTerminal() {

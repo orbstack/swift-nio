@@ -8,11 +8,11 @@ struct DockerContainerFilesTab: View {
     var body: some View {
         if container.running {
             FileManagerView(rootPath: container.nfsPath)
-            .onReceive(vmModel.toolbarActionRouter) { action in
-                if action == .dockerOpenContainerInNewWindow {
-                    container.openFolder()
+                .onReceive(vmModel.toolbarActionRouter) { action in
+                    if action == .dockerOpenContainerInNewWindow {
+                        container.openFolder()
+                    }
                 }
-            }
         } else {
             VStack(spacing: 16) {  // match ContentUnavailableViewCompat desc padding
                 ContentUnavailableViewCompat(

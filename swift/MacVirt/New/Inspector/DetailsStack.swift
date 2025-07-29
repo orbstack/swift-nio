@@ -157,7 +157,11 @@ struct DetailsKvTableSection<Key: View, Value: View>: View {
         }
         .onCopyCommand {
             let selectedItems = selection.compactMap { id in items.first { $0.id == id } }
-            return [NSItemProvider(object: selectedItems.map { "\($0.key)=\($0.value)" }.joined(separator: "\n") as NSString)]
+            return [
+                NSItemProvider(
+                    object: selectedItems.map { "\($0.key)=\($0.value)" }.joined(separator: "\n")
+                        as NSString)
+            ]
         }
     }
 }

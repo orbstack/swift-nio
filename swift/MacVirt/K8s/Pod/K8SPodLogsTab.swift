@@ -9,11 +9,11 @@ struct K8SPodLogsTab: View {
 
     var body: some View {
         K8SLogsContentView(kid: pod.id, containerName: nil)
-        .environmentObject(commandModel)
-        .onReceive(vmModel.toolbarActionRouter) { action in
-            if action == .k8sPodOpenInNewWindow {
-                pod.showLogs(windowTracker: windowTracker)
+            .environmentObject(commandModel)
+            .onReceive(vmModel.toolbarActionRouter) { action in
+                if action == .k8sPodOpenInNewWindow {
+                    pod.showLogs(windowTracker: windowTracker)
+                }
             }
-        }
     }
 }

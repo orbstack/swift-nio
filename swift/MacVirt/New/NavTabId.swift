@@ -42,21 +42,42 @@ extension NavTabId {
     var trailingItemIdentifiers: [NSToolbarItem.Identifier] {
         switch self {
         case .dockerContainers:
-            return [.dockerContainersNew, .flexibleSpace, .dockerContainersTabs, .flexibleSpace, .licenseBadge, .dockerContainersOpenWindow]
+            return [
+                .dockerContainersNew, .flexibleSpace, .dockerContainersTabs, .flexibleSpace,
+                .licenseBadge, .dockerContainersOpenWindow,
+            ]
         case .dockerVolumes:
-            return [.dockerVolumesNew, .flexibleSpace, .dockerVolumesTabs, .flexibleSpace, .licenseBadge, .dockerVolumesOpenWindow]
+            return [
+                .dockerVolumesNew, .flexibleSpace, .dockerVolumesTabs, .flexibleSpace,
+                .licenseBadge, .dockerVolumesOpenWindow,
+            ]
         case .dockerImages:
-            return [.dockerImagesImport, .flexibleSpace, .dockerImagesTabs, .flexibleSpace, .licenseBadge, .dockerImagesOpenWindow]
+            return [
+                .dockerImagesImport, .flexibleSpace, .dockerImagesTabs, .flexibleSpace,
+                .licenseBadge, .dockerImagesOpenWindow,
+            ]
         case .dockerNetworks:
-            return [.dockerNetworksNew, .flexibleSpace, .dockerNetworksTabs, .flexibleSpace, .licenseBadge, .dockerNetworksOpenWindow]
+            return [
+                .dockerNetworksNew, .flexibleSpace, .dockerNetworksTabs, .flexibleSpace,
+                .licenseBadge, .dockerNetworksOpenWindow,
+            ]
 
         case .k8sPods:
-            return [.k8sEnable, .flexibleSpace, .k8sPodsTabs, .flexibleSpace, .licenseBadge, .k8sPodsOpenWindow]
+            return [
+                .k8sEnable, .flexibleSpace, .k8sPodsTabs, .flexibleSpace, .licenseBadge,
+                .k8sPodsOpenWindow,
+            ]
         case .k8sServices:
-            return [.k8sServicesFilter, .flexibleSpace, .k8sServicesTabs, .flexibleSpace, .licenseBadge, .k8sServicesOpenWindow]
+            return [
+                .k8sServicesFilter, .flexibleSpace, .k8sServicesTabs, .flexibleSpace, .licenseBadge,
+                .k8sServicesOpenWindow,
+            ]
 
         case .machines:
-            return [.machinesNew, .flexibleSpace, .machinesTabs, .flexibleSpace, .licenseBadge, .machinesOpenInNewWindow]
+            return [
+                .machinesNew, .flexibleSpace, .machinesTabs, .flexibleSpace, .licenseBadge,
+                .machinesOpenInNewWindow,
+            ]
 
         default:
             return [.flexibleSpace, .licenseBadge]
