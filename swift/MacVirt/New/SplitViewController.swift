@@ -38,7 +38,7 @@ class SplitViewController: NSSplitViewController {
 
         if let windowId = splitView.window?.identifier?.rawValue {
             // new save ID after changing to master-detail layout
-            // splitView.autosaveName = "\(windowId) : SplitViewController2"
+            splitView.autosaveName = "\(windowId) : SplitViewController2"
         }
     }
 
