@@ -13,7 +13,7 @@ struct GeneralSettingsView: View {
     let updaterController: SPUStandardUpdaterController
 
     @Default(.globalShowMenubarExtra) private var showMenubarExtra
-    @Default(.defaultTerminalEmulator) private var defaultTerminalEmulator
+    @Default(.terminalDefaultApp) private var terminalDefaultApp
 
     var body: some View {
         SettingsForm {
@@ -31,24 +31,35 @@ struct GeneralSettingsView: View {
                         "Keep running when app is quit"
                     }
                 Defaults.Toggle(bgLabel, key: .globalStayInBackground)
-
-                Picker(selection: $defaultTerminalEmulator) {
-                    if InstalledApps.terminals.count > 0 {
-                        ForEach(InstalledApps.terminals, id: \.self.id) { term in
-                            Text(term.name).tag(term.id)
-                        }
-                        Divider()
-                    }
-                    Text("Last used").tag("")
-                } label: {
-                    Text("Terminal emulator")
-                }.disabled(InstalledApps.terminals.count == 0)
             }
 
             Section {
                 UpdaterSettingsView(updater: updaterController.updater)
             } header: {
                 Text("Updates")
+            }
+
+            Section {
+                Picker(selection: $terminalDefaultApp) {
+                    Text("Last used").tag(String?(nil))
+
+                    Divider()
+
+                    // can have duplicate bundle IDs, which breaks Picker
+                    ForEach(InstalledApps.terminals.uniqued(on: { $0.id }).sorted(by: { $0.name < $1.name }), id: \.self.id) { term in
+                        HStack {
+                            Image(nsImage: term.icon)
+                                .resizable()
+                                .frame(width: 16, height: 16)
+                            Text(term.name)
+                        }.tag(term.id)
+                    }
+                } label: {
+                    Text("External terminal app")
+                    Text("Used when opening terminal in a new window.")
+                }
+            } header: {
+                Text("Terminal")
             }
         }
         .akNavigationTitle("General")

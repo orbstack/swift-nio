@@ -319,6 +319,7 @@ enum InstalledApps {
                 }
 
                 let bundleName = Bundle(url: bundleUrl)?.infoDictionary?[kCFBundleNameKey as String] as? String
+                let bundleInfo = BundleInfo(id: bundleId, url: bundleUrl, bundleName: bundleName)
 
                 if let runningApp = NSRunningApplication.runningApplications(
                     withBundleIdentifier: bundleId
@@ -326,19 +327,19 @@ enum InstalledApps {
                     let launchDate = runningApp.launchDate
                 {
                     return BundleCandidate(
-                        bundle: BundleInfo(id: bundleId, url: bundleUrl, bundleName: bundleName), running: true,
+                        bundle: bundleInfo, running: true,
                         timestamp: launchDate)
                 }
 
                 if let date = attributes.value(forAttribute: kMDItemLastUsedDate as String) as? Date
                 {
                     return BundleCandidate(
-                        bundle: BundleInfo(id: bundleId, url: bundleUrl, bundleName: bundleName), running: false,
+                        bundle: bundleInfo, running: false,
                         timestamp: date)
                 }
 
                 return BundleCandidate(
-                    bundle: BundleInfo(id: bundleId, url: bundleUrl, bundleName: bundleName), running: false,
+                    bundle: bundleInfo, running: false,
                     timestamp: Date.distantPast)
             }
             // sort by running first, then by last used
@@ -358,9 +359,9 @@ enum InstalledApps {
 
     static var preferredTerminal: BundleInfo {
         var terminalBundle: BundleInfo?
-        if Defaults[.defaultTerminalEmulator] != "" {
+        if let terminalDefaultApp = Defaults[.terminalDefaultApp] {
             terminalBundle = terminals.first(where: { term in
-                term.id == Defaults[.defaultTerminalEmulator]
+                term.id == terminalDefaultApp
             })
         }
 
@@ -381,15 +382,11 @@ struct BundleInfo: Hashable {
     internal let bundleName: String?
 
     var name: String {
-        if id == InstalledApps.appleTerminal {
-            return "Terminal (macOS)"
-        }
+        return bundleName ?? id.split(separator: ".").last.map { String($0) } ?? id
+    }
 
-        if bundleName.isNil {
-            return String(id.split(separator: ".").last!)
-        }
-
-        return bundleName!
+    var icon: NSImage {
+        return NSWorkspace.shared.icon(forFile: url.path)
     }
 }
 
