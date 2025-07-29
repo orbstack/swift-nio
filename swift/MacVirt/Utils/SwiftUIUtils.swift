@@ -251,7 +251,7 @@ extension View {
 }
 
 extension Color {
-    init(hex: UInt, alpha: Double = 1) {
+    init(hex: UInt32, alpha: Double = 1) {
         self.init(
             .sRGB,
             red: Double((hex >> 16) & 0xFF) / 255,
@@ -263,7 +263,7 @@ extension Color {
 }
 
 extension NSColor {
-    convenience init(hex: UInt, alpha: Double = 1) {
+    convenience init(hex: UInt32, alpha: Double = 1) {
         self.init(
             srgbRed: CGFloat((hex >> 16) & 0xFF) / 255,
             green: CGFloat((hex >> 08) & 0xFF) / 255,

@@ -19,6 +19,8 @@ class LocalProcessTerminalController: NSViewController {
     private let model: TerminalViewModel
     private var cancellables = Set<AnyCancellable>()
 
+    private var lastTheme: TerminalTheme?
+
     private var terminalView: LocalProcessTerminalViewCustom {
         view as! LocalProcessTerminalViewCustom
     }
@@ -38,7 +40,6 @@ class LocalProcessTerminalController: NSViewController {
         // 5000 lines, not 25000, due to poor resize performance with large windows
         // reduce idle frame updates
         view.getTerminal().setCursorStyle(.steadyBlock)
-        view.configureNativeColors()
         // remove NSScroller subview to fix weird broken scrollbar
         // ghostty still doesn't even have scrollbar so this is fine
         for subview in view.subviews {
@@ -54,6 +55,17 @@ class LocalProcessTerminalController: NSViewController {
         terminalView.startProcess(executable: executable, args: args, environment: environment)
     }
 
+    func updateTheme(_ theme: TerminalTheme?) {
+        if lastTheme != theme {
+            lastTheme = theme
+            if let theme {
+                terminalView.installTheme(theme)
+            } else {
+                terminalView.configureNativeColors()
+            }
+        }
+    }
+
     func dismantle() {
         // on close, kill process if still running
         if let process = terminalView.process, process.running {
@@ -64,6 +76,8 @@ class LocalProcessTerminalController: NSViewController {
 }
 
 struct TerminalTabView: View {
+    @Environment(\.colorScheme) var colorScheme
+
     @StateObject private var terminalModel = TerminalViewModel()
 
     let executable: String
@@ -77,8 +91,10 @@ struct TerminalTabView: View {
     }
 
     var body: some View {
+        let theme = colorScheme == .dark ? TerminalTheme.defaultDark : TerminalTheme.defaultLight
+
         SwiftUILocalProcessTerminal(
-            executable: executable, args: args, env: env, model: terminalModel
+            executable: executable, args: args, env: env, model: terminalModel, theme: theme
         )
         // otherwise terminal leaks behind toolbar when scrolled
         .clipped()
@@ -86,7 +102,7 @@ struct TerminalTabView: View {
         // this causes toolbar to match bg color, so remove top padding -- it looks like toolbar padding contributes to vertical spacing
         .padding(.horizontal, 8)
         .padding(.bottom, 8)
-        .background(Color(NSColor.textBackgroundColor))
+        .background(Color(theme?.background ?? NSColor.textBackgroundColor))
     }
 }
 
@@ -96,12 +112,15 @@ private struct SwiftUILocalProcessTerminal: NSViewControllerRepresentable {
     let env: [String]
     let model: TerminalViewModel
 
+    let theme: TerminalTheme?
+
     func makeNSViewController(context: Context) -> LocalProcessTerminalController {
         return LocalProcessTerminalController(model: model)
     }
 
     func updateNSViewController(_ controller: LocalProcessTerminalController, context: Context) {
         controller.startProcess(executable: executable, args: args, environment: env)
+        controller.updateTheme(theme)
     }
 
     static func dismantleNSViewController(
@@ -340,5 +359,14 @@ open class LocalProcessTerminalViewCustom: TerminalView, TerminalViewDelegate, L
         super.viewDidMoveToWindow()
         // make sure we're the first responder
         window?.makeFirstResponder(self)
+    }
+
+    func installTheme(_ theme: TerminalTheme) {
+        self.installColors(theme.palette)
+        self.nativeBackgroundColor = theme.background
+        self.nativeForegroundColor = theme.foreground
+        self.selectedTextBackgroundColor = theme.selectionBackground
+        self.caretColor = theme.cursorColor
+        self.caretTextColor = theme.cursorText
     }
 }
