@@ -7,6 +7,8 @@ struct DockerImageFilesTab: View {
 
     var body: some View {
         FileManagerView(rootPath: image.summary.nfsPath)
+            // render under toolbar
+            .ignoresSafeArea()
             .onReceive(vmModel.toolbarActionRouter) { action in
                 if action == .dockerOpenImageInNewWindow {
                     image.summary.openFolder()

@@ -9,6 +9,8 @@ struct K8SPodLogsTab: View {
 
     var body: some View {
         K8SLogsContentView(kid: pod.id, containerName: nil)
+            // render under toolbar
+            .ignoresSafeArea()
             .environmentObject(commandModel)
             .onReceive(vmModel.toolbarActionRouter) { action in
                 if action == .k8sPodOpenInNewWindow {

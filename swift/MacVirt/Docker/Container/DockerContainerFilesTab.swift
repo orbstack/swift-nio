@@ -8,6 +8,8 @@ struct DockerContainerFilesTab: View {
     var body: some View {
         if container.running {
             FileManagerView(rootPath: container.nfsPath)
+                // render under toolbar
+                .ignoresSafeArea()
                 .onReceive(vmModel.toolbarActionRouter) { action in
                     if action == .dockerOpenContainerInNewWindow {
                         container.openFolder()

@@ -15,6 +15,8 @@ struct MachineLogsTab: View {
             extraState: [],
             model: logsModel
         )
+        // render under toolbar
+        .ignoresSafeArea()
         .environmentObject(commandModel)
     }
 }

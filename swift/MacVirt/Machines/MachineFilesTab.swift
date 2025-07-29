@@ -7,6 +7,8 @@ struct MachineFilesTab: View {
 
     var body: some View {
         FileManagerView(rootPath: machine.record.nfsPath)
+            // render under toolbar
+            .ignoresSafeArea()
             .onReceive(vmModel.toolbarActionRouter) { action in
                 if action == .machineOpenInNewWindow {
                     machine.record.openNfsDirectory()

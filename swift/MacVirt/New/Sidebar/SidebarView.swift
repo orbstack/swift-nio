@@ -30,18 +30,19 @@ struct SidebarView: View {
 
     @Default(.selectedTab) private var defaultsSelectedTab
 
-    // macOS <13 requires nullable selection
-    @State private var selectedTab: NavTabId? = Defaults[.selectedTab]
+    @State private var selectedTab: NavTabId = Defaults[.selectedTab]
 
     var body: some View {
         List(selection: $selectedTab) {
             listContents
         }
-        .onChange(of: defaultsSelectedTab) { _, tab in
-            selectedTab = tab
-        }
+       .onChange(of: defaultsSelectedTab) { oldTab, tab in
+           if tab != oldTab && tab != selectedTab {
+               selectedTab = tab
+           }
+       }
         .onChange(of: selectedTab) { _, sel in
-            if let sel, sel != Defaults[.selectedTab] {
+            if sel != Defaults[.selectedTab] {
                 Defaults[.selectedTab] = sel
             }
         }

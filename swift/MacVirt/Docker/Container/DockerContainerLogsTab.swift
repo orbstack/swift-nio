@@ -9,6 +9,8 @@ struct DockerContainerLogsTab: View {
         DockerLogsContentView(
             cid: container.cid, standalone: true, extraComposeArgs: [], allDisabled: false
         )
+        // render under toolbar
+        .ignoresSafeArea()
         .environmentObject(commandModel)
     }
 }

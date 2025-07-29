@@ -10,6 +10,8 @@ struct DockerComposeLogsTab: View {
             cid: .compose(project: project), standalone: true, extraComposeArgs: [],
             allDisabled: false
         )
+        // render under toolbar
+        .ignoresSafeArea()
         .environmentObject(commandModel)
     }
 }

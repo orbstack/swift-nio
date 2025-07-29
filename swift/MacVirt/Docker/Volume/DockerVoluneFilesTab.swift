@@ -7,6 +7,8 @@ struct DockerVolumeFilesTab: View {
 
     var body: some View {
         FileManagerView(rootPath: volume.nfsPath)
+            // render under toolbar
+            .ignoresSafeArea()
             .onReceive(vmModel.toolbarActionRouter) { action in
                 if action == .dockerOpenVolumeInNewWindow {
                     volume.openNfsDirectory()
