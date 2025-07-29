@@ -249,18 +249,18 @@ private class FileManagerOutlineDelegate: NSObject, NSOutlineViewDelegate, NSOut
             return TextFieldCellView(value: item.name, editable: true, image: item.icon)
         case Columns.modified:
             return TextFieldCellView(
-                value: item.modified.formatted(date: .abbreviated, time: .shortened), secondary: true)
+                value: item.modified.formatted(date: .abbreviated, time: .shortened), color: .secondaryLabelColor)
         case Columns.size:
             if item.type == .regular {
                 return TextFieldCellView(
                     value: item.size.formatted(.byteCount(style: .file)),
-                    secondary: true)
+                    color: .secondaryLabelColor)
             } else {
                 return nil
             }
         case Columns.type:
             return TextFieldCellView(
-                value: item.type.description, secondary: true)
+                value: item.type.description, color: .secondaryLabelColor)
         default:
             return nil
         }
@@ -367,18 +367,45 @@ private class FileManagerOutlineDelegate: NSObject, NSOutlineViewDelegate, NSOut
     }
 }
 
-func TextFieldCellView(value: String, editable: Bool = false, image: NSImage? = nil, secondary: Bool = false) -> NSHostingView<some View> {
-    return NSHostingView(rootView: HStack(spacing: 4) {
+private class TextFieldCellView: NSTableCellView {
+    init(value: String, editable: Bool = false, image: NSImage? = nil, color: NSColor? = nil) {
+        super.init(frame: .zero)
+
+        let stack = NSStackView(frame: .zero)
+        stack.orientation = .horizontal
+        stack.alignment = .centerY
+        stack.spacing = 4
+
         if let image {
-            Image(nsImage: image)
-                .resizable()
-                .frame(width: 16, height: 16)
+            let imageView = NSImageView(frame: NSRect(x: 0, y: 0, width: 16, height: 16))
+            imageView.bounds = NSRect(x: 0, y: 0, width: 16, height: 16)
+            imageView.image = image
+            imageView.imageScaling = .scaleProportionallyDown
+            stack.addView(imageView, in: .leading)
         }
 
-        Text(value)
-            .if(secondary) { $0.foregroundStyle(.secondary) }
-            .frame(alignment: .leading)
-    }.frame(maxWidth: .infinity, alignment: .leading))
+        let textField = NSTextField(labelWithString: value)
+        textField.isEditable = editable
+        if let color {
+            textField.textColor = color
+        }
+        textField.lineBreakMode = .byTruncatingTail
+        stack.addView(textField, in: .leading)
+
+        stack.translatesAutoresizingMaskIntoConstraints = false
+        addSubview(stack)
+
+        NSLayoutConstraint.activate([
+            stack.leadingAnchor.constraint(equalTo: leadingAnchor),
+            stack.trailingAnchor.constraint(equalTo: trailingAnchor),
+            stack.topAnchor.constraint(equalTo: topAnchor),
+            stack.bottomAnchor.constraint(equalTo: bottomAnchor),
+        ])
+    }
+
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
 }
 
 private func compareWithDesc<T: Comparable>(
