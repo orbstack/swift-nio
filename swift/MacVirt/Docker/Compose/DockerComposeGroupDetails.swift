@@ -28,12 +28,6 @@ struct DockerComposeGroupDetails: View {
             }
 
             DetailsButtonSection {
-                DetailsButton {
-                    ComposeGroup(project: project).showLogs(windowTracker: windowTracker)
-                } label: {
-                    Label("Logs", systemImage: "doc.text.magnifyingglass")
-                }
-
                 if let projectPath = containers.first?.composeConfigFiles?.first {
                     DetailsButton {
                         let parentDir = URL(fileURLWithPath: projectPath)

@@ -39,6 +39,7 @@ struct DetailsKvSection<Content: View>: View {
                 Text(label)
             }
         }
+        .copyButtonSide(.left)
     }
 }
 
