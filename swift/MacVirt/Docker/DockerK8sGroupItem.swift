@@ -13,7 +13,7 @@ struct K8sIcon: View {
             .resizable()
             .aspectRatio(contentMode: .fit)
             .frame(width: 16, height: 16)
-            .padding(8)
+            .padding(6)
             .foregroundColor(Color(hex: 0xFAFAFA))
             .background(Circle().fill(color))
             // rasterize so opacity works on it as one big image
@@ -38,7 +38,6 @@ struct DockerK8sGroupItem: View, Equatable {
         HStack {
             HStack {
                 K8sIcon()
-                    .padding(.trailing, 8)
 
                 VStack(alignment: .leading) {
                     Text("Kubernetes")
@@ -48,7 +47,7 @@ struct DockerK8sGroupItem: View, Equatable {
             }
             .opacity(isRunning ? 1 : 0.5)
             // padding for expand arrow
-            .padding(.leading, 8)
+            .padding(.leading, 4)
 
             Spacer()
 
@@ -79,7 +78,7 @@ struct DockerK8sGroupItem: View, Equatable {
                 .help("Go to Pods")
             }
         }
-        .padding(.vertical, 8)
+        .padding(.vertical, 4)
         .akListContextMenu {
             if isRunning {
                 Button {

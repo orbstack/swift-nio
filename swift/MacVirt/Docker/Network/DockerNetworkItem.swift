@@ -56,7 +56,7 @@ struct DockerNetworkItem: View, Equatable {
                 .help(isInUse ? "Network in use" : "Delete")
             }
         }
-        .padding(.vertical, 8)
+        .padding(.vertical, 4)
         .akListContextMenu {
             Button {
                 finishDelete()

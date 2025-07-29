@@ -85,7 +85,7 @@ struct DockerImageItem: View, Equatable {
                 .help(isInUse ? "Image in use" : "Delete")
             }
         }
-        .padding(.vertical, 8)
+        .padding(.vertical, 4)
         .akListOnDoubleClick {
             if image.summary.repoTags?.isEmpty == false {
                 image.summary.openFolder()

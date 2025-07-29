@@ -32,12 +32,11 @@ struct K8SServiceItemView: View, Equatable, BaseK8SResourceItem {
                     .resizable()
                     .aspectRatio(contentMode: .fit)
                     .frame(width: 16, height: 16)
-                    .padding(8)
+                    .padding(6)
                     .foregroundColor(Color(hex: 0xFAFAFA))
                     .background(Circle().fill(color))
                     // rasterize so opacity works on it as one big image
                     .drawingGroup(opaque: false)
-                    .padding(.trailing, 8)
 
                 VStack(alignment: .leading) {
                     Text(service.name)
@@ -54,8 +53,6 @@ struct K8SServiceItemView: View, Equatable, BaseK8SResourceItem {
                       */
                 }
             }
-            // padding for expand arrow
-            .padding(.leading, 8)
 
             Spacer()
 
@@ -82,7 +79,7 @@ struct K8SServiceItemView: View, Equatable, BaseK8SResourceItem {
                 .help("Delete")
             }
         }
-        .padding(.vertical, 8)
+        .padding(.vertical, 4)
         .akListOnDoubleClick {
             navModel.expandInspector.send()
         }

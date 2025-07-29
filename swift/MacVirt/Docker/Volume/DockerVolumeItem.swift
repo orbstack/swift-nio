@@ -71,7 +71,7 @@ struct DockerVolumeItem: View {
                 .help(isMounted ? "Volume in use" : "Delete volume\n(Option to confirm)")
             }
         }
-        .padding(.vertical, 8)
+        .padding(.vertical, 4)
         .akListOnDoubleClick {
             volume.openNfsDirectory()
         }

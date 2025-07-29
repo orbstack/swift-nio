@@ -37,12 +37,11 @@ struct K8SPodItemView: View, Equatable, BaseK8SResourceItem {
                             .resizable()
                             .aspectRatio(contentMode: .fit)
                             .frame(width: 16, height: 16)
-                            .padding(8)
+                            .padding(6)
                             .foregroundColor(Color(hex: 0xFAFAFA))
                             .background(Circle().fill(color))
                             // rasterize so opacity works on it as one big image
                             .drawingGroup(opaque: false)
-                            .padding(.trailing, 8)
 
                     case .loading:
                         // can't rasterize this so only do opacity on bg
@@ -50,22 +49,20 @@ struct K8SPodItemView: View, Equatable, BaseK8SResourceItem {
                             .scaleEffect(0.5)
                             .aspectRatio(contentMode: .fit)
                             .frame(width: 16, height: 16)
-                            .padding(8)
+                            .padding(6)
                             .foregroundColor(Color(hex: 0xFAFAFA))
                             .background(Circle().fill(color).opacity(0.5))
-                            .padding(.trailing, 8)
 
                     case .error:
                         Image(systemName: "exclamationmark")
                             .resizable()
                             .aspectRatio(contentMode: .fit)
                             .frame(width: 16, height: 16)
-                            .padding(8)
+                            .padding(6)
                             .foregroundColor(Color(hex: 0xFAFAFA))
                             .background(Circle().fill(SystemColors.desaturate(Color(.systemRed))))
                             // rasterize so opacity works on it as one big image
                             .drawingGroup(opaque: false)
-                            .padding(.trailing, 8)
                     }
                 }
                 .opacity((state == .completed) ? 0.5 : 1)
@@ -86,8 +83,6 @@ struct K8SPodItemView: View, Equatable, BaseK8SResourceItem {
                 }
                 .opacity((state == .loading || state == .completed) ? 0.5 : 1)
             }
-            // padding for expand arrow
-            .padding(.leading, 8)
 
             Spacer()
 
@@ -102,7 +97,7 @@ struct K8SPodItemView: View, Equatable, BaseK8SResourceItem {
                 .help("Delete")
             }
         }
-        .padding(.vertical, 8)
+        .padding(.vertical, 4)
         .akListOnDoubleClick {
             navModel.expandInspector.send()
         }

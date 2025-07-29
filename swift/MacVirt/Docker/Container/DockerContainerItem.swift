@@ -10,13 +10,13 @@ struct DockerContainerImage: View {
     let container: DKContainer
 
     var body: some View {
-        // 32px
+        // 28px
         let color = SystemColors.forString(container.userName)
         Image(systemName: "shippingbox.fill")
             .resizable()
             .aspectRatio(contentMode: .fit)
             .frame(width: 16, height: 16)
-            .padding(8)
+            .padding(6)
             .foregroundColor(Color(hex: 0xFAFAFA))
             .background(Circle().fill(color))
             // rasterize so opacity works on it as one big image
@@ -58,7 +58,6 @@ struct DockerContainerItem: View, Equatable, BaseDockerContainerItem {
             HStack {
                 // make it consistent
                 DockerContainerImage(container: container)
-                    .padding(.trailing, 8)
 
                 VStack(alignment: .leading) {
                     let nameTxt = container.userName
@@ -77,7 +76,7 @@ struct DockerContainerItem: View, Equatable, BaseDockerContainerItem {
             }
             .opacity(container.running ? 1 : 0.5)
             // padding for expand arrow
-            .padding(.leading, 8)
+            .padding(.leading, 4)
 
             Spacer()
 
@@ -162,7 +161,7 @@ struct DockerContainerItem: View, Equatable, BaseDockerContainerItem {
                 }
             }
         }
-        .padding(.vertical, 8)
+        .padding(.vertical, 4)
         .confirmationDialog(
             deleteConfirmMsg,
             isPresented: $presentConfirmDelete

@@ -426,17 +426,17 @@ struct ActivityMonitorRootView: View {
 
                             case .container(let container):
                                 DockerContainerImage(container: container)
-                                    .scaleEffect(0.5)  // 32px -> 16px
+                                    .scaleEffect(16.0/28.0)  // 28px -> 16px
                                     .frame(width: 16, height: 16)
 
                             case .compose(let project):
                                 DockerComposeGroupImage(project: project)
-                                    .scaleEffect(0.5)  // 32px -> 16px
+                                    .scaleEffect(16.0/28.0)  // 28px -> 16px
                                     .frame(width: 16, height: 16)
 
                             case .k8sGroup:
                                 K8sIcon()
-                                    .scaleEffect(0.5)  // 32px -> 16px
+                                    .scaleEffect(16.0/28.0)  // 28px -> 16px
                                     .frame(width: 16, height: 16)
 
                             case .dockerGroup:

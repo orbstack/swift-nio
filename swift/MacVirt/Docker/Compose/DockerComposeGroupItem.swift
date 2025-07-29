@@ -14,7 +14,7 @@ struct DockerComposeGroupImage: View {
         Image(systemName: "square.stack.3d.up.fill")
             .resizable()
             .aspectRatio(contentMode: .fit)
-            .frame(width: 32, height: 32)
+            .frame(width: 28, height: 28)
             .foregroundColor(color)
     }
 }
@@ -54,7 +54,6 @@ struct DockerComposeGroupItem: View, Equatable, BaseDockerContainerItem {
         HStack {
             HStack {
                 DockerComposeGroupImage(project: composeGroup.project)
-                    .padding(.trailing, 8)
                     .if(isFirstInList) {
                         $0.popover(isPresented: $tipsContainerDomainsShow, arrowEdge: .trailing) {
                             HStack {
@@ -97,7 +96,7 @@ struct DockerComposeGroupItem: View, Equatable, BaseDockerContainerItem {
             }
             .opacity(isRunning ? 1 : 0.5)
             // padding for expand arrow
-            .padding(.leading, 8)
+            .padding(.leading, 4)
 
             Spacer()
 
@@ -132,7 +131,7 @@ struct DockerComposeGroupItem: View, Equatable, BaseDockerContainerItem {
                 .help("Delete")
             }
         }
-        .padding(.vertical, 8)
+        .padding(.vertical, 4)
         // projects are always multiple containers, so no need to change msg
         .confirmationDialog(
             "Delete containers?",

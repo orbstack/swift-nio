@@ -32,8 +32,7 @@ struct MachineItem: View {
             Image("distro_\(info.record.image.distro)")
                 .resizable()
                 .aspectRatio(contentMode: .fit)
-                .frame(width: 32, height: 32)
-                .padding(.trailing, 8)
+                .frame(width: 28, height: 28)
                 .opacity(running ? 1 : 0.5)
             VStack(alignment: .leading) {
                 Text(info.record.name)
@@ -66,7 +65,7 @@ struct MachineItem: View {
                 }
             }
         }
-        .padding(.vertical, 8)
+        .padding(.vertical, 4)
         .akListContextMenu {
             Group {
                 if running {
