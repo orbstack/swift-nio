@@ -104,6 +104,11 @@ Some options will only take effect after restarting OrbStack.
 			checkCLI(err)
 			config.SSH_ExposePort = val
 			rebootRequired = true
+		case "power.pause_on_sleep":
+			val, err := strconv.ParseBool(value)
+			checkCLI(err)
+			config.Power_PauseOnSleep = val
+			rebootRequired = true
 		case "app.start_at_login":
 			val, err := strconv.ParseBool(value)
 			checkCLI(err)
