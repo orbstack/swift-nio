@@ -106,6 +106,10 @@ struct DKContainer: Codable, Identifiable, Hashable {
         labels?[DockerLabels.k8sContainerName]
     }
 
+    var isWormholeEphemeral: Bool {
+        labels?[DockerLabels.wormholeEphemeral] != nil
+    }
+
     var userName: String {
         // prefer compose service label first (because we'll be grouped if it's compose)
         if let k8sName = labels?[DockerLabels.k8sContainerName],
@@ -661,4 +665,6 @@ enum DockerLabels {
     static let k8sNamespace = "io.kubernetes.pod.namespace"
 
     static let customDomains = "dev.orbstack.domains"
+
+    static let wormholeEphemeral = "dev.orbstack.wormhole.ephemeral"
 }

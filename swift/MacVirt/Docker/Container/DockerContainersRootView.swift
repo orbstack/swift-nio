@@ -267,11 +267,13 @@ struct DockerContainersRootView: View {
         -> [DKContainer]
     {
         var containers = containers.filter { container in
-            searchQuery.isEmpty
+            (searchQuery.isEmpty
                 || container.id.localizedCaseInsensitiveContains(searchQuery)
                 || container.image.localizedCaseInsensitiveContains(searchQuery)
                 || container.imageId.localizedCaseInsensitiveContains(searchQuery)
-                || container.names.contains { $0.localizedCaseInsensitiveContains(searchQuery) }
+                || container.names.contains { $0.localizedCaseInsensitiveContains(searchQuery) })
+                // ignore ephemeral wormhole containers to prevent layout shifting when starting debug shell on stopped container
+                && !container.isWormholeEphemeral
         }
         containers.sort(accordingTo: sortDescriptor)
         return containers
