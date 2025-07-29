@@ -101,6 +101,8 @@ private class FileManagerOutlineView: NSOutlineView, QLPreviewPanelDataSource {
     override func keyDown(with event: NSEvent) {
         if event.charactersIgnoringModifiers == " " {
             QLPreviewPanel.shared()?.makeKeyAndOrderFront(nil)
+        } else if event.modifierFlags.contains(.command) && event.charactersIgnoringModifiers == "c" {
+            copyItem()
         } else {
             super.keyDown(with: event)
         }
