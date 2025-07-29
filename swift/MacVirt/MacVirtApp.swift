@@ -385,7 +385,7 @@ struct MacVirtApp: App {
         .windowResizability(.contentSize)
 
         WindowGroup(WindowTitles.containerLogsBase, id: "docker-container-logs") {
-            DockerLogsWindow()
+            DockerContainerLogsWindow()
                 .environmentObject(vmModel)
                 .environmentObject(windowTracker)
         }
