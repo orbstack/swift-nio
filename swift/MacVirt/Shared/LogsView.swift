@@ -261,9 +261,9 @@ class LogsViewModel: ObservableObject {
             clear()
 
             // if not first start, add delimiter
-            if !isFirstStart {
-                addDelimiter()
-            }
+            // if !isFirstStart {
+            //     addDelimiter()
+            // }
         }
 
         isFirstStart = false
