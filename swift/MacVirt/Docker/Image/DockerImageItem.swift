@@ -55,12 +55,12 @@ struct DockerImageItem: View, Equatable {
                     } label: {
                         Text(image.full.architecture)
                             .font(.caption)
-                        // TODO: this is bad...
-                        .foregroundStyle(.black.opacity(0.8))
-                        .padding(.horizontal, 4)
-                        .padding(.vertical, 2)
-                        // TODO: composite onto bg so list highlight doesn't affect it
-                        .background(SystemColors.desaturate(Color(.systemYellow)), in: .capsule)
+                            // TODO: this is bad...
+                            .foregroundStyle(.black.opacity(0.8))
+                            .padding(.horizontal, 4)
+                            .padding(.vertical, 2)
+                            // TODO: composite onto bg so list highlight doesn't affect it
+                            .background(SystemColors.desaturate(Color(.systemYellow)), in: .capsule)
                     }
                     .buttonStyle(.plain)
                     .help("Runs slower due to emulation")

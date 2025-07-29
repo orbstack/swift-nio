@@ -150,7 +150,8 @@ private class FileManagerOutlineView: NSOutlineView, QLPreviewPanelDataSource {
         // trigger border highlight
         super.menu(for: event)
 
-        let actionIndexes = selectedRowIndexes.contains(clickedRow) ? [clickedRow] : selectedRowIndexes
+        let actionIndexes =
+            selectedRowIndexes.contains(clickedRow) ? [clickedRow] : selectedRowIndexes
         return RIMenu {
             if actionIndexes.count >= 1 {
                 RIMenuItem("Open") { [self] in
@@ -180,7 +181,8 @@ private class FileManagerOutlineView: NSOutlineView, QLPreviewPanelDataSource {
                 RIMenuItem("Show in Finder") { [self] in
                     for index in actionIndexes {
                         if let item = item(atRow: index) as? FileItem {
-                            NSWorkspace.shared.selectFile(item.path, inFileViewerRootedAtPath: item.path)
+                            NSWorkspace.shared.selectFile(
+                                item.path, inFileViewerRootedAtPath: item.path)
                         }
                     }
                 }

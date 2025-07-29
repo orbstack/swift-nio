@@ -54,7 +54,11 @@ struct GeneralSettingsView: View {
                     Divider()
 
                     // can have duplicate bundle IDs, which breaks Picker
-                    ForEach(InstalledApps.terminals.uniqued(on: { $0.id }).sorted(by: { $0.name < $1.name }), id: \.self.id) { term in
+                    ForEach(
+                        InstalledApps.terminals.uniqued(on: { $0.id }).sorted(by: {
+                            $0.name < $1.name
+                        }), id: \.self.id
+                    ) { term in
                         HStack {
                             Image(nsImage: term.icon)
                                 .resizable()

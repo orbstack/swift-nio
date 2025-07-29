@@ -3,10 +3,10 @@
 //
 
 import Combine
+import Defaults
 import Foundation
 import SwiftTerm
 import SwiftUI
-import Defaults
 
 class TerminalViewModel: ObservableObject {
     @Published var windowSize = CGSize.zero

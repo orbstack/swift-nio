@@ -53,7 +53,8 @@ struct DockerK8sGroupItem: View, Equatable {
 
             ProgressButtonRow {
                 if isRunning {
-                    ProgressIconButton(systemImage: "stop.fill", actionInProgress: actionInProgress) {
+                    ProgressIconButton(systemImage: "stop.fill", actionInProgress: actionInProgress)
+                    {
                         Task { @MainActor in
                             await actionTracker.with(cid: .k8sGroup, action: .stop) {
                                 await vmModel.tryStartStopK8s(enable: false)
@@ -62,7 +63,8 @@ struct DockerK8sGroupItem: View, Equatable {
                     }
                     .help("Stop Kubernetes")
                 } else {
-                    ProgressIconButton(systemImage: "play.fill", actionInProgress: actionInProgress) {
+                    ProgressIconButton(systemImage: "play.fill", actionInProgress: actionInProgress)
+                    {
                         Task { @MainActor in
                             await actionTracker.with(cid: .k8sGroup, action: .start) {
                                 await vmModel.tryStartStopK8s(enable: true)

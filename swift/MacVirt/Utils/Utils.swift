@@ -318,7 +318,8 @@ enum InstalledApps {
                     return BundleCandidate?(nil)
                 }
 
-                let bundleName = Bundle(url: bundleUrl)?.infoDictionary?[kCFBundleNameKey as String] as? String
+                let bundleName =
+                    Bundle(url: bundleUrl)?.infoDictionary?[kCFBundleNameKey as String] as? String
                 let bundleInfo = BundleInfo(id: bundleId, url: bundleUrl, bundleName: bundleName)
 
                 if let runningApp = NSRunningApplication.runningApplications(
@@ -347,7 +348,7 @@ enum InstalledApps {
                 if a.running != b.running {
                     return a.running
                 }
-                
+
                 return a.timestamp > b.timestamp
             }.compactMap { b in
                 b?.bundle
@@ -372,7 +373,8 @@ enum InstalledApps {
             terminalBundle = terminals.first
         }
 
-        return terminalBundle ?? BundleInfo(id: appleTerminal, url: URL(fileURLWithPath: ""), bundleName: nil)
+        return terminalBundle
+            ?? BundleInfo(id: appleTerminal, url: URL(fileURLWithPath: ""), bundleName: nil)
     }
 }
 

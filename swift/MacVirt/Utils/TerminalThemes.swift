@@ -1,5 +1,5 @@
-import SwiftTerm
 import AppKit
+import SwiftTerm
 import SwiftUI
 
 struct TerminalTheme: Equatable, Hashable {
@@ -14,7 +14,10 @@ struct TerminalTheme: Equatable, Hashable {
     // unsupported
     let selectionForeground: NSColor
 
-    private init(palette: [SwiftTerm.Color], background: NSColor, foreground: NSColor, cursorColor: NSColor, cursorText: NSColor, selectionBackground: NSColor, selectionForeground: NSColor) {
+    private init(
+        palette: [SwiftTerm.Color], background: NSColor, foreground: NSColor, cursorColor: NSColor,
+        cursorText: NSColor, selectionBackground: NSColor, selectionForeground: NSColor
+    ) {
         self.palette = palette
         self.background = background
         self.foreground = foreground
@@ -53,14 +56,16 @@ struct TerminalTheme: Equatable, Hashable {
     }
 }
 
-private extension SwiftTerm.Color {
-    convenience init(hex: UInt32) {
+extension SwiftTerm.Color {
+    fileprivate convenience init(hex: UInt32) {
         // 255 -> 65535 scale
-        self.init(red: UInt16((hex >> 16) & 0xFF) * 257, green: UInt16((hex >> 8) & 0xFF) * 257, blue: UInt16(hex & 0xFF) * 257)
+        self.init(
+            red: UInt16((hex >> 16) & 0xFF) * 257, green: UInt16((hex >> 8) & 0xFF) * 257,
+            blue: UInt16(hex & 0xFF) * 257)
     }
 
     // private for some reason
-    convenience init(red8: UInt8, green8: UInt8, blue8: UInt8) {
+    fileprivate convenience init(red8: UInt8, green8: UInt8, blue8: UInt8) {
         self.init(red: UInt16(red8) * 257, green: UInt16(green8) * 257, blue: UInt16(blue8) * 257)
     }
 }
@@ -97,25 +102,25 @@ extension TerminalTheme {
         selectionForeground: NSColor.textColor,
     )
 
-// palette from SwiftTerm.Color private
+    // palette from SwiftTerm.Color private
     static let swiftTermDefault = TerminalTheme(
         palette: [
-            Color (red8: 0, green8: 0, blue8: 0),
-            Color (red8: 153, green8: 0, blue8: 1),
-            Color (red8: 0, green8: 166, blue8: 3),
-            Color (red8: 153, green8: 153, blue8: 0),
-            Color (red8: 3, green8: 0, blue8: 178),
-            Color (red8: 178, green8: 0, blue8: 178),
-            Color (red8: 0, green8: 165, blue8: 178),
-            Color (red8: 191, green8: 191, blue8: 191),
-            Color (red8: 138, green8: 137, blue8: 138),
-            Color (red8: 229, green8: 0, blue8: 1),
-            Color (red8: 0, green8: 216, blue8: 0),
-            Color (red8: 229, green8: 229, blue8: 0),
-            Color (red8: 7, green8: 0, blue8: 254),
-            Color (red8: 229, green8: 0, blue8: 229),
-            Color (red8: 0, green8: 229, blue8: 229),
-            Color (red8: 229, green8: 229, blue8: 229),
+            Color(red8: 0, green8: 0, blue8: 0),
+            Color(red8: 153, green8: 0, blue8: 1),
+            Color(red8: 0, green8: 166, blue8: 3),
+            Color(red8: 153, green8: 153, blue8: 0),
+            Color(red8: 3, green8: 0, blue8: 178),
+            Color(red8: 178, green8: 0, blue8: 178),
+            Color(red8: 0, green8: 165, blue8: 178),
+            Color(red8: 191, green8: 191, blue8: 191),
+            Color(red8: 138, green8: 137, blue8: 138),
+            Color(red8: 229, green8: 0, blue8: 1),
+            Color(red8: 0, green8: 216, blue8: 0),
+            Color(red8: 229, green8: 229, blue8: 0),
+            Color(red8: 7, green8: 0, blue8: 254),
+            Color(red8: 229, green8: 0, blue8: 229),
+            Color(red8: 0, green8: 229, blue8: 229),
+            Color(red8: 229, green8: 229, blue8: 229),
         ],
         background: NSColor.textBackgroundColor,
         foreground: NSColor.textColor,
@@ -242,9 +247,11 @@ extension TerminalTheme {
         selectionForeground: 0x000000,
     )
 
-    static func forPreference(_ preference: TerminalThemePreference, colorScheme: ColorScheme) -> TerminalTheme {
+    static func forPreference(_ preference: TerminalThemePreference, colorScheme: ColorScheme)
+        -> TerminalTheme
+    {
         switch preference {
-        case .def: // system
+        case .def:  // system
             return colorScheme == .dark ? ghosttyAppleSystemColors : ghosttyAppleSystemColorsLight
         case .rosePine:
             return colorScheme == .dark ? rosePine : rosePineDawn
