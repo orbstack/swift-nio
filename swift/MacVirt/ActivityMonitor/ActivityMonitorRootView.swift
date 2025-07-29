@@ -937,7 +937,7 @@ private class ActivityMonitorViewModel: ObservableObject {
             entry.children?.compactMap {
                 entryToItem(
                     entry: $0, now: now, vmModel: vmModel, newTrackedEntries: &newTrackedEntries)
-            } ?? []
+            }
 
         var entity: ActivityMonitorEntity?
         switch entry.entity {
