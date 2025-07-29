@@ -249,18 +249,18 @@ private class FileManagerOutlineDelegate: NSObject, NSOutlineViewDelegate, NSOut
             return TextFieldCellView(value: item.name, editable: true, image: item.icon)
         case Columns.modified:
             return TextFieldCellView(
-                value: item.modified.formatted(date: .abbreviated, time: .shortened), color: .secondaryLabelColor)
+                value: item.modified.formatted(date: .abbreviated, time: .shortened), secondary: true)
         case Columns.size:
             if item.type == .regular {
                 return TextFieldCellView(
                     value: item.size.formatted(.byteCount(style: .file)),
-                    color: .secondaryLabelColor)
+                    secondary: true)
             } else {
                 return nil
             }
         case Columns.type:
             return TextFieldCellView(
-                value: item.type.description, color: .secondaryLabelColor)
+                value: item.type.description, secondary: true)
         default:
             return nil
         }
@@ -367,30 +367,18 @@ private class FileManagerOutlineDelegate: NSObject, NSOutlineViewDelegate, NSOut
     }
 }
 
-private class TextFieldCellView: NSTableCellView {
-    init(value: String, editable: Bool = false, image: NSImage? = nil, color: NSColor? = nil) {
-        super.init(frame: .zero)
-
+func TextFieldCellView(value: String, editable: Bool = false, image: NSImage? = nil, secondary: Bool = false) -> NSHostingView<some View> {
+    return NSHostingView(rootView: HStack(spacing: 4) {
         if let image {
-            let imageView = NSImageView(frame: NSRect(x: 0, y: 0, width: 16, height: 16))
-            imageView.image = image
-            imageView.imageScaling = .scaleProportionallyUpOrDown
-            self.imageView = imageView
-            addSubview(imageView)
+            Image(nsImage: image)
+                .resizable()
+                .frame(width: 16, height: 16)
         }
 
-        let textField = NSTextField(labelWithString: value)
-        textField.isEditable = editable
-        if let color {
-            textField.textColor = color
-        }
-        self.textField = textField
-        addSubview(textField)
-    }
-
-    required init?(coder: NSCoder) {
-        fatalError("init(coder:) has not been implemented")
-    }
+        Text(value)
+            .if(secondary) { $0.foregroundStyle(.secondary) }
+            .frame(alignment: .leading)
+    }.frame(maxWidth: .infinity, alignment: .leading))
 }
 
 private func compareWithDesc<T: Comparable>(
