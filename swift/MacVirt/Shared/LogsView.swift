@@ -7,8 +7,8 @@ import Defaults
 import Foundation
 import SwiftUI
 
-private let maxLines = 5000
-private let maxChars = maxLines * 150  // avg line len - easier to do it like this
+let logsMaxLines = 5000
+private let maxChars = logsMaxLines * 150  // avg line len - easier to do it like this
 private let bottomScrollThreshold = 256.0
 private let fontSize = 12.5
 private let terminalLineHeight = 1.2
@@ -702,7 +702,7 @@ struct LogsView: View {
 
 
 extension View {
-    fileprivate func toolbar(forCommands commandModel: CommandViewModel, hasSidebar: Bool = false)
+    func toolbar(forCommands commandModel: CommandViewModel, hasSidebar: Bool = false)
         -> some View
     {
         toolbar {

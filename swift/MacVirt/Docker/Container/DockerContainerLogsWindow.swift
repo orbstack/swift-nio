@@ -32,7 +32,7 @@ struct DockerLogsContentView: View {
             {
                 LogsView(
                     cmdExe: AppConfig.dockerExe,
-                    args: ["logs", "-f", "-n", String(maxLines), containerId],
+                    args: ["logs", "-f", "-n", String(logsMaxLines), containerId],
                     extraArgs: [],
                     // trigger restart on start/stop state change
                     // don't trigger on starting/stopping/deleting/...
@@ -60,7 +60,7 @@ struct DockerLogsContentView: View {
                 // don't update id - it'll cause unnecessary logs restart
                 LogsView(
                     cmdExe: AppConfig.dockerExe,
-                    args: ["logs", "-f", "-n", String(maxLines), container.id],
+                    args: ["logs", "-f", "-n", String(logsMaxLines), container.id],
                     extraArgs: [],
                     extraState: [],
                     model: model
@@ -73,7 +73,7 @@ struct DockerLogsContentView: View {
             } else if case let .compose(composeProject) = cid {
                 LogsView(
                     cmdExe: AppConfig.dockerComposeExe,
-                    args: ["-p", composeProject, "logs", "-f", "-n", String(maxLines)],
+                    args: ["-p", composeProject, "logs", "-f", "-n", String(logsMaxLines)],
                     extraArgs: extraComposeArgs,
                     extraState: [],
                     model: model)

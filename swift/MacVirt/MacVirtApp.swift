@@ -391,6 +391,12 @@ struct MacVirtApp: App {
         }
         // remove entry point from Window menu
         .commandsRemoved()
+        // globally visible across all scenes!
+        .commands {
+            CommandGroup(after: .toolbar) {
+                Defaults.Toggle("Word Wrap", key: .logsWordWrap)
+            }
+        }
         .handlesExternalEvents(matching: ["docker/container-logs/"])
         .defaultSize(width: 800, height: 600)
 
