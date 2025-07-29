@@ -78,7 +78,7 @@ struct InspectorView: View {
     @Default(.selectedTab) private var selectedTab
 
     var body: some View {
-        VStack {
+        Group {
             switch selectedTab {
             case .dockerContainers:
                 let selection = navModel.inspectorSelection

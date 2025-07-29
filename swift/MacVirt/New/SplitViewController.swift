@@ -20,21 +20,25 @@ class SplitViewController: NSSplitViewController {
     init() {
         super.init(nibName: nil, bundle: nil)
 
+        itemA.minimumThickness = 160
+        itemA.maximumThickness = 250
+        itemA.preferredThicknessFraction = 0.2
+        itemA.holdingPriority = .defaultHigh
+
+        itemB.minimumThickness = 300
+        itemB.maximumThickness = 500
+        itemB.preferredThicknessFraction = 0.3
+
+        itemC.minimumThickness = 300
+        itemC.preferredThicknessFraction = 0.5
+
         addSplitViewItem(itemA)
         addSplitViewItem(itemB)
         addSplitViewItem(itemC)
 
-        itemA.minimumThickness = 160
-        itemA.maximumThickness = 250
-
-        itemB.minimumThickness = 250
-
-        itemC.minimumThickness = 300
-        itemC.preferredThicknessFraction = 0.3
-
         if let windowId = splitView.window?.identifier?.rawValue {
             // new save ID after changing to master-detail layout
-            splitView.autosaveName = "\(windowId) : SplitViewController2"
+            // splitView.autosaveName = "\(windowId) : SplitViewController2"
         }
     }
 
