@@ -161,7 +161,7 @@ class NewMainViewController: NSViewController {
 
     lazy var imagesImportButton = makeToolbarItem(
         itemIdentifier: .dockerImagesImport,
-        icon: "square.and.arrow.down",
+        icon: "plus",
         title: "Import",
         action: #selector(actionDockerImagesImport)
     )

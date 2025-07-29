@@ -135,6 +135,14 @@ struct CreateMachineView: View {
             }
 
             CreateButtonRow {
+                Button {
+                    importMachine()
+                } label: {
+                    Text("Import from File…")
+                }
+
+                Spacer()
+
                 HelpButton {
                     NSWorkspace.shared.open(URL(string: "https://orb.cx/ui-docs/machine-create")!)
                 }
@@ -193,4 +201,23 @@ struct CreateMachineView: View {
         }
     }
 
+    private func importMachine() {
+        let panel = NSOpenPanel()
+        panel.canChooseFiles = true
+        // ideally we can filter for .tar.zst but that's not possible :(
+        panel.allowedContentTypes = [UTType(filenameExtension: "zst", conformingTo: .data)!]
+        panel.canChooseDirectories = false
+        panel.canCreateDirectories = false
+        panel.message = "Select machine (.tar.zst) to import"
+
+        guard let window = windowHolder.window else { return }
+        panel.beginSheetModal(for: window) { result in
+            if result == .OK,
+                let url = panel.url
+            {
+                isPresented = false
+                vmModel.presentImportMachine = url
+            }
+        }
+    }
 }

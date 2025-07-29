@@ -44,7 +44,7 @@ extension NavTabId {
         case .dockerContainers:
             return [.dockerContainersNew, .flexibleSpace, .dockerContainersTabs, .flexibleSpace, .licenseBadge, .dockerContainersOpenWindow]
         case .dockerVolumes:
-            return [.dockerVolumesNew, .dockerVolumesImport, .flexibleSpace, .dockerVolumesTabs, .flexibleSpace, .licenseBadge, .dockerVolumesOpenWindow]
+            return [.dockerVolumesNew, .flexibleSpace, .dockerVolumesTabs, .flexibleSpace, .licenseBadge, .dockerVolumesOpenWindow]
         case .dockerImages:
             return [.dockerImagesImport, .flexibleSpace, .dockerImagesTabs, .flexibleSpace, .licenseBadge, .dockerImagesOpenWindow]
         case .dockerNetworks:
@@ -56,7 +56,7 @@ extension NavTabId {
             return [.k8sServicesFilter, .flexibleSpace, .k8sServicesTabs, .flexibleSpace, .licenseBadge, .k8sServicesOpenWindow]
 
         case .machines:
-            return [.machinesNew, .machinesImport, .flexibleSpace, .machinesTabs, .flexibleSpace, .licenseBadge, .machinesOpenInNewWindow]
+            return [.machinesNew, .flexibleSpace, .machinesTabs, .flexibleSpace, .licenseBadge, .machinesOpenInNewWindow]
 
         default:
             return [.flexibleSpace, .licenseBadge]

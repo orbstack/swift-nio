@@ -2,8 +2,10 @@
 // Created by Danny Lin on 2/5/23.
 //
 
+import AppKit
 import Foundation
 import SwiftUI
+import UniformTypeIdentifiers
 
 // min 2 chars, disallows hidden files (^.)
 private let dockerRestrictedNamePattern =
@@ -11,6 +13,7 @@ private let dockerRestrictedNamePattern =
 
 struct CreateVolumeView: View {
     @EnvironmentObject private var vmModel: VmViewModel
+    @StateObject private var windowHolder = WindowHolder()
 
     @State private var name = ""
 
@@ -52,6 +55,30 @@ struct CreateVolumeView: View {
             }
 
             CreateButtonRow {
+                Button {
+                    let panel = NSOpenPanel()
+                    panel.canChooseFiles = true
+                    // ideally we can filter for .tar.zst but that's not possible :(
+                    panel.allowedContentTypes = [UTType(filenameExtension: "zst", conformingTo: .data)!]
+                    panel.canChooseDirectories = false
+                    panel.canCreateDirectories = false
+                    panel.message = "Select volume (.tar.zst) to import"
+
+                    guard let window = windowHolder.window else { return }
+                    panel.beginSheetModal(for: window) { result in
+                        if result == .OK,
+                            let url = panel.url
+                        {
+                            isPresented = false
+                            vmModel.presentImportVolume = url
+                        }
+                    }
+                } label: {
+                    Text("Import from File…")
+                }
+
+                Spacer()
+
                 HelpButton {
                     NSWorkspace.shared.open(
                         URL(string: "https://orb.cx/docker-docs/volume-create")!)
@@ -73,5 +100,6 @@ struct CreateVolumeView: View {
             }
             isPresented = false
         }
+        .windowHolder(windowHolder)
     }
 }
