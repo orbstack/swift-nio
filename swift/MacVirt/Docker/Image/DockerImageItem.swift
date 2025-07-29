@@ -35,7 +35,8 @@ struct DockerImageItem: View, Equatable {
             VStack(alignment: .leading) {
                 Text(image.summary.userTag)
                     .font(.body)
-                    .truncationMode(.tail)
+                    // end of image tag is more important
+                    .truncationMode(.head)
                     .lineLimit(1)
 
                 Text(

@@ -70,7 +70,8 @@ struct DockerContainerItem: View, Equatable, BaseDockerContainerItem {
                     Text(container.image)
                         .font(.subheadline)
                         .foregroundColor(.secondary)
-                        .truncationMode(.tail)
+                        // end of image tag is more important
+                        .truncationMode(.head)
                         .lineLimit(1)
                 }
             }
