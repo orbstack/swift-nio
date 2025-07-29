@@ -198,7 +198,7 @@ struct InspectorView: View {
             // SwiftUI inspectorView affordance
             default:
                 if let view = navModel.inspectorView {
-                    view.value
+                    view.value()
                 } else {
                     EmptyView()
                 }
@@ -232,10 +232,10 @@ struct UniqueEquatable<T>: Equatable {
 }
 
 struct InspectorViewKey: PreferenceKey {
-    static var defaultValue: UniqueEquatable<AnyView>?
+    static var defaultValue: UniqueEquatable<() -> AnyView>?
 
     static func reduce(
-        value: inout UniqueEquatable<AnyView>?, nextValue: () -> UniqueEquatable<AnyView>?
+        value: inout UniqueEquatable<() -> AnyView>?, nextValue: () -> UniqueEquatable<() -> AnyView>?
     ) {
         let nextVal = nextValue()
         if let nextVal {
@@ -249,10 +249,10 @@ extension View {
         preference(key: InspectorSelectionKey.self, value: selection as Set<AnyHashable>)
     }
 
-    func inspectorView<Content: View>(@ViewBuilder content: () -> Content) -> some View {
+    func inspectorView<Content: View>(@ViewBuilder content: @escaping () -> Content) -> some View {
         preference(
             key: InspectorViewKey.self,
-            value: UniqueEquatable(value: AnyView(content()))
+            value: UniqueEquatable(value: { AnyView(content()) })
         )
     }
 }

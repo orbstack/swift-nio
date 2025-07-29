@@ -8,7 +8,7 @@ import SwiftUI
 
 class MainNavViewModel: ObservableObject {
     @Published var inspectorSelection = Set<AnyHashable>()
-    @Published var inspectorView: UniqueEquatable<AnyView>?
+    @Published var inspectorView: UniqueEquatable<() -> AnyView>?
 
     let expandInspector = PassthroughSubject<Void, Never>()
 }
