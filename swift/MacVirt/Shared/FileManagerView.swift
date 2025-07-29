@@ -54,6 +54,9 @@ private struct FileManagerNSView: NSViewRepresentable {
 
         view.sortDescriptors = [NSSortDescriptor(key: Columns.name, ascending: true)]
 
+        view.target = delegate
+        view.doubleAction = #selector(FileManagerOutlineDelegate.onDoubleClick)
+
         let colName = NSTableColumn(identifier: .init(Columns.name))
         colName.title = "Name"
         colName.isEditable = true
@@ -125,7 +128,6 @@ private class FileManagerOutlineView: NSOutlineView, QLPreviewPanelDataSource {
     override func endPreviewPanelControl(_ panel: QLPreviewPanel!) {
         panel.dataSource = nil
     }
-
 }
 
 private class FileManagerPreviewItem: NSObject, QLPreviewItem {
@@ -247,13 +249,19 @@ private class FileManagerOutlineDelegate: NSObject, NSOutlineViewDelegate, NSOut
             return TextFieldCellView(value: item.name, editable: true, image: item.icon)
         case Columns.modified:
             return TextFieldCellView(
-                value: item.modified.formatted(date: .abbreviated, time: .shortened))
+                value: item.modified.formatted(date: .abbreviated, time: .shortened), color: .secondaryLabelColor)
         case Columns.size:
-            return TextFieldCellView(value: item.size.formatted(.byteCount(style: .file)))
+            if item.type == .regular {
+                return TextFieldCellView(
+                    value: item.size.formatted(.byteCount(style: .file)),
+                    color: .secondaryLabelColor)
+            } else {
+                return nil
+            }
         case Columns.type:
-            return TextFieldCellView(value: item.type.description)
+            return TextFieldCellView(
+                value: item.type.description, color: .secondaryLabelColor)
         default:
-            print("unknown col")
             return nil
         }
     }
@@ -312,9 +320,7 @@ private class FileManagerOutlineDelegate: NSObject, NSOutlineViewDelegate, NSOut
     //    }
 
     func outlineViewItemWillExpand(_ notification: Notification) {
-        if let view = notification.object as? NSOutlineView,
-            let node = notification.userInfo?["NSObject"] as? FileItem
-        {
+        if let node = notification.userInfo?["NSObject"] as? FileItem {
             Task {
                 do {
                     try await expandItem(item: node)
@@ -343,19 +349,42 @@ private class FileManagerOutlineDelegate: NSObject, NSOutlineViewDelegate, NSOut
             collapseItem(item: node)
         }
     }
+
+    @objc func onDoubleClick(_ sender: NSOutlineView) {
+        // expand or collapse row
+        let row = sender.clickedRow
+        guard row != -1 else {
+            return
+        }
+
+        let item = sender.item(atRow: row) as? FileItem
+        guard let item else { return }
+        if sender.isItemExpanded(item) {
+            sender.animator().collapseItem(item)
+        } else {
+            sender.animator().expandItem(item)
+        }
+    }
 }
 
 private class TextFieldCellView: NSTableCellView {
-    init(value: String, editable: Bool = false, image: NSImage? = nil) {
+    init(value: String, editable: Bool = false, image: NSImage? = nil, color: NSColor? = nil) {
         super.init(frame: .zero)
 
         if let image {
-            let imageView = NSImageView(image: image)
+            let imageView = NSImageView(frame: NSRect(x: 0, y: 0, width: 16, height: 16))
+            imageView.image = image
+            imageView.imageScaling = .scaleProportionallyUpOrDown
+            self.imageView = imageView
             addSubview(imageView)
         }
 
         let textField = NSTextField(labelWithString: value)
         textField.isEditable = editable
+        if let color {
+            textField.textColor = color
+        }
+        self.textField = textField
         addSubview(textField)
     }
 
