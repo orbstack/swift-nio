@@ -700,7 +700,6 @@ struct LogsView: View {
     }
 }
 
-
 extension View {
     func toolbar(forCommands commandModel: CommandViewModel, hasSidebar: Bool = false)
         -> some View
