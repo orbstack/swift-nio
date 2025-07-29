@@ -32,48 +32,43 @@ struct DockerImageItem: View, Equatable {
         let isInUse = isInUse()
 
         HStack {
-            HStack {
-                VStack(alignment: .leading) {
-                    Text(image.summary.userTag)
-                        .font(.body)
-                        .truncationMode(.tail)
-                        .lineLimit(1)
+            VStack(alignment: .leading) {
+                Text(image.summary.userTag)
+                    .font(.body)
+                    .truncationMode(.tail)
+                    .lineLimit(1)
 
-                    Text(
-                        "\(image.summary.formattedSize), created \(image.summary.formattedCreated)"
-                    )
-                    .font(.subheadline)
-                    .foregroundColor(.secondary)
-                }
+                Text(
+                    "\(image.summary.formattedSize), \(image.summary.formattedCreated)"
+                )
+                .font(.subheadline)
+                .foregroundColor(.secondary)
             }
 
             Spacer()
 
-            if !AppConfig.nativeArchs.contains(image.full.architecture) {
-                Button {
-                    showEmulationAlert = true
-                } label: {
-                    HStack(spacing: 4) {
-                        Image(systemName: "exclamationmark.triangle")
-                        Text(image.full.architecture)
-                            .font(.subheadline)
-                    }
-                    // TODO: this is bad...
-                    .foregroundStyle(.black.opacity(0.8))
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 4)
-                    // TODO: composite onto bg so list highlight doesn't affect it
-                    .background(SystemColors.desaturate(Color(.systemYellow)), in: .capsule)
-                }
-                .buttonStyle(.plain)
-                .help("Runs slower due to emulation")
-                .akAlert(isPresented: $showEmulationAlert) {
-                    "Runs slower due to emulation"
-                    "This image was built for a different architecture (\(image.full.architecture)), so it needs to be emulated on your machine. This means it will run slower and may have more bugs."
-                }
-            }
-
             ProgressButtonRow {
+                if !AppConfig.nativeArchs.contains(image.full.architecture) {
+                    Button {
+                        showEmulationAlert = true
+                    } label: {
+                        Text(image.full.architecture)
+                            .font(.caption)
+                        // TODO: this is bad...
+                        .foregroundStyle(.black.opacity(0.8))
+                        .padding(.horizontal, 4)
+                        .padding(.vertical, 2)
+                        // TODO: composite onto bg so list highlight doesn't affect it
+                        .background(SystemColors.desaturate(Color(.systemYellow)), in: .capsule)
+                    }
+                    .buttonStyle(.plain)
+                    .help("Runs slower due to emulation")
+                    .akAlert(isPresented: $showEmulationAlert) {
+                        "Runs slower due to emulation"
+                        "This image was built for a different architecture (\(image.full.architecture)), so it needs to be emulated on your machine. This means it will run slower and may have more bugs."
+                    }
+                }
+
                 ProgressIconButton(
                     systemImage: "trash.fill",
                     actionInProgress: actionInProgress,
