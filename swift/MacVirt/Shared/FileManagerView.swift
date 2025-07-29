@@ -103,9 +103,9 @@ private class FileManagerOutlineView: NSOutlineView, QLPreviewPanelDataSource {
             QLPreviewPanel.shared()?.makeKeyAndOrderFront(nil)
         } else if event.modifierFlags.contains(.command) {
             if event.charactersIgnoringModifiers == "c" {
-                copyItem()
+                copyAction(actionIndexes: selectedRowIndexes)
             } else if event.charactersIgnoringModifiers == "v" {
-                pasteItem()
+                pasteAction(actionIndexes: selectedRowIndexes)
             } else {
                 super.keyDown(with: event)
             }
@@ -138,50 +138,61 @@ private class FileManagerOutlineView: NSOutlineView, QLPreviewPanelDataSource {
     }
 
     override func menu(for event: NSEvent) -> NSMenu? {
-        let point = convert(event.locationInWindow, from: nil)
-        let row = row(at: point)
+        // trigger border highlight
+        super.menu(for: event)
 
-        if row != -1 && !selectedRowIndexes.contains(row) {
-            selectRowIndexes(IndexSet(integer: row), byExtendingSelection: false)
-        }
+        let actionIndexes = selectedRowIndexes.contains(clickedRow) ? [clickedRow] : selectedRowIndexes
+        return RIMenu {
+            if actionIndexes.count >= 1 {
+                RIMenuItem("Open") { [self] in
+                    for index in actionIndexes {
+                        if let item = item(atRow: index) as? FileItem {
+                            NSWorkspace.shared.open(URL(filePath: item.path))
+                        }
+                    }
+                }
 
-        let menu = NSMenu(title: "File")
+                RIMenuItem.separator()
 
-        if selectedRowIndexes.count >= 1 {
-            let copyItem = NSMenuItem(
-                title: "Copy", action: #selector(copyItem), keyEquivalent: "c")
-            menu.addItem(copyItem)
-        }
+                RIMenuItem("Copy") {
+                    self.copyAction(actionIndexes: actionIndexes)
+                }
+            }
 
-        if selectedRowIndexes.count <= 1 {
-            let pasteItem = NSMenuItem(
-                title: "Paste", action: #selector(pasteItem), keyEquivalent: "v")
-            menu.addItem(pasteItem)
-        }
+            if actionIndexes.count <= 1 {
+                RIMenuItem("Paste") {
+                    self.pasteAction(actionIndexes: actionIndexes)
+                }
+            }
 
-        if selectedRowIndexes.count == 1 {
-            let openItem = NSMenuItem(
-                title: "Open in Finder", action: #selector(openInFinderItem), keyEquivalent: "")
-            menu.addItem(openItem)
-        }
+            RIMenuItem.separator()
 
-        return menu
+            if actionIndexes.count == 1 {
+                RIMenuItem("Show in Finder") { [self] in
+                    for index in actionIndexes {
+                        if let item = item(atRow: index) as? FileItem {
+                            NSWorkspace.shared.selectFile(item.path, inFileViewerRootedAtPath: item.path)
+                        }
+                    }
+                }
+            }
+        }.menu
     }
 
-    @objc func copyItem() {
-        let items = Array(selectedRowIndexes).map { item(atRow: $0) as! FileItem }
-
+    private func copyAction(actionIndexes: IndexSet) {
         let pasteboard = NSPasteboard.general
         pasteboard.clearContents()
-        for item in items {
-            pasteboard.writeObjects([URL(filePath: item.path) as NSURL])
+        for index in actionIndexes {
+            if let item = item(atRow: index) as? FileItem {
+                pasteboard.writeObjects([URL(filePath: item.path) as NSURL])
+            }
         }
     }
 
-    @objc func pasteItem() {
+    private func pasteAction(actionIndexes: IndexSet) {
         var destinationPath: URL
-        if selectedRowIndexes.count == 1 {
-            let selectedFile = item(atRow: selectedRowIndexes.first!) as! FileItem
+        if actionIndexes.count == 1 {
+            let selectedFile = item(atRow: actionIndexes.first!) as! FileItem
             destinationPath = URL(filePath: selectedFile.path)
             if selectedFile.type != .directory {
                 destinationPath = destinationPath.deletingLastPathComponent()
