@@ -14,6 +14,7 @@ struct GeneralSettingsView: View {
 
     @Default(.globalShowMenubarExtra) private var showMenubarExtra
     @Default(.terminalDefaultApp) private var terminalDefaultApp
+    @Default(.terminalTheme) private var terminalTheme
 
     var body: some View {
         SettingsForm {
@@ -40,6 +41,13 @@ struct GeneralSettingsView: View {
             }
 
             Section {
+                Picker(selection: $terminalTheme) {
+                    Text("System").tag(TerminalThemePreference.def)
+                    Text("Rosé Pine").tag(TerminalThemePreference.rosePine)
+                } label: {
+                    Text("Theme")
+                }
+
                 Picker(selection: $terminalDefaultApp) {
                     Text("Last used").tag(String?(nil))
 

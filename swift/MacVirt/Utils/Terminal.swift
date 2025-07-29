@@ -6,6 +6,7 @@ import Combine
 import Foundation
 import SwiftTerm
 import SwiftUI
+import Defaults
 
 class TerminalViewModel: ObservableObject {
     @Published var windowSize = CGSize.zero
@@ -73,6 +74,7 @@ class LocalProcessTerminalController: NSViewController {
 
 struct TerminalTabView: View {
     @Environment(\.colorScheme) var colorScheme
+    @Default(.terminalTheme) var terminalTheme
 
     @StateObject private var terminalModel = TerminalViewModel()
 
@@ -87,7 +89,7 @@ struct TerminalTabView: View {
     }
 
     var body: some View {
-        let theme = colorScheme == .dark ? TerminalTheme.defaultDark : TerminalTheme.defaultLight
+        let theme = TerminalTheme.forPreference(terminalTheme, colorScheme: colorScheme)
 
         SwiftUILocalProcessTerminal(
             executable: executable, args: args, env: env, model: terminalModel, theme: theme

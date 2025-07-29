@@ -1,5 +1,6 @@
 import SwiftTerm
 import AppKit
+import SwiftUI
 
 struct TerminalTheme: Equatable, Hashable {
     let palette: [SwiftTerm.Color]
@@ -240,4 +241,13 @@ extension TerminalTheme {
         selectionBackground: 0xe7cbf5,
         selectionForeground: 0x000000,
     )
+
+    static func forPreference(_ preference: TerminalThemePreference, colorScheme: ColorScheme) -> TerminalTheme {
+        switch preference {
+        case .def: // system
+            return colorScheme == .dark ? ghosttyAppleSystemColors : ghosttyAppleSystemColorsLight
+        case .rosePine:
+            return colorScheme == .dark ? rosePine : rosePineDawn
+        }
+    }
 }

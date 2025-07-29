@@ -240,6 +240,11 @@ enum DockerContainerSortDescriptor: String, Defaults.Serializable, CaseIterable,
     }
 }
 
+enum TerminalThemePreference: String, Defaults.Serializable {
+    case def = "default"
+    case rosePine = "rosePine"
+}
+
 extension Defaults.Keys {
     // shared with swext in vmgr, which may have diff bundle ID
     private static let suite = getDefaultsSuite()
@@ -306,6 +311,8 @@ extension Defaults.Keys {
     // nil means last used
     static let terminalDefaultApp = Key<String?>(
         "terminal_defaultApp", default: nil, suite: suite)
+    static let terminalTheme = Key<TerminalThemePreference>(
+        "terminal_theme", default: .def, suite: suite)
 
     // login
     static let drmLastState = Key<DrmState?>("drm_lastState", default: nil, suite: suite)
