@@ -47,21 +47,24 @@ private struct FileManagerNSView: NSViewRepresentable {
             NSFilePromiseReceiver.readableDraggedTypes.map { NSPasteboard.PasteboardType($0) })
         view.registerForDraggedTypes([.nodeRowPasteboardType, .fileURL])
 
+        // dummy menu to trigger highlight
         view.menu = NSMenu()
         view.headerView = NSTableHeaderView()
         view.usesAlternatingRowBackgroundColors = true
         view.allowsMultipleSelection = true
+        view.autoresizesOutlineColumn = false
 
         view.sortDescriptors = [NSSortDescriptor(key: Columns.name, ascending: true)]
 
         view.target = delegate
         view.doubleAction = #selector(FileManagerOutlineDelegate.onDoubleClick)
+        view.columnAutoresizingStyle = .firstColumnOnlyAutoresizingStyle
 
         let colName = NSTableColumn(identifier: .init(Columns.name))
         colName.title = "Name"
         colName.isEditable = true
         colName.sortDescriptorPrototype = NSSortDescriptor(key: Columns.name, ascending: true)
-        colName.width = 250
+        colName.minWidth = 100
         view.addTableColumn(colName)
 
         let colModified = NSTableColumn(identifier: .init(Columns.modified))
@@ -69,21 +72,27 @@ private struct FileManagerNSView: NSViewRepresentable {
         colModified.isEditable = false
         colModified.sortDescriptorPrototype = NSSortDescriptor(
             key: Columns.modified, ascending: false)
-        colModified.width = 175
+        colModified.minWidth = 80
+        colModified.width = 160
+        colModified.maxWidth = 200
         view.addTableColumn(colModified)
 
         let colSize = NSTableColumn(identifier: .init(Columns.size))
         colSize.title = "Size"
         colSize.isEditable = false
         colSize.sortDescriptorPrototype = NSSortDescriptor(key: Columns.size, ascending: false)
-        colSize.width = 100
+        colSize.minWidth = 30
+        colSize.width = 70
+        colSize.maxWidth = 120
         view.addTableColumn(colSize)
 
         let colType = NSTableColumn(identifier: .init(Columns.type))
         colType.title = "Kind"
         colType.isEditable = false
         colType.sortDescriptorPrototype = NSSortDescriptor(key: Columns.type, ascending: false)
-        colType.width = 100
+        colType.minWidth = 30
+        colType.width = 70
+        colType.maxWidth = 120
         view.addTableColumn(colType)
 
         let scrollView = NSScrollView()
@@ -641,7 +650,7 @@ private enum FileItemType: Comparable {
         case .character: return "Character device"
         case .fifo: return "FIFO"
         case .directory: return "Folder"
-        case .symlink: return "Symbolic link"
+        case .symlink: return "Symlink"
         case .socket: return "Socket"
         case .whiteout: return "Whiteout"
         case .unknown: return "Unknown"
