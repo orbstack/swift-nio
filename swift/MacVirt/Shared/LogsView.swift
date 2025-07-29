@@ -688,13 +688,13 @@ struct LogsView: View {
             .onDisappear {
                 model.stop()
             }
-            .onChange(of: args) { newArgs in
+            .onChange(of: args) { _, newArgs in
                 model.start(cmdExe: cmdExe, args: newArgs + extraArgs)
             }
-            .onChange(of: extraArgs) { newExtraArgs in
+            .onChange(of: extraArgs) { _, newExtraArgs in
                 model.start(cmdExe: cmdExe, args: args + newExtraArgs, clearAndRestart: true)
             }
-            .onChange(of: extraState) { _ in
+            .onChange(of: extraState) { _, _ in
                 model.start(cmdExe: cmdExe, args: args + extraArgs, clearAndRestart: true)
             }
     }
