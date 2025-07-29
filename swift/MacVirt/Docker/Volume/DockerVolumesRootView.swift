@@ -41,9 +41,7 @@ struct DockerVolumesRootView: View {
                             .environmentObject(windowTracker)
                             .environmentObject(actionTracker)
                     }
-                    .if(totalSizeFormatted != nil) { list in
-                        list.navigationSubtitle(totalSizeFormatted ?? "")
-                    }
+                    .navigationSubtitle(totalSizeFormatted ?? "")
                     .onAppear {
                         maybeRefreshDf()
                     }
