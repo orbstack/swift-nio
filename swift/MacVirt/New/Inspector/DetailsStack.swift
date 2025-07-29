@@ -128,6 +128,8 @@ struct DetailsKvTableSection<Key: View, Value: View>: View {
     @ViewBuilder private let key: (KeyValueItem) -> Key
     @ViewBuilder private let value: (KeyValueItem) -> Value
 
+    @State private var selection: Set<KeyValueItem.ID> = []
+
     init(
         _ label: String, items: [KeyValueItem],
         @ViewBuilder key: @escaping (KeyValueItem) -> Key = { Text($0.key) },
@@ -141,7 +143,7 @@ struct DetailsKvTableSection<Key: View, Value: View>: View {
 
     var body: some View {
         Section {
-            Table(items) {
+            Table(items, selection: $selection) {
                 TableColumn("Key") { item in
                     key(item)
                 }
@@ -151,6 +153,10 @@ struct DetailsKvTableSection<Key: View, Value: View>: View {
             }
         } header: {
             Text(label)
+        }
+        .onCopyCommand {
+            let selectedItems = selection.compactMap { id in items.first { $0.id == id } }
+            return [NSItemProvider(object: selectedItems.map { "\($0.key)=\($0.value)" }.joined(separator: "\n") as NSString)]
         }
     }
 }
