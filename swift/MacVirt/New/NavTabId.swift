@@ -16,13 +16,12 @@ extension NavTabId {
             ]
         case .dockerVolumes:
             return [
-                .dockerVolumesSort, .dockerVolumesImport, .dockerVolumesNew,
-                .searchItem,
+                .dockerVolumesSort, .searchItem,
             ]
         case .dockerImages:
-            return [.dockerImagesSort, .dockerImagesImport, .searchItem]
+            return [.dockerImagesSort, .searchItem]
         case .dockerNetworks:
-            return [.dockerNetworksSort, .dockerNetworksNew, .searchItem]
+            return [.dockerNetworksSort, .searchItem]
 
         case .k8sPods:
             return [.k8sEnable, .k8sPodsFilter, .searchItem]
@@ -30,7 +29,7 @@ extension NavTabId {
             return [.k8sServicesFilter, .searchItem]
 
         case .machines:
-            return [.machinesImport, .machinesNew, .searchItem]
+            return [.searchItem]
 
         case .cli:
             return [.cliHelp]
@@ -43,24 +42,24 @@ extension NavTabId {
     var trailingItemIdentifiers: [NSToolbarItem.Identifier] {
         switch self {
         case .dockerContainers:
-            return [.dockerContainersTabs, .flexibleSpace, .dockerContainersOpenWindow]
+            return [.dockerContainersNew, .flexibleSpace, .dockerContainersTabs, .flexibleSpace, .licenseBadge, .dockerContainersOpenWindow]
         case .dockerVolumes:
-            return [.dockerVolumesTabs, .flexibleSpace, .dockerVolumesOpenWindow]
+            return [.dockerVolumesNew, .dockerVolumesImport, .flexibleSpace, .dockerVolumesTabs, .flexibleSpace, .licenseBadge, .dockerVolumesOpenWindow]
         case .dockerImages:
-            return [.dockerImagesTabs, .flexibleSpace, .dockerImagesOpenWindow]
+            return [.dockerImagesImport, .flexibleSpace, .dockerImagesTabs, .flexibleSpace, .licenseBadge, .dockerImagesOpenWindow]
         case .dockerNetworks:
-            return [.dockerNetworksTabs, .flexibleSpace, .dockerNetworksOpenWindow]
+            return [.dockerNetworksNew, .flexibleSpace, .dockerNetworksTabs, .flexibleSpace, .licenseBadge, .dockerNetworksOpenWindow]
 
         case .k8sPods:
-            return [.k8sPodsTabs, .flexibleSpace, .k8sPodsOpenWindow]
+            return [.k8sEnable, .flexibleSpace, .k8sPodsTabs, .flexibleSpace, .licenseBadge, .k8sPodsOpenWindow]
         case .k8sServices:
-            return [.k8sServicesTabs, .flexibleSpace, .k8sServicesOpenWindow]
+            return [.k8sServicesFilter, .flexibleSpace, .k8sServicesTabs, .flexibleSpace, .licenseBadge, .k8sServicesOpenWindow]
 
         case .machines:
-            return [.machinesTabs, .flexibleSpace, .machinesOpenInNewWindow]
+            return [.machinesNew, .machinesImport, .flexibleSpace, .machinesTabs, .flexibleSpace, .licenseBadge, .machinesOpenInNewWindow]
 
         default:
-            return []
+            return [.flexibleSpace, .licenseBadge]
         }
     }
 }
@@ -227,8 +226,8 @@ extension NSToolbarItem.Identifier {
     static let leadingItems: [NSToolbarItem.Identifier] =
         [.toggleSidebar, .sidebarTrackingSeparator]
     static let trailingItemsStart: [NSToolbarItem.Identifier] =
-        [.contentListTrackingSeparator, .licenseBadge, .flexibleSpace]
+        [.contentListTrackingSeparator]
     static let trailingItemsEnd: [NSToolbarItem.Identifier] =
         // macOS 14 .toggleInspector starts in disabled state, until a selection is made. custom one works
-        [.toggleInspectorButton]
+        []
 }
