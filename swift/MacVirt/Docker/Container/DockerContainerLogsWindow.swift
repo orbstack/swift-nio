@@ -40,9 +40,7 @@ struct DockerLogsContentView: View {
                     model: model
                 )
                 .if(standalone) {
-                    $0
-                        .navigationTitle(container.userName)
-                        .navigationSubtitle(WindowTitles.containerLogsBase)
+                    $0.navigationTitle(WindowTitles.containerLogs(container.userName))
                 }
                 .onAppear {
                     // save name so we can keep going after container is recreated
@@ -66,9 +64,7 @@ struct DockerLogsContentView: View {
                     model: model
                 )
                 .if(standalone) {
-                    $0
-                        .navigationTitle(container.userName)
-                        .navigationSubtitle(WindowTitles.containerLogsBase)
+                    $0.navigationTitle(WindowTitles.containerLogs(container.userName))
                 }
             } else if case let .compose(composeProject) = cid {
                 LogsView(

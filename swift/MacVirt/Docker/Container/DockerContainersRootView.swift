@@ -28,7 +28,7 @@ struct ComposeGroup: Hashable, Equatable {
         } else {
             // find window by title and bring to front
             for window in NSApp.windows {
-                if window.title == project && window.subtitle == WindowTitles.projectLogsBase {
+                if window.title == WindowTitles.projectLogs(project) {
                     window.makeKeyAndOrderFront(nil)
                     break
                 }

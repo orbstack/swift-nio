@@ -389,6 +389,7 @@ struct MacVirtApp: App {
                 .environmentObject(vmModel)
                 .environmentObject(windowTracker)
         }
+        .windowToolbarStyle(.unifiedCompact)
         // remove entry point from Window menu
         .commandsRemoved()
         // globally visible across all scenes!
@@ -405,6 +406,7 @@ struct MacVirtApp: App {
                 .environmentObject(vmModel)
                 .environmentObject(windowTracker)
         }
+        .windowToolbarStyle(.unifiedCompact)
         // remove entry point from Window menu
         .commandsRemoved()
         .handlesExternalEvents(matching: ["docker/project-logs/"])
@@ -415,6 +417,7 @@ struct MacVirtApp: App {
                 .environmentObject(vmModel)
                 .environmentObject(windowTracker)
         }
+        .windowToolbarStyle(.unifiedCompact)
         // remove entry point from Window menu
         .commandsRemoved()
         .handlesExternalEvents(matching: ["k8s/pod-logs/"])

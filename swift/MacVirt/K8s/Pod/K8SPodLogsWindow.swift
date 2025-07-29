@@ -24,8 +24,7 @@ struct K8SLogsContentView: View {
                     extraState: [],
                     model: model
                 )
-                .navigationTitle(name)
-                .navigationSubtitle(WindowTitles.podLogsBase)
+                .navigationTitle(WindowTitles.podLogs(name))
             } else {
                 ContentUnavailableViewCompat(
                     "Pod Removed", systemImage: "trash", desc: "No logs available.")
@@ -124,8 +123,8 @@ struct K8SPodLogsWindow: View {
         .onAppear {
             selection = savedSelection
         }
-        .onChange(of: selection) {
-            savedSelection = $0
+        .onChange(of: selection) { _, selection in
+            savedSelection = selection
         }
         .toolbar(forCommands: commandModel, hasSidebar: true)
     }
