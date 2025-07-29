@@ -128,6 +128,44 @@ private class FileManagerOutlineView: NSOutlineView, QLPreviewPanelDataSource {
     override func endPreviewPanelControl(_ panel: QLPreviewPanel!) {
         panel.dataSource = nil
     }
+
+    override func menu(for event: NSEvent) -> NSMenu? {
+        let point = convert(event.locationInWindow, from: nil)
+        let row = row(at: point)
+        guard let _ = item(atRow: row) as? FileItem else { return nil }
+
+        if !selectedRowIndexes.contains(row) {
+            selectRowIndexes(IndexSet(integer: row), byExtendingSelection: false)
+        }
+
+        let menu = NSMenu(title: "File")
+        
+        let copyItem = NSMenuItem(title: "Copy", action: #selector(copyItem), keyEquivalent: "c")
+        menu.addItem(copyItem)
+        
+        if selectedRowIndexes.count == 1 {
+            let openItem = NSMenuItem(title: "Open in Finder", action: #selector(openInFinderItem), keyEquivalent: "")
+            menu.addItem(openItem)
+        }
+        
+        return menu
+    }
+
+    @objc func copyItem() {
+        let items = Array(selectedRowIndexes).map { item(atRow: $0) as! FileItem }
+
+        let pasteboard = NSPasteboard.general
+        pasteboard.clearContents()
+        for item in items {
+            pasteboard.writeObjects([URL(filePath: item.path) as NSURL])
+        }
+    }
+
+    @objc func openInFinderItem() {
+        // openInFinderItem is only called if a single item is selected
+        let item = item(atRow: selectedRowIndexes.first!) as! FileItem
+        NSWorkspace.shared.open(URL(filePath: item.path))
+    }
 }
 
 private class FileManagerPreviewItem: NSObject, QLPreviewItem {
