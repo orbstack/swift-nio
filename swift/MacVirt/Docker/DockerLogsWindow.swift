@@ -983,7 +983,7 @@ extension View {
 }
 
 // TODO: move to K8s/
-private struct K8SLogsContentView: View {
+struct K8SLogsContentView: View {
     @EnvironmentObject private var vmModel: VmViewModel
     @EnvironmentObject private var commandModel: CommandViewModel
     @StateObject private var model = LogsViewModel()

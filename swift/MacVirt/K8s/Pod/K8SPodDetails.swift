@@ -39,22 +39,6 @@ struct K8SPodDetails: View {
                 }
             }
 
-            DetailsButtonSection {
-                DetailsButton {
-                    pod.showLogs(windowTracker: windowTracker)
-                } label: {
-                    Label("Logs", systemImage: "doc.text.magnifyingglass")
-                }
-
-                if isRunning {
-                    DetailsButton {
-                        pod.openInTerminal()
-                    } label: {
-                        Label("Terminal", systemImage: "terminal")
-                    }
-                }
-            }
-
             if pod.status.containerStatuses?.isEmpty == false {
                 DetailsListSection("Containers") {
                     ForEach(pod.status.containerStatuses ?? []) { container in

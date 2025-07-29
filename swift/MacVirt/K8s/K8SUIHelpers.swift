@@ -49,15 +49,14 @@ extension K8SPod {
         }
     }
 
+    var terminalArgs: [String] {
+        ["exec", "--context", K8sConstants.context, "-it", "-n", namespace, "pod/\(name)", "--", "sh"]
+    }
+
     func openInTerminal() {
         Task {
             do {
-                try await openTerminal(
-                    AppConfig.kubectlExe,
-                    [
-                        "exec", "--context", K8sConstants.context, "-it", "-n", namespace,
-                        "pod/\(name)", "--", "sh",
-                    ])
+                try await openTerminal(AppConfig.kubectlExe, terminalArgs)
             } catch {
                 NSLog("Open terminal failed: \(error)")
             }

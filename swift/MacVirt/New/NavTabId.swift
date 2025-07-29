@@ -148,11 +148,17 @@ enum NetworkTabId: CaseIterable, CustomStringConvertible {
 
 enum PodsTabId: CaseIterable, CustomStringConvertible {
     case info
+    case logs
+    case terminal
 
     var description: String {
         switch self {
         case .info:
             return "Info"
+        case .logs:
+            return "Logs"
+        case .terminal:
+            return "Terminal"
         }
     }
 }

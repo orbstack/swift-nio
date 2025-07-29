@@ -166,6 +166,10 @@ struct InspectorView: View {
                     switch model.podsTab {
                     case .info:
                         K8SPodDetails(pod: $0)
+                    case .logs:
+                        K8SPodLogsTab(pod: $0)
+                    case .terminal:
+                        K8SPodTerminalTab(pod: $0)
                     }
                 }
             case .k8sServices:
