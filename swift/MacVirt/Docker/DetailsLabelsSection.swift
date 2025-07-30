@@ -11,6 +11,7 @@ struct DetailsLabelsSection: View {
         DetailsKvTableSection("Labels", items: sortedLabels) { item in
             Text(highlightLabel(key: item.key))
                 .help(item.key)
+                .truncationMode(.middle)
         } value: { item in
             CopyableText(item.value)
                 .help(item.value)
