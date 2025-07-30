@@ -33,6 +33,7 @@ struct DockerNetworkItem: View, Equatable {
                         .font(.body)
                         .truncationMode(.tail)
                         .lineLimit(1)
+                        .help(network.name)
 
                     if let ipamConfig = network.ipam?.config?.first {
                         Text(ipamConfig.subnet)

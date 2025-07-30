@@ -35,11 +35,13 @@ struct DockerImageItem: View, Equatable {
             DockerImageIcon(image: image)
 
             VStack(alignment: .leading) {
-                Text(image.summary.userTag)
+                let userTag = image.summary.userTag
+                Text(userTag)
                     .font(.body)
                     // end of image tag is more important
                     .truncationMode(.head)
                     .lineLimit(1)
+                    .help(userTag)
 
                 Text(
                     "\(image.summary.formattedSize), \(image.summary.formattedCreated)"

@@ -79,6 +79,7 @@ struct K8SPodItemView: View, Equatable, BaseK8SResourceItem {
                          .foregroundColor(.secondary)
                          .truncationMode(.tail)
                          .lineLimit(1)
+                         .help(pod.image)
                       */
                 }
                 .opacity((state == .loading || state == .completed) ? 0.5 : 1)

@@ -50,6 +50,7 @@ struct K8SServiceItemView: View, Equatable, BaseK8SResourceItem {
                          .foregroundColor(.secondary)
                          .truncationMode(.tail)
                          .lineLimit(1)
+                         .help(service.image)
                       */
                 }
             }

@@ -55,6 +55,7 @@ struct DockerContainerItem: View, Equatable, BaseDockerContainerItem {
                         // end of image tag is more important
                         .truncationMode(.head)
                         .lineLimit(1)
+                        .help(container.image)
                 }
             }
             .opacity(container.running ? 1 : 0.5)

@@ -10,8 +10,10 @@ struct DetailsLabelsSection: View {
 
         DetailsKvTableSection("Labels", items: sortedLabels) { item in
             Text(highlightLabel(key: item.key))
+                .help(item.key)
         } value: { item in
-            Text(item.value)
+            CopyableText(item.value)
+                .help(item.value)
         }
     }
 }

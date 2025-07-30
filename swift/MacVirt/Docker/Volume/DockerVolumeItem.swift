@@ -42,6 +42,7 @@ struct DockerVolumeItem: View {
                         .font(.body)
                         .truncationMode(.tail)
                         .lineLimit(1)
+                        .help(volume.name)
 
                     // can we find the size from system df?
                     if let usageData = vmModel.dockerDf?.volumes[volume.name]?.usageData {
