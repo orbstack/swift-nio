@@ -24,7 +24,7 @@ struct DockerImageDetails: View {
                     .font(.body.monospaced())
                 }
 
-                DetailsRow("Created", text: image.summary.formattedCreated)
+                DetailsRow("Created", text: "\(image.summary.formattedCreated) (\(image.summary.formattedCreatedLong))")
                 DetailsRow("Size", text: image.summary.formattedSize)
                 DetailsRow("Platform", text: image.full.architecture)
             }

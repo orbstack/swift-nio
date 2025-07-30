@@ -371,6 +371,11 @@ struct DKVolume: AKListItem, Codable, Identifiable, Equatable {
         return relativeDateFormatter.localizedString(for: createdAt, relativeTo: Date())
     }
 
+    var formattedCreatedAtLong: String {
+        guard let createdAt else { return "unknown" }
+        return createdAt.formatted(date: .abbreviated, time: .shortened)
+    }
+
     var textLabel: String? {
         name
     }
@@ -449,6 +454,11 @@ struct DKNetwork: Codable, Equatable, Identifiable, AKListItem {
         }
 
         return relativeDateFormatter.localizedString(for: date, relativeTo: Date())
+    }
+
+    var formattedCreatedLong: String {
+        guard let date = createdDate else { return "unknown" }
+        return date.formatted(date: .abbreviated, time: .shortened)
     }
 
     enum CodingKeys: String, CodingKey {
@@ -572,17 +582,28 @@ struct DKImage: Codable, Equatable, Identifiable {
     }
 
     var formattedCreated: String {
-        let date = Date(timeIntervalSince1970: TimeInterval(created))
-        // fix "in 0 seconds"
-        if Date().timeIntervalSince(date) < nowTimeThreshold {
-            return "just now"
-        }
         // fix "0001-01-01T00:00:00Z" (-62135596800): https://github.com/orbstack/orbstack/issues/1254
         if created <= 0 {
             return "unknown"
         }
 
+        let date = Date(timeIntervalSince1970: TimeInterval(created))
+        // fix "in 0 seconds"
+        if Date().timeIntervalSince(date) < nowTimeThreshold {
+            return "just now"
+        }
+
         return relativeDateFormatter.localizedString(for: date, relativeTo: Date())
+    }
+
+    var formattedCreatedLong: String {
+        // fix "0001-01-01T00:00:00Z" (-62135596800): https://github.com/orbstack/orbstack/issues/1254
+        if created <= 0 {
+            return "unknown"
+        }
+
+        let date = Date(timeIntervalSince1970: TimeInterval(created))
+        return date.formatted(date: .abbreviated, time: .shortened)
     }
 
     enum CodingKeys: String, CodingKey {
