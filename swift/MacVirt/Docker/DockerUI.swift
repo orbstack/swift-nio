@@ -105,6 +105,27 @@ extension DKImage {
 }
 
 extension DKPort {
+    var localPortFormatted: String {
+        if let ip, ip != "0.0.0.0" && ip != "::" {
+            // JoinHostPort..
+            if ip.contains(":") {
+                // ipv6
+                return "[\(ip)]:\(localPort)"
+            } else {
+                // ipv4
+                return "\(ip):\(localPort)"
+            }
+        } else {
+            // wildcard or no ip
+            return "\(localPort)"
+        }
+    }
+
+    var formattedAsCli: String {
+        let protoSuffix = type == "tcp" ? "" : "/\(type)"
+        return "\(localPortFormatted):\(privatePort)\(protoSuffix)"
+    }
+
     var formatted: String {
         let ctrPort = privatePort
         let protoSuffix = type == "tcp" ? "" : "  (\(type.uppercased()))"

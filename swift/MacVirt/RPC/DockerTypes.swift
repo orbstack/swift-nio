@@ -271,7 +271,7 @@ struct DKPort: Codable, Identifiable, Hashable {
     let type: String
 
     var id: String {
-        "\(ip ?? "nil")\(privatePort)\(publicPort ?? 0)\(type)"
+        "\(ip ?? "nil")/\(privatePort)/\(publicPort ?? 0)/\(type)"
     }
 
     var publicPortInt: UInt16 {
