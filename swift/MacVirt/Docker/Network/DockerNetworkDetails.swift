@@ -54,10 +54,7 @@ struct DockerNetworkDetails: View {
             }
 
             if !network.options.isEmpty {
-                let sortedOptions = network.options.sorted { $0.key < $1.key }.map {
-                    KeyValueItem(key: $0.key, value: $0.value)
-                }
-                DetailsKvTableSection("Options", items: sortedOptions)
+                DetailsLabelsSection("Options", labels: network.options)
             }
         }
         .windowHolder(windowHolder)

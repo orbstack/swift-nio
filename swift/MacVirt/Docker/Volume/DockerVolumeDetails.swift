@@ -73,10 +73,7 @@ struct DockerVolumeDetails: View {
             if let options = volume.options,
                 !options.isEmpty
             {
-                let sortedOptions = options.sorted { $0.key < $1.key }.map {
-                    KeyValueItem(key: $0.key, value: $0.value)
-                }
-                DetailsKvTableSection("Options", items: sortedOptions)
+                DetailsLabelsSection("Options", labels: options)
             }
 
             DetailsButtonSection {

@@ -1,14 +1,20 @@
 import SwiftUI
 
 struct DetailsLabelsSection: View {
+    let title: String
     let labels: [String: String]
+
+    init(_ title: String = "Labels", labels: [String: String]) {
+        self.title = title
+        self.labels = labels
+    }
 
     var body: some View {
         let sortedLabels = labels.sorted { $0.key < $1.key }.map {
             KeyValueItem(key: $0.key, value: $0.value)
         }
 
-        DetailsKvTableSection("Labels", items: sortedLabels) { item in
+        DetailsKvTableSection(title, items: sortedLabels) { item in
             Text(highlightLabel(key: item.key))
                 .help(item.key)
                 .truncationMode(.middle)
