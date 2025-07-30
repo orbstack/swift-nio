@@ -461,6 +461,10 @@ struct DKNetwork: Codable, Equatable, Identifiable, AKListItem {
         return date.formatted(date: .abbreviated, time: .shortened)
     }
 
+    var isPredefined: Bool {
+        name == "bridge" || name == "host" || name == "none"
+    }
+
     enum CodingKeys: String, CodingKey {
         case name = "Name"
         case id = "Id"
@@ -621,12 +625,50 @@ struct DKImage: Codable, Equatable, Identifiable {
 }
 
 struct DKFullImage: Codable, Equatable {
+    let os: String
     let architecture: String
+    let variant: String?
+    let config: DKImageConfig?
+
+    var platform: String {
+        if let variant, !variant.isEmpty {
+            return "\(os)/\(architecture)/\(variant)"
+        } else {
+            return "\(os)/\(architecture)"
+        }
+    }
 
     enum CodingKeys: String, CodingKey {
+        case os = "Os"
         case architecture = "Architecture"
+        case variant = "Variant"
+        case config = "Config"
     }
 }
+
+struct DKImageConfig: Codable, Equatable {
+    let cmd: [String]?
+    let entrypoint: [String]?
+    let env: [String]?
+    let exposedPorts: [String: EmptyObject]?
+    let stopSignal: String?
+    let user: String?
+    let volumes: [String: EmptyObject]?
+    let workingDir: String?
+
+    enum CodingKeys: String, CodingKey {
+        case cmd = "Cmd"
+        case env = "Env"
+        case entrypoint = "Entrypoint"
+        case exposedPorts = "ExposedPorts"
+        case stopSignal = "StopSignal"
+        case user = "User"
+        case volumes = "Volumes"
+        case workingDir = "WorkingDir"
+    }
+}
+
+struct EmptyObject: Codable, Equatable {}
 
 struct DKSummaryAndFullImage: AKListItem, Codable, Equatable, Identifiable {
     var id: String { summary.id }

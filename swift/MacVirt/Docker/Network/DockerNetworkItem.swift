@@ -45,15 +45,27 @@ struct DockerNetworkItem: View, Equatable {
             Spacer()
 
             ProgressButtonRow {
-                ProgressIconButton(
-                    systemImage: "trash.fill",
-                    actionInProgress: actionInProgress,
-                    role: .destructive
-                ) {
-                    finishDelete()
+                if network.isPredefined {
+                    ProgressIconButton(
+                        systemImage: "trash.fill",
+                        actionInProgress: actionInProgress,
+                        role: .destructive
+                    ) {
+                        // no-op
+                    }
+                    .disabled(true)
+                    .help("Can’t delete built-in network")
+                } else {
+                    ProgressIconButton(
+                        systemImage: "trash.fill",
+                        actionInProgress: actionInProgress,
+                        role: .destructive
+                    ) {
+                        finishDelete()
+                    }
+                    .disabled(actionInProgress || isInUse)
+                    .help(isInUse ? "Network in use" : "Delete")
                 }
-                .disabled(actionInProgress || isInUse)
-                .help(isInUse ? "Network in use" : "Delete")
             }
         }
         .padding(.vertical, 4)
@@ -62,7 +74,7 @@ struct DockerNetworkItem: View, Equatable {
                 finishDelete()
             } label: {
                 Label("Delete", systemImage: "trash")
-            }.disabled(actionInProgress || isInUse)
+            }.disabled(actionInProgress || isInUse || network.isPredefined)
 
             Divider()
 

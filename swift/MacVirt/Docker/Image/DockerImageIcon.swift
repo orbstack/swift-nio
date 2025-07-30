@@ -29,18 +29,18 @@ private func getIconForTag(rawTag: String) -> IconSource? {
         return .asset("container_img_library/\(name)")
     }
 
-    // 2. try org
-    if let org = org, imageLibraryIcons.contains(org) {
-        return .asset("container_img_library/\(org)")
-    }
-
-    // 3. try regex: \b<name>\b for patterns like "drud/ddev-dbserver-mariadb-10.3:v1.21.4-powermail-v11-built"
+    // 2. try regex: \b<name>\b for patterns like "drud/ddev-dbserver-mariadb-10.3:v1.21.4-powermail-v11-built"
     var regexParts = rawTag.split(separator: boundaryRegex)
     regexParts.reverse() // more specific parts come last (e.g. "maltokyo/docker-nginx-webdav")
     for part in regexParts {
         if imageLibraryIcons.contains(String(part)) {
             return .asset("container_img_library/\(part)")
         }
+    }
+
+    // 3. try org (for cases with -, which regex won't match)
+    if let org = org, imageLibraryIcons.contains(org) {
+        return .asset("container_img_library/\(org)")
     }
 
     // placeholder
@@ -77,6 +77,16 @@ private func getIconForImage(image: DKSummaryAndFullImage) -> IconSource? {
                     let org = String(parts[1])
                     return .url("https://github.com/\(org).png")
                 }
+            }
+        }
+    }
+
+    // node.js base image?
+    if let env = image.full.config?.env {
+        for e in env {
+            if e.starts(with: "NODE_VERSION=") {
+                let version = e.split(separator: "=").last.map(String.init) ?? ""
+                return .asset("container_img_library/nodejs/\(version)")
             }
         }
     }

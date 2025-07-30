@@ -24,11 +24,14 @@ type FullImage struct {
 	ID           string `json:"Id"`
 	RepoTags     []string
 	GraphDriver  *GraphDriverData `json:",omitempty"`
+	Os           string
 	Architecture string
+	Variant      string
 	RootFS       struct {
 		Type   string
 		Layers []string
 	}
+	Config *ContainerConfig
 }
 
 type FullImageWithConfig struct {
