@@ -41,13 +41,6 @@ class LocalProcessTerminalController: NSViewController {
         // 5000 lines, not 25000, due to poor resize performance with large windows
         // reduce idle frame updates
         view.getTerminal().setCursorStyle(.steadyBlock)
-        // remove NSScroller subview to fix weird broken scrollbar
-        // ghostty still doesn't even have scrollbar so this is fine
-        for subview in view.subviews {
-            if subview is NSScroller {
-                subview.removeFromSuperview()
-            }
-        }
 
         self.view = view
     }
