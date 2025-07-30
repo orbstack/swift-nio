@@ -68,6 +68,8 @@ struct DockerContainerImage: View {
                 .resizable()
                 .aspectRatio(contentMode: .fit)
                 .frame(width: 28, height: 28)
+                // if it's a full rgb square image with solid bg (e.g. from github), it looks much nicer to add subtle rounded corners
+                .clipShape(RoundedRectangle(cornerRadius: 4))
         } else {
             placeholder
         }
