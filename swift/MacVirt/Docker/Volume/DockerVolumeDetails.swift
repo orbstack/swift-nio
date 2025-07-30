@@ -27,6 +27,8 @@ struct DockerVolumeDetails: View {
                     let fmtSize = ByteCountFormatter.string(
                         fromByteCount: usageData.size, countStyle: .file)
                     DetailsRow("Size", text: fmtSize)
+                } else {
+                    DetailsRow("Size", text: "Calculating…")
                 }
 
                 if showMountpoint {
