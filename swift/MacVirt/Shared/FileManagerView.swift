@@ -53,6 +53,7 @@ private struct FileManagerNSView: NSViewRepresentable {
         view.usesAlternatingRowBackgroundColors = true
         view.allowsMultipleSelection = true
         view.autoresizesOutlineColumn = false
+        view.rowHeight = 20 // match row height in Finder
 
         view.sortDescriptors = [NSSortDescriptor(key: Columns.name, ascending: true)]
 
@@ -372,7 +373,7 @@ private class FileManagerOutlineDelegate: NSObject, NSOutlineViewDelegate, NSOut
             if item.type == .regular {
                 return TextFieldCellView(
                     value: item.size.formatted(.byteCount(style: .file)),
-                    color: .secondaryLabelColor)
+                    color: .secondaryLabelColor, tabularNums: true)
             } else {
                 return nil
             }
@@ -495,7 +496,7 @@ private class FileManagerOutlineDelegate: NSObject, NSOutlineViewDelegate, NSOut
 }
 
 private class TextFieldCellView: NSTableCellView {
-    init(value: String, editable: Bool = false, image: NSImage? = nil, color: NSColor? = nil) {
+    init(value: String, editable: Bool = false, image: NSImage? = nil, color: NSColor? = nil, tabularNums: Bool = false) {
         super.init(frame: .zero)
 
         let stack = NSStackView(frame: .zero)
@@ -519,6 +520,9 @@ private class TextFieldCellView: NSTableCellView {
             textField.textColor = color
         }
         textField.lineBreakMode = .byTruncatingTail
+        if tabularNums {
+            textField.font = NSFont.monospacedDigitSystemFont(ofSize: NSFont.systemFontSize, weight: .regular)
+        }
         stack.addView(textField, in: .leading)
 
         stack.translatesAutoresizingMaskIntoConstraints = false
