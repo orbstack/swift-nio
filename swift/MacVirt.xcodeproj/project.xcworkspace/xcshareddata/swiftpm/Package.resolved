@@ -258,7 +258,7 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/orbstack/SwiftTerm",
       "state" : {
-        "revision" : "1b6dbc18f38711a949d26ac6f1136385d315b859"
+        "revision" : "4bd764eb105433e112886b2b839fd5e105f1c173"
       }
     },
     {
