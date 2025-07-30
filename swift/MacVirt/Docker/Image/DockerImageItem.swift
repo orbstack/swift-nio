@@ -32,6 +32,8 @@ struct DockerImageItem: View, Equatable {
         let isInUse = isInUse()
 
         HStack {
+            DockerImageIcon(rawImageTags: image.summary.repoTags ?? [image.id])
+
             VStack(alignment: .leading) {
                 Text(image.summary.userTag)
                     .font(.body)
