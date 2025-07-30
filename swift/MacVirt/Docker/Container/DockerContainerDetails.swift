@@ -14,6 +14,10 @@ struct DockerContainerDetails: View {
     var body: some View {
         DetailsStack {
             DetailsKvSection {
+                if let name = container.names.first {
+                    DetailsRow("Name", copyableText: String(name.trimmingPrefix("/")))
+                }
+
                 DetailsRow("ID") {
                     CopyableText(String(container.id.prefix(12)), copyAs: container.id)
                         .font(.body.monospaced())
