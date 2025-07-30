@@ -50,10 +50,7 @@ struct DockerNetworkDetails: View {
             }
 
             if !network.labels.isEmpty {
-                let sortedLabels = network.labels.sorted { $0.key < $1.key }.map {
-                    KeyValueItem(key: $0.key, value: $0.value)
-                }
-                DetailsKvTableSection("Labels", items: sortedLabels)
+                DetailsLabelsSection(labels: network.labels)
             }
 
             if !network.options.isEmpty {

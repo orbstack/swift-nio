@@ -103,10 +103,7 @@ struct DockerImageDetails: View {
             if let labels = image.summary.labels,
                 !labels.isEmpty
             {
-                let sortedLabels = labels.sorted { $0.key < $1.key }.map {
-                    KeyValueItem(key: $0.key, value: $0.value)
-                }
-                DetailsKvTableSection("Labels", items: sortedLabels)
+                DetailsLabelsSection(labels: labels)
             }
 
             if let volumes = image.full.config?.volumes,
