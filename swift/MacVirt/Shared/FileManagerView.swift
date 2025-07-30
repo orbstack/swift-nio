@@ -477,10 +477,19 @@ private class FileManagerOutlineDelegate: NSObject, NSOutlineViewDelegate, NSOut
 
         let item = sender.item(atRow: row) as? FileItem
         guard let item else { return }
-        if sender.isItemExpanded(item) {
-            sender.animator().collapseItem(item)
+        if item.type == .directory {
+            if sender.isItemExpanded(item) {
+                sender.animator().collapseItem(item)
+            } else {
+                sender.animator().expandItem(item)
+            }
         } else {
-            sender.animator().expandItem(item)
+            let actionIndexes = sender.selectedRowIndexes.contains(row) ? sender.selectedRowIndexes : IndexSet(integer: row)
+            for index in actionIndexes {
+                if let item = sender.item(atRow: index) as? FileItem {
+                    NSWorkspace.shared.open(URL(filePath: item.path))
+                }
+            }
         }
     }
 }
