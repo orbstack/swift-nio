@@ -90,9 +90,7 @@ struct TerminalTabView: View {
         // otherwise terminal leaks behind toolbar when scrolled
         .clipped()
         // padding that matches terminal bg color
-        // this causes toolbar to match bg color, so remove top padding -- it looks like toolbar padding contributes to vertical spacing
-        .padding(.horizontal, 8)
-        .padding(.bottom, 8)
+        .padding(8)
         .background(Color(theme.background))
     }
 }
