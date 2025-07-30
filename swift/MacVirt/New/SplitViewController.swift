@@ -26,7 +26,6 @@ class SplitViewController: NSSplitViewController {
         itemA.holdingPriority = .defaultHigh
 
         itemB.minimumThickness = 300
-        itemB.maximumThickness = 500
         itemB.preferredThicknessFraction = 0.3
 
         itemC.minimumThickness = 300
@@ -35,11 +34,6 @@ class SplitViewController: NSSplitViewController {
         addSplitViewItem(itemA)
         addSplitViewItem(itemB)
         addSplitViewItem(itemC)
-
-        if let windowId = splitView.window?.identifier?.rawValue {
-            // new save ID after changing to master-detail layout
-            splitView.autosaveName = "\(windowId) : SplitViewController2"
-        }
     }
 
     required init?(coder: NSCoder) {
@@ -47,6 +41,23 @@ class SplitViewController: NSSplitViewController {
     }
 
     func setOnTabChange(_ onTabChange: @escaping (NavTabId) -> Void) {
-        vcB.onTabChange = onTabChange
+        vcB.onTabChange = { [weak self] tab in
+            guard let self else { return }
+            onTabChange(tab)
+
+            // these tabs don't have an inspector
+            if tab == .activityMonitor || tab == .cli {
+                itemC.isCollapsed = true
+            } else {
+                itemC.isCollapsed = false
+            }
+        }
+    }
+    
+    override func viewWillAppear() {
+        if let windowId = splitView.window?.identifier?.rawValue {
+            // new save ID after changing to master-detail layout
+            splitView.autosaveName = "\(windowId) : SplitViewController2"
+        }
     }
 }
