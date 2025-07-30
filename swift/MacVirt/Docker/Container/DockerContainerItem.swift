@@ -7,8 +7,8 @@ import Foundation
 import SwiftUI
 
 private let iconSize: Float = 28
-private let statusDotRadius: Float = 8
-private let statusMarginRadius: Float = 12
+private let statusDotRadius: Float = 6
+private let statusMarginRadius: Float = 10
 
 struct DockerContainerItem: View, Equatable, BaseDockerContainerItem {
     @EnvironmentObject var vmModel: VmViewModel
@@ -51,8 +51,8 @@ struct DockerContainerItem: View, Equatable, BaseDockerContainerItem {
                         .overlay(alignment: .topLeading) {
                             if showStatusDot {
                                 // calculate a position intersecting the circle and y=-x from the bottom-right edge
-                                let x = iconSize * cos(Float.pi / 4) + (statusDotRadius / 2)
-                                let y = iconSize * sin(Float.pi / 4) + (statusDotRadius / 2)
+                                let x = iconSize - (statusDotRadius / 2)
+                                let y = iconSize - (statusDotRadius / 2)
 
                                 Circle()
                                     .frame(
@@ -68,8 +68,8 @@ struct DockerContainerItem: View, Equatable, BaseDockerContainerItem {
                 .overlay(alignment: .topLeading) {
                     if showStatusDot {
                         // calculate a position intersecting the circle and y=-x from the bottom-right edge
-                        let x = iconSize * cos(Float.pi / 4) + (statusDotRadius / 2)
-                        let y = iconSize * sin(Float.pi / 4) + (statusDotRadius / 2)
+                        let x = iconSize - (statusDotRadius / 2)
+                        let y = iconSize - (statusDotRadius / 2)
 
                         Circle()
                             .fill(Color(container.statusDot.color).opacity(0.85))
