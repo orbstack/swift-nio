@@ -2,11 +2,16 @@ import SwiftUI
 
 private let boundaryRegex = try! Regex("\\W+")
 
-private func getIconForImage(rawImageTag: String, env: [String]? = nil) -> String? {
+private enum IconSource {
+    case asset(String)
+    case url(String)
+}
+
+private func getIconForTag(rawTag: String) -> IconSource? {
     // TODO: smarter resolution based on image hash -> DKImage
 
     // strip version tag
-    guard let image = rawImageTag.split(separator: ":").first else {
+    guard let image = rawTag.split(separator: ":").first else {
         return nil
     }
 
@@ -21,20 +26,20 @@ private func getIconForImage(rawImageTag: String, env: [String]? = nil) -> Strin
 
     // 1. prefer name
     if imageLibraryIcons.contains(name) {
-        return "container_img_library/\(name)"
+        return .asset("container_img_library/\(name)")
     }
 
     // 2. try org
     if let org = org, imageLibraryIcons.contains(org) {
-        return "container_img_library/\(org)"
+        return .asset("container_img_library/\(org)")
     }
 
     // 3. try regex: \b<name>\b for patterns like "drud/ddev-dbserver-mariadb-10.3:v1.21.4-powermail-v11-built"
-    var regexParts = rawImageTag.split(separator: boundaryRegex)
+    var regexParts = rawTag.split(separator: boundaryRegex)
     regexParts.reverse() // more specific parts come last (e.g. "maltokyo/docker-nginx-webdav")
     for part in regexParts {
         if imageLibraryIcons.contains(String(part)) {
-            return "container_img_library/\(part)"
+            return .asset("container_img_library/\(part)")
         }
     }
 
@@ -42,22 +47,49 @@ private func getIconForImage(rawImageTag: String, env: [String]? = nil) -> Strin
     return nil
 }
 
-private func getIconForTags(rawImageTags: [String], env: [String]? = nil) -> String? {
-    for rawImageTag in rawImageTags {
-        if let image = getIconForImage(rawImageTag: rawImageTag, env: env) {
-            return image
+private func getIconForImage(image: DKSummaryAndFullImage) -> IconSource? {
+    // try all tags
+    if let tags = image.summary.repoTags {
+        for tag in tags {
+            if let icon = getIconForTag(rawTag: tag) {
+                return icon
+            }
         }
     }
+
+    // try all digests (for dangling images that still have some tag info)
+    if let digests = image.summary.repoDigests {
+        for digest in digests {
+            // split the @ part away
+            let tag = digest.split(separator: "@").first.map(String.init) ?? digest
+            if let icon = getIconForTag(rawTag: tag) {
+                return icon
+            }
+        }
+    }
+
+    // if it's ghcr.io, use github profile picture
+    if let tags = image.summary.repoTags {
+        for tag in tags {
+            if tag.starts(with: "ghcr.io/") {
+                let parts = tag.split(separator: "/")
+                if parts.count >= 2 {
+                    let org = String(parts[1])
+                    return .url("https://github.com/\(org).png")
+                }
+            }
+        }
+    }
+
     return nil
 }
 
-struct DockerImageIcon: View {
-    let rawImageTags: [String]
-    let env: [String]? = nil
+struct DockerImageIconPlaceholder: View {
+    let id: String
 
-    @ViewBuilder private var placeholder: some View {
+    var body: some View {
         // 28px
-        let color = SystemColors.forString(rawImageTags.first ?? "unknown")
+        let color = SystemColors.forString(id)
         Image(systemName: "shippingbox.fill")
             .resizable()
             .aspectRatio(contentMode: .fit)
@@ -68,17 +100,36 @@ struct DockerImageIcon: View {
             // rasterize so opacity works on it as one big image
             .drawingGroup(opaque: false)
     }
+}
+
+struct DockerImageIcon: View {
+    let image: DKSummaryAndFullImage
 
     var body: some View {
-        if let image = getIconForTags(rawImageTags: rawImageTags) {
-            Image(image)
+        if let icon = getIconForImage(image: image) {
+            switch icon {
+            case .asset(let name):
+                Image(name)
                 .resizable()
                 .aspectRatio(contentMode: .fit)
                 .frame(width: 28, height: 28)
                 // if it's a full rgb square image with solid bg (e.g. from github), it looks much nicer to add subtle rounded corners
                 .clipShape(RoundedRectangle(cornerRadius: 4))
+            case .url(let url):
+                AsyncImage(url: URL(string: url)) { phase in
+                    if let image = phase.image {
+                        image.resizable()
+                            .aspectRatio(contentMode: .fit)
+                            .frame(width: 28, height: 28)
+                            // if it's a full rgb square image with solid bg (e.g. from github), it looks much nicer to add subtle rounded corners
+                            .clipShape(RoundedRectangle(cornerRadius: 4))
+                    } else {
+                        DockerImageIconPlaceholder(id: image.id)
+                    }
+                }
+            }
         } else {
-            placeholder
+            DockerImageIconPlaceholder(id: image.id)
         }
     }
 }

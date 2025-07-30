@@ -1,9 +1,15 @@
 import SwiftUI
 
 struct DockerContainerImage: View {
+    @EnvironmentObject var vmModel: VmViewModel
+
     let container: DKContainer
 
     var body: some View {
-        DockerImageIcon(rawImageTags: [container.image])
+        if let image = vmModel.dockerImages?[container.imageId] {
+            DockerImageIcon(image: image)
+        } else {
+            DockerImageIconPlaceholder(id: container.imageId)
+        }
     }
 }
