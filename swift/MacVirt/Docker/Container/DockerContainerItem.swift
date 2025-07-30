@@ -6,6 +6,10 @@ import Defaults
 import Foundation
 import SwiftUI
 
+private let iconSize: Float = 28
+private let statusDotRadius: Float = 8
+private let statusMarginRadius: Float = 12
+
 struct DockerContainerItem: View, Equatable, BaseDockerContainerItem {
     @EnvironmentObject var vmModel: VmViewModel
     @EnvironmentObject var navModel: MainNavViewModel
@@ -18,12 +22,12 @@ struct DockerContainerItem: View, Equatable, BaseDockerContainerItem {
     @Default(.tipsContainerDomainsShow) private var tipsContainerDomainsShow
     @Default(.tipsContainerFilesShow) private var tipsContainerFilesShow
 
-    var container: DKContainer
+    let container: DKContainer
     var selection: Set<DockerContainerId> {
         listModel.selection as! Set<DockerContainerId>
     }
 
-    var isFirstInList: Bool
+    let isFirstInList: Bool
 
     static func == (lhs: DockerContainerItem, rhs: DockerContainerItem) -> Bool {
         lhs.container == rhs.container
@@ -32,6 +36,7 @@ struct DockerContainerItem: View, Equatable, BaseDockerContainerItem {
     var body: some View {
         let isRunning = container.running
         let actionInProgress = actionTracker.ongoingFor(selfId)
+        let showStatusDot = container.composeProject != nil
 
         let deletionList = resolveActionList()
         let deleteConfirmMsg = deletionList.count > 1 ? "Delete containers?" : "Delete container?"
@@ -40,6 +45,40 @@ struct DockerContainerItem: View, Equatable, BaseDockerContainerItem {
             HStack {
                 // make it consistent
                 DockerContainerImage(container: container)
+                // mask
+                .mask {
+                    Rectangle()
+                        .overlay(alignment: .topLeading) {
+                            if showStatusDot {
+                                // calculate a position intersecting the circle and y=-x from the bottom-right edge
+                                let x = iconSize * cos(Float.pi / 4) + (statusDotRadius / 2)
+                                let y = iconSize * sin(Float.pi / 4) + (statusDotRadius / 2)
+
+                                Circle()
+                                    .frame(
+                                        width: CGFloat(statusMarginRadius),
+                                        height: CGFloat(statusMarginRadius)
+                                    )
+                                    .position(x: CGFloat(x), y: CGFloat(y))
+                                    .blendMode(.destinationOut)
+                            }
+                        }
+                }
+                // status dot
+                .overlay(alignment: .topLeading) {
+                    if showStatusDot {
+                        // calculate a position intersecting the circle and y=-x from the bottom-right edge
+                        let x = iconSize * cos(Float.pi / 4) + (statusDotRadius / 2)
+                        let y = iconSize * sin(Float.pi / 4) + (statusDotRadius / 2)
+
+                        Circle()
+                            .fill(Color(container.statusDot.color).opacity(0.85))
+                            .frame(
+                                width: CGFloat(statusDotRadius), height: CGFloat(statusDotRadius)
+                            )
+                            .position(x: CGFloat(x), y: CGFloat(y))
+                    }
+                }
 
                 VStack(alignment: .leading) {
                     let nameTxt = container.userName
