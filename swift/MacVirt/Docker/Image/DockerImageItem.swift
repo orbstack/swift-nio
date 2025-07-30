@@ -36,7 +36,7 @@ struct DockerImageItem: View, Equatable {
 
             VStack(alignment: .leading) {
                 let userTag = image.summary.userTag
-                Text(userTag)
+                Text(formatTag(userTag))
                     .font(.body)
                     // end of image tag is more important
                     .truncationMode(.head)
@@ -211,4 +211,31 @@ extension DKImage {
             }
         }
     }
+}
+
+private func formatTag(_ tag: String) -> AttributedString {
+    var attr = AttributedString(tag)
+
+    // anything after " " = secondary (for ghost tags on dangling images)
+    if let spaceIndex = tag.firstIndex(of: " "),
+        let spaceIndexAttr = AttributedString.Index(spaceIndex, within: attr)
+    {
+        attr[spaceIndexAttr...].foregroundColor = .secondary
+    }
+
+    // anything after ":" = secondary (version tags)
+    if let colonIndex = tag.firstIndex(of: ":"),
+        let colonIndexAttr = AttributedString.Index(colonIndex, within: attr)
+    {
+        attr[colonIndexAttr...].foregroundColor = .secondary
+    }
+
+    // anything before the last "/" = secondary (repo and org)
+    if let lastSlashIndex = tag.lastIndex(of: "/"),
+        let lastSlashIndexAttr = AttributedString.Index(lastSlashIndex, within: attr)
+    {
+        attr[...lastSlashIndexAttr].foregroundColor = .secondary
+    }
+
+    return attr
 }
