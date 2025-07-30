@@ -419,7 +419,7 @@ struct ActivityMonitorRootView: View {
                         HStack(spacing: 6) {
                             switch item.entity {
                             case .machine(let record):
-                                Image("distro_\(record.image.distro)")
+                                Image("distro/\(record.image.distro)")
                                     .resizable()
                                     .aspectRatio(contentMode: .fit)
                                     .frame(width: 16, height: 16)

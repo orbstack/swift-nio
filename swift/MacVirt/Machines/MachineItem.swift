@@ -29,7 +29,7 @@ struct MachineItem: View {
             deletionList.count > 1 ? "Delete machines?" : "Delete “\(info.record.name)”?"
 
         HStack {
-            Image("distro_\(info.record.image.distro)")
+            Image("distro/\(info.record.image.distro)")
                 .resizable()
                 .aspectRatio(contentMode: .fit)
                 .frame(width: 28, height: 28)
