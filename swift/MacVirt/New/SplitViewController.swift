@@ -25,7 +25,7 @@ class SplitViewController: NSSplitViewController {
         itemA.preferredThicknessFraction = 0.2
         itemA.holdingPriority = .defaultHigh
 
-        itemB.minimumThickness = 300
+        itemB.minimumThickness = 200
         itemB.preferredThicknessFraction = 0.3
 
         itemC.minimumThickness = 300
@@ -34,6 +34,10 @@ class SplitViewController: NSSplitViewController {
         addSplitViewItem(itemA)
         addSplitViewItem(itemB)
         addSplitViewItem(itemC)
+
+        // initial positions
+        splitView.setPosition(160, ofDividerAt: 0)
+        splitView.setPosition(160+300, ofDividerAt: 1)
     }
 
     required init?(coder: NSCoder) {
