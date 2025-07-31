@@ -7,20 +7,10 @@ struct DockerContainerTerminalTab: View {
 
     let container: DKContainer
 
-    var body: some View {
-        TerminalTabView(
-            executable: useDebugShell ? AppConfig.ctlExe : AppConfig.dockerExe,
-            args: useDebugShell
-                ? ["debug", "-f", container.id]
-                : [
-                    "exec", "-it", container.id, "sh", "-c",
-                    "command -v bash > /dev/null && exec bash || exec sh",
-                ],
-            // env is more robust, user can mess with context
-            env: ["DOCKER_HOST=unix://\(Files.dockerSocket)"]
-        )
-        // banner for toggling Debug Shell
-        .overlay(alignment: .topTrailing) {
+    private var statusBar: some View {
+        HStack(alignment: .center) {
+            Spacer()
+
             Toggle("Debug Shell", isOn: $useDebugShell)
                 .toggleStyle(.checkbox)
                 .font(.caption)
@@ -31,7 +21,25 @@ struct DockerContainerTerminalTab: View {
                     RoundedRectangle(cornerRadius: 8)
                         .stroke(.gray.opacity(0.25), lineWidth: 0.5)
                 )
-                .padding(4)
+        }
+        .frame(height: 24)
+    }
+
+    var body: some View {
+        VStack {
+            statusBar
+
+            TerminalTabView(
+                executable: useDebugShell ? AppConfig.ctlExe : AppConfig.dockerExe,
+                args: useDebugShell
+                    ? ["debug", "-f", container.id]
+                    : [
+                        "exec", "-it", container.id, "sh", "-c",
+                        "command -v bash > /dev/null && exec bash || exec sh",
+                    ],
+                // env is more robust, user can mess with context
+                env: ["DOCKER_HOST=unix://\(Files.dockerSocket)"]
+            )
         }
         .onReceive(vmModel.toolbarActionRouter) { action in
             if action == .dockerOpenContainerInNewWindow {

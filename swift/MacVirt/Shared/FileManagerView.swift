@@ -106,22 +106,24 @@ private struct FileManagerNSView: NSViewRepresentable {
     }
 }
 
-private class FileManagerOutlineView: NSOutlineView, QLPreviewPanelDataSource {
+private class FileManagerOutlineView: NSOutlineView, QLPreviewPanelDataSource, QLPreviewPanelDelegate {
     // open quick look on space key pressed
     override func keyDown(with event: NSEvent) {
         if event.charactersIgnoringModifiers == " " {
             QLPreviewPanel.shared()?.makeKeyAndOrderFront(nil)
-        } else if event.modifierFlags.contains(.command) {
-            if event.charactersIgnoringModifiers == "c" {
-                copyAction(actionIndexes: selectedRowIndexes)
-            } else if event.charactersIgnoringModifiers == "v" {
-                pasteAction(actionIndexes: selectedRowIndexes)
-            } else {
-                super.keyDown(with: event)
-            }
         } else {
+            // Pass other key events to the outline view for navigation, selection, etc.
             super.keyDown(with: event)
         }
+    }
+
+    // nsresponder commands
+    @objc func copy(_ sender: Any?) {
+        copyAction(actionIndexes: selectedRowIndexes)
+    }
+
+    @objc func paste(_ sender: Any?) {
+        pasteAction(actionIndexes: selectedRowIndexes)
     }
 
     func numberOfPreviewItems(in panel: QLPreviewPanel!) -> Int {
@@ -132,7 +134,60 @@ private class FileManagerOutlineView: NSOutlineView, QLPreviewPanelDataSource {
     func previewPanel(_ panel: QLPreviewPanel!, previewItemAt index: Int) -> QLPreviewItem! {
         let viewIndex = Array(self.selectedRowIndexes)[index]
         let item = self.item(atRow: viewIndex) as! FileItem
-        return FileManagerPreviewItem(url: URL(fileURLWithPath: item.path))
+        return FileManagerPreviewItem(outlineItem: item)
+    }
+
+    func previewPanel(
+        _ panel: QLPreviewPanel!,
+        handle event: NSEvent!
+    ) -> Bool {
+        // Pass all unhandled Quick Look events to the outline view
+        // for up/down arrow, etc
+        switch event.type {
+        case .keyDown:
+            self.keyDown(with: event)
+            return true
+        case .keyUp:
+            self.keyUp(with: event)
+            return true
+        case .flagsChanged:
+            self.flagsChanged(with: event)
+            return true
+        default:
+            return false
+        }
+    }
+
+    func previewPanel(_ panel: QLPreviewPanel!, sourceFrameOnScreenFor item: (any QLPreviewItem)!) -> NSRect {
+        // find the frame of the item
+        guard let item = item as? FileManagerPreviewItem else {
+            return .zero
+        }
+        let row = self.row(forItem: item.outlineItem)
+        guard row != -1 else {
+            return .zero
+        }
+
+        if let itemView = self.view(atColumn: 0, row: row, makeIfNecessary: false) as? TextFieldCellView,
+            let imageView = itemView.imageView,
+            let window = itemView.window {
+            let frameInWindow = itemView.convert(imageView.frame, to: nil)
+            return window.convertToScreen(frameInWindow)
+        } else {
+            return .zero
+        }
+    }
+
+    func previewPanel(
+        _ panel: QLPreviewPanel!,
+        transitionImageFor item: (any QLPreviewItem)!,
+        contentRect: UnsafeMutablePointer<NSRect>!
+    ) -> Any! {
+        guard let item = item as? FileManagerPreviewItem else {
+            return nil
+        }
+
+        return item.outlineItem.icon
     }
 
     override func acceptsPreviewPanelControl(_ panel: QLPreviewPanel!) -> Bool {
@@ -141,10 +196,12 @@ private class FileManagerOutlineView: NSOutlineView, QLPreviewPanelDataSource {
 
     override func beginPreviewPanelControl(_ panel: QLPreviewPanel!) {
         panel.dataSource = self
+        panel.delegate = self
     }
 
     override func endPreviewPanelControl(_ panel: QLPreviewPanel!) {
         panel.dataSource = nil
+        panel.delegate = nil
     }
 
     override func menu(for event: NSEvent) -> NSMenu? {
@@ -186,6 +243,10 @@ private class FileManagerOutlineView: NSOutlineView, QLPreviewPanelDataSource {
                                 item.path, inFileViewerRootedAtPath: item.path)
                         }
                     }
+                }
+
+                RIMenuItem("Quick Look") {
+                    QLPreviewPanel.shared()?.makeKeyAndOrderFront(nil)
                 }
             }
         }.menu
@@ -247,11 +308,13 @@ private class FileManagerOutlineView: NSOutlineView, QLPreviewPanelDataSource {
 }
 
 private class FileManagerPreviewItem: NSObject, QLPreviewItem {
+    let outlineItem: FileItem
     var previewItemURL: URL!
 
-    init(url: URL) {
+    init(outlineItem: FileItem) {
+        self.outlineItem = outlineItem
         super.init()
-        previewItemURL = url
+        previewItemURL = URL(filePath: outlineItem.path)
     }
 }
 
@@ -512,6 +575,7 @@ private class TextFieldCellView: NSTableCellView {
             imageView.widthAnchor.constraint(equalToConstant: 16).isActive = true
             imageView.heightAnchor.constraint(equalToConstant: 16).isActive = true
             stack.addView(imageView, in: .leading)
+            self.imageView = imageView
         }
 
         let textField = NSTextField(labelWithString: value)
@@ -524,6 +588,7 @@ private class TextFieldCellView: NSTableCellView {
             textField.font = NSFont.monospacedDigitSystemFont(ofSize: NSFont.systemFontSize, weight: .regular)
         }
         stack.addView(textField, in: .leading)
+        self.textField = textField
 
         stack.translatesAutoresizingMaskIntoConstraints = false
         addSubview(stack)
