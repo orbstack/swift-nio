@@ -41,7 +41,7 @@ struct DockerVolumesRootView: View {
                             .environmentObject(windowTracker)
                             .environmentObject(actionTracker)
                     }
-                    .navigationSubtitle(totalSizeFormatted ?? "")
+                    .navigationSubtitle(totalSizeFormatted)
                     .onAppear {
                         maybeRefreshDf()
                     }
@@ -80,7 +80,7 @@ struct DockerVolumesRootView: View {
         }
     }
 
-    private func calcTotalSize(_ filteredVolumes: [DKVolume]) -> String? {
+    private func calcTotalSize(_ filteredVolumes: [DKVolume]) -> String {
         if let dockerDf = vmModel.dockerDf {
             let totalSize = filteredVolumes.reduce(Int64(0)) { acc, vol in
                 if let usageData = dockerDf.volumes[vol.name]?.usageData {
@@ -95,7 +95,7 @@ struct DockerVolumesRootView: View {
             return "\(totalSizeFormatted) total"
         }
 
-        return nil
+        return "Calculating size…"
     }
 
     private func filterVolumes(_ volumes: any Sequence<DKVolume>, searchQuery: String) -> [DKVolume]
