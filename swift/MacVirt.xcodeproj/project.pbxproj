@@ -25,6 +25,9 @@
 		D805C1B92D0ADD21005BBB25 /* Proxy.swift in Sources */ = {isa = PBXBuildFile; fileRef = D805C1A92D0ADD21005BBB25 /* Proxy.swift */; };
 		D81E785A299F059700A1D8AC /* sparkle-cli in Copy Go executables and other helpers */ = {isa = PBXBuildFile; fileRef = D81E7859299F059700A1D8AC /* sparkle-cli */; settings = {ATTRIBUTES = (CodeSignOnCopy, ); }; };
 		D81E786529A7012900A1D8AC /* docker-buildx in Copy xbin executables */ = {isa = PBXBuildFile; fileRef = D81E786429A7012900A1D8AC /* docker-buildx */; settings = {ATTRIBUTES = (CodeSignOnCopy, ); }; };
+		D8469CEC2E3B05C500E0C813 /* GRPCCore in Frameworks */ = {isa = PBXBuildFile; productRef = D8469CEB2E3B05C500E0C813 /* GRPCCore */; };
+		D8469CEF2E3B060000E0C813 /* GRPCNIOTransportHTTP2 in Frameworks */ = {isa = PBXBuildFile; productRef = D8469CEE2E3B060000E0C813 /* GRPCNIOTransportHTTP2 */; };
+		D8469CF22E3B061600E0C813 /* GRPCProtobuf in Frameworks */ = {isa = PBXBuildFile; productRef = D8469CF12E3B061600E0C813 /* GRPCProtobuf */; };
 		D84982A02DF3D77400941950 /* SwiftUIIntrospect in Frameworks */ = {isa = PBXBuildFile; productRef = D849829F2DF3D77400941950 /* SwiftUIIntrospect */; };
 		D855F1F02998B6A700B62588 /* Sentry in Frameworks */ = {isa = PBXBuildFile; productRef = D855F1EF2998B6A700B62588 /* Sentry */; };
 		D85EC4642A9CEBA800300ABE /* kubectl in Copy xbin executables */ = {isa = PBXBuildFile; fileRef = D85EC4632A9CEBA800300ABE /* kubectl */; settings = {ATTRIBUTES = (CodeSignOnCopy, ); }; };
@@ -253,8 +256,11 @@
 				D88F08232AC12F5200454098 /* CachedAsyncImage in Frameworks */,
 				D8694A49299464810046B6B6 /* Sparkle in Frameworks */,
 				D87746022A7CBB2E00739040 /* SecureXPC in Frameworks */,
+				D8469CF22E3B061600E0C813 /* GRPCProtobuf in Frameworks */,
 				D87745FC2A7CBB1800739040 /* Blessed in Frameworks */,
+				D8469CEF2E3B060000E0C813 /* GRPCNIOTransportHTTP2 in Frameworks */,
 				D8694A3A2991F3C10046B6B6 /* LaunchAtLogin in Frameworks */,
+				D8469CEC2E3B05C500E0C813 /* GRPCCore in Frameworks */,
 				D87745FF2A7CBB2000739040 /* EmbeddedPropertyList in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -460,6 +466,9 @@
 				D849829F2DF3D77400941950 /* SwiftUIIntrospect */,
 				D8E7E8B72E1BE45600E24486 /* _NIOFileSystem */,
 				D8AD6AC22E38BFFF007E77A0 /* SwiftTerm */,
+				D8469CEB2E3B05C500E0C813 /* GRPCCore */,
+				D8469CEE2E3B060000E0C813 /* GRPCNIOTransportHTTP2 */,
+				D8469CF12E3B061600E0C813 /* GRPCProtobuf */,
 			);
 			productName = MacVirt;
 			productReference = D8A32B8E296F839100E56EEF /* OrbStack.app */;
@@ -513,6 +522,9 @@
 				D849829E2DF3D77400941950 /* XCRemoteSwiftPackageReference "swiftui-introspect" */,
 				D8E7E8B62E1BE45600E24486 /* XCRemoteSwiftPackageReference "swift-nio" */,
 				D8AD6AC12E38BFFF007E77A0 /* XCRemoteSwiftPackageReference "SwiftTerm" */,
+				D8469CEA2E3B05C500E0C813 /* XCRemoteSwiftPackageReference "grpc-swift-2" */,
+				D8469CED2E3B060000E0C813 /* XCRemoteSwiftPackageReference "grpc-swift-nio-transport" */,
+				D8469CF02E3B061600E0C813 /* XCRemoteSwiftPackageReference "grpc-swift-protobuf" */,
 			);
 			productRefGroup = D8A32B8F296F839100E56EEF /* Products */;
 			projectDirPath = "";
@@ -1074,6 +1086,30 @@
 /* End XCConfigurationList section */
 
 /* Begin XCRemoteSwiftPackageReference section */
+		D8469CEA2E3B05C500E0C813 /* XCRemoteSwiftPackageReference "grpc-swift-2" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/grpc/grpc-swift-2.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 2.1.0;
+			};
+		};
+		D8469CED2E3B060000E0C813 /* XCRemoteSwiftPackageReference "grpc-swift-nio-transport" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/grpc/grpc-swift-nio-transport.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 2.0.0;
+			};
+		};
+		D8469CF02E3B061600E0C813 /* XCRemoteSwiftPackageReference "grpc-swift-protobuf" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/grpc/grpc-swift-protobuf.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 2.0.0;
+			};
+		};
 		D849829E2DF3D77400941950 /* XCRemoteSwiftPackageReference "swiftui-introspect" */ = {
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/siteline/swiftui-introspect";
@@ -1173,6 +1209,21 @@
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
+		D8469CEB2E3B05C500E0C813 /* GRPCCore */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = D8469CEA2E3B05C500E0C813 /* XCRemoteSwiftPackageReference "grpc-swift-2" */;
+			productName = GRPCCore;
+		};
+		D8469CEE2E3B060000E0C813 /* GRPCNIOTransportHTTP2 */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = D8469CED2E3B060000E0C813 /* XCRemoteSwiftPackageReference "grpc-swift-nio-transport" */;
+			productName = GRPCNIOTransportHTTP2;
+		};
+		D8469CF12E3B061600E0C813 /* GRPCProtobuf */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = D8469CF02E3B061600E0C813 /* XCRemoteSwiftPackageReference "grpc-swift-protobuf" */;
+			productName = GRPCProtobuf;
+		};
 		D849829F2DF3D77400941950 /* SwiftUIIntrospect */ = {
 			isa = XCSwiftPackageProductDependency;
 			package = D849829E2DF3D77400941950 /* XCRemoteSwiftPackageReference "swiftui-introspect" */;
