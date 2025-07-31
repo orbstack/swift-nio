@@ -161,6 +161,10 @@ func SconRPCSocket() string {
 	return RunDir() + "/sconrpc.sock"
 }
 
+func SconRPC2Socket() string {
+	return RunDir() + "/sconrpc2.sock"
+}
+
 func NfsSocket() string {
 	return RunDir() + "/nfs.sock"
 }

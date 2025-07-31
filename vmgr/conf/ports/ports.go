@@ -11,6 +11,7 @@ const (
 	GuestDebugSSH        = 22 // debug
 	GuestScon            = 8000
 	GuestSconRPCInternal = 8001
+	GuestSconRPC2        = 8002
 	GuestSconSSH         = 2222
 	GuestSconSSHPublic   = 2223
 	GuestVcontrol        = 103

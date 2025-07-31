@@ -1010,10 +1010,11 @@ func runVmManager() {
 	// Host forwards (setup vsock)
 	essentialForwards := map[string]string{
 		// unix sockets
-		"unix:" + conf.DockerSocket():  "tcp:" + str(ports.GuestDocker),
-		"unix:" + conf.SconSSHSocket(): "tcp:" + str(ports.GuestSconSSH),
-		"unix:" + conf.SconRPCSocket(): "tcp:" + str(ports.GuestScon),
-		"unix:" + conf.NfsSocket():     "tcp:" + str(ports.GuestNFS),
+		"unix:" + conf.DockerSocket():   "tcp:" + str(ports.GuestDocker),
+		"unix:" + conf.SconSSHSocket():  "tcp:" + str(ports.GuestSconSSH),
+		"unix:" + conf.SconRPCSocket():  "tcp:" + str(ports.GuestScon),
+		"unix:" + conf.SconRPC2Socket(): "tcp:" + str(ports.GuestSconRPC2),
+		"unix:" + conf.NfsSocket():      "tcp:" + str(ports.GuestNFS),
 		// NFS is special, handled below
 	}
 	vnetwork.VsockDialer = func(port uint32) (net.Conn, error) {
