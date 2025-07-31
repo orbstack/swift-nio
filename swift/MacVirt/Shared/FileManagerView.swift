@@ -229,20 +229,22 @@ private class FileManagerOutlineView: NSOutlineView, QLPreviewPanelDataSource, Q
 
                 RIMenuItem.separator()
 
+                RIMenuItem("Rename") {
+                    // TODO
+                }
+
+                RIMenuItem("Delete") {
+                    // TODO
+                }
+
+                RIMenuItem.separator()
+
                 RIMenuItem("Copy") {
                     self.copyAction(actionIndexes: actionIndexes)
                 }
-            }
 
-            if actionIndexes.count <= 1 {
-                RIMenuItem("Paste") {
-                    self.pasteAction(actionIndexes: actionIndexes)
-                }
-            }
+                RIMenuItem.separator()
 
-            RIMenuItem.separator()
-
-            if actionIndexes.count == 1 {
                 RIMenuItem("Show in Finder") { [self] in
                     for index in actionIndexes {
                         if let item = item(atRow: index) as? FileItem {
@@ -256,6 +258,20 @@ private class FileManagerOutlineView: NSOutlineView, QLPreviewPanelDataSource, Q
                     QLPreviewPanel.shared()?.makeKeyAndOrderFront(nil)
                 }
             }
+
+            if actionIndexes.count == 0 {
+                RIMenuItem("New Folder") {
+                    // TODO
+                }
+            }
+
+            if actionIndexes.count <= 1 {
+                RIMenuItem("Paste") {
+                    self.pasteAction(actionIndexes: actionIndexes)
+                }
+            }
+
+            RIMenuItem.separator()
         }.menu
     }
 
