@@ -47,7 +47,7 @@ func (c *Client) ListImagesFull() ([]dockertypes.Image, error) {
 		}
 
 		// not returning a ptr b/c it's just the size of two ptrs
-		res = append(res, dockertypes.Image{Summary: summary, Full: &full.FullImage})
+		res = append(res, dockertypes.Image{Summary: summary, Full: full})
 	}
 
 	return res, nil

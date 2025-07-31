@@ -4,7 +4,7 @@ import "strings"
 
 type Image struct {
 	Summary *ImageSummary
-	Full    *FullImage
+	Full    *FullImageWithConfig
 }
 
 type ImageSummary struct {
@@ -31,7 +31,6 @@ type FullImage struct {
 		Type   string
 		Layers []string
 	}
-	Config *ContainerConfig
 }
 
 type FullImageWithConfig struct {
