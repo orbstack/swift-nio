@@ -14,7 +14,6 @@ extension NSPasteboard.PasteboardType {
 struct FileManagerView: View {
     @StateObject private var model = FileManagerOutlineDelegate()
     @State private var sort = AKSortDescriptor(columnId: Columns.name, ascending: true)
-    @State private var selection: Set<String> = []
 
     let rootPath: String
 
@@ -107,10 +106,16 @@ private struct FileManagerNSView: NSViewRepresentable {
 }
 
 private class FileManagerOutlineView: NSOutlineView, QLPreviewPanelDataSource, QLPreviewPanelDelegate {
+    var quickLookOpen = false
+
     // open quick look on space key pressed
     override func keyDown(with event: NSEvent) {
         if event.charactersIgnoringModifiers == " " {
-            QLPreviewPanel.shared()?.makeKeyAndOrderFront(nil)
+            if quickLookOpen {
+                QLPreviewPanel.shared()?.close()
+            } else {
+                QLPreviewPanel.shared()?.makeKeyAndOrderFront(nil)
+            }
         } else {
             // Pass other key events to the outline view for navigation, selection, etc.
             super.keyDown(with: event)
@@ -197,11 +202,13 @@ private class FileManagerOutlineView: NSOutlineView, QLPreviewPanelDataSource, Q
     override func beginPreviewPanelControl(_ panel: QLPreviewPanel!) {
         panel.dataSource = self
         panel.delegate = self
+        self.quickLookOpen = true
     }
 
     override func endPreviewPanelControl(_ panel: QLPreviewPanel!) {
         panel.dataSource = nil
         panel.delegate = nil
+        self.quickLookOpen = false
     }
 
     override func menu(for event: NSEvent) -> NSMenu? {
@@ -321,7 +328,7 @@ private class FileManagerPreviewItem: NSObject, QLPreviewItem {
 private class FileManagerOutlineDelegate: NSObject, NSOutlineViewDelegate, NSOutlineViewDataSource,
     ObservableObject
 {
-    var view: NSOutlineView!
+    var view: FileManagerOutlineView!
     var rootPath: String?
 
     private var sortDesc = AKSortDescriptor(columnId: Columns.name, ascending: true)
@@ -495,6 +502,12 @@ private class FileManagerOutlineDelegate: NSObject, NSOutlineViewDelegate, NSOut
             let newSort = AKSortDescriptor(columnId: nsSortKey, ascending: newNsSort.ascending)
             sortDesc = newSort
             reSort()
+        }
+    }
+
+    func outlineViewSelectionDidChange(_ notification: Notification) {
+        if view.quickLookOpen {
+            QLPreviewPanel.shared()?.reloadData()
         }
     }
 
