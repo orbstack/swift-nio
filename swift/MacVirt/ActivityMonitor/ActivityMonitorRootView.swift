@@ -426,11 +426,13 @@ struct ActivityMonitorRootView: View {
 
                             case .container(let container):
                                 DockerContainerImage(container: container)
+                                    .environmentObject(vmModel)
                                     .scaleEffect(16.0 / 28.0)  // 28px -> 16px
                                     .frame(width: 16, height: 16)
 
                             case .compose(let project):
                                 DockerComposeGroupImage(project: project)
+                                    .environmentObject(vmModel)
                                     .scaleEffect(16.0 / 28.0)  // 28px -> 16px
                                     .frame(width: 16, height: 16)
 
