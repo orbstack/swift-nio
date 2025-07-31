@@ -8,7 +8,7 @@ import Foundation
 private let relativeDateFormatter = RelativeDateTimeFormatter()
 private let iso8601TzDateFormatter = {
     let formatter = ISO8601DateFormatter()
-    formatter.formatOptions = [.withFullDate, .withTime, .withFractionalSeconds, .withTimeZone]
+    formatter.formatOptions = [.withFullDate, .withFullTime, .withFractionalSeconds, .withTimeZone]
     return formatter
 }()
 private let nowTimeThreshold: TimeInterval = 5  // sec
