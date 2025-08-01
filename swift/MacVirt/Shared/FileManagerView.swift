@@ -224,8 +224,13 @@ private class FileManagerOutlineView: NSOutlineView, QLPreviewPanelDataSource, Q
         // trigger border highlight
         super.menu(for: event)
 
-        let actionIndexes =
-            selectedRowIndexes.contains(clickedRow) ? [clickedRow] : selectedRowIndexes
+        let actionIndexes: IndexSet = if clickedRow == -1 {
+            []
+        } else if selectedRowIndexes.contains(clickedRow) {
+            [clickedRow]
+        } else {
+            selectedRowIndexes
+        }
         return RIMenu {
             if actionIndexes.count >= 1 {
                 RIMenuItem("Open") { [self] in
