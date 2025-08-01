@@ -450,7 +450,17 @@ private class FileManagerOutlineDelegate: NSObject, NSOutlineViewDelegate, NSOut
         let item = item as! FileItem
         switch tableColumn?.identifier.rawValue {
         case Columns.name:
-            return TextFieldCellView(value: item.name, editable: true, image: item.icon)
+            return TextFieldCellView(value: item.name, editable: true, image: item.icon, onRename: { [self] newName in
+                var newPath = FilePath(item.path)
+                newPath.removeLastComponent()
+                newPath.append(newName)
+
+                do {
+                    try await FileSystem.shared.moveItem(at: FilePath(item.path), to: newPath)
+                } catch {
+                    NSLog("Error renaming item: \(error)")
+                }
+            })
         case Columns.modified:
             return TextFieldCellView(
                 value: item.modified.formatted(date: .abbreviated, time: .shortened),
@@ -587,8 +597,10 @@ private class FileManagerOutlineDelegate: NSObject, NSOutlineViewDelegate, NSOut
     }
 }
 
-private class TextFieldCellView: NSTableCellView {
-    init(value: String, editable: Bool = false, image: NSImage? = nil, color: NSColor? = nil, tabularNums: Bool = false) {
+private class TextFieldCellView: NSTableCellView, NSTextFieldDelegate {
+    var renameCallback: ((String) async throws -> Void)?
+
+    init(value: String, editable: Bool = false, image: NSImage? = nil, color: NSColor? = nil, tabularNums: Bool = false, onRename renameCallback: ((String) async -> Void)? = nil) {
         super.init(frame: .zero)
 
         let stack = NSStackView(frame: .zero)
@@ -616,6 +628,7 @@ private class TextFieldCellView: NSTableCellView {
         if tabularNums {
             textField.font = NSFont.monospacedDigitSystemFont(ofSize: NSFont.systemFontSize, weight: .regular)
         }
+        textField.delegate = self
         stack.addView(textField, in: .leading)
         self.textField = textField
 
@@ -628,10 +641,25 @@ private class TextFieldCellView: NSTableCellView {
             stack.topAnchor.constraint(equalTo: topAnchor),
             stack.bottomAnchor.constraint(equalTo: bottomAnchor),
         ])
+
+        if let renameCallback {
+            self.renameCallback = renameCallback
+        }
     }
 
     required init?(coder: NSCoder) {
         fatalError("init(coder:) has not been implemented")
+    }
+
+    func control(_ control: NSControl, textShouldEndEditing fieldEditor: NSText) -> Bool {
+        let newName = fieldEditor.string
+        Task {
+            do {
+                try await renameCallback?(newName)
+            } catch {
+                NSLog("Error renaming item: \(error)")
+            }
+        }
     }
 }
 
