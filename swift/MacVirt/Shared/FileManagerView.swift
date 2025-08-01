@@ -13,7 +13,6 @@ extension NSPasteboard.PasteboardType {
 
 struct FileManagerView: View {
     @StateObject private var model = FileManagerOutlineDelegate()
-    @State private var sort = AKSortDescriptor(columnId: Columns.name, ascending: true)
 
     let rootPath: String
 
@@ -37,9 +36,18 @@ private struct FileManagerNSView: NSViewRepresentable {
     func makeNSView(context: Context) -> NSScrollView {
         let view = FileManagerOutlineView()
 
+        let treeController = NSTreeController()
+        treeController.leafKeyPath = "isLeaf"
+        treeController.childrenKeyPath = "children"
+        treeController.objectClass = FileItem.self
+        treeController.bind(NSBindingName.contentArray, to: delegate, withKeyPath: "rootItems")
+
         delegate.view = view
         view.delegate = delegate  // weak
-        view.dataSource = delegate  // weak
+
+        view.bind(NSBindingName.content, to: treeController, withKeyPath: "arrangedObjects")
+        view.bind(NSBindingName.selectionIndexPaths, to: treeController, withKeyPath: "selectionIndexPaths")
+        view.bind(NSBindingName.sortDescriptors, to: treeController, withKeyPath: "sortDescriptors")
 
         view.setDraggingSourceOperationMask([.copy, .delete], forLocal: false)
         view.registerForDraggedTypes(
@@ -138,8 +146,8 @@ private class FileManagerOutlineView: NSOutlineView, QLPreviewPanelDataSource, Q
 
     func previewPanel(_ panel: QLPreviewPanel!, previewItemAt index: Int) -> QLPreviewItem! {
         let viewIndex = Array(self.selectedRowIndexes)[index]
-        let item = self.item(atRow: viewIndex) as! FileItem
-        return FileManagerPreviewItem(outlineItem: item)
+        let node = self.item(atRow: viewIndex) as! NSTreeNode
+        return FileManagerPreviewItem(outlineItem: node.representedObject as! FileItem)
     }
 
     func previewPanel(
@@ -221,7 +229,9 @@ private class FileManagerOutlineView: NSOutlineView, QLPreviewPanelDataSource, Q
             if actionIndexes.count >= 1 {
                 RIMenuItem("Open") { [self] in
                     for index in actionIndexes {
-                        if let item = item(atRow: index) as? FileItem {
+                        if let node = item(atRow: index) as? NSTreeNode,
+                            let item = node.representedObject as? FileItem
+                        {
                             NSWorkspace.shared.open(URL(filePath: item.path))
                         }
                     }
@@ -247,7 +257,9 @@ private class FileManagerOutlineView: NSOutlineView, QLPreviewPanelDataSource, Q
 
                 RIMenuItem("Show in Finder") { [self] in
                     for index in actionIndexes {
-                        if let item = item(atRow: index) as? FileItem {
+                        if let node = item(atRow: index) as? NSTreeNode,
+                            let item = node.representedObject as? FileItem
+                        {
                             NSWorkspace.shared.selectFile(
                                 item.path, inFileViewerRootedAtPath: item.path)
                         }
@@ -279,7 +291,9 @@ private class FileManagerOutlineView: NSOutlineView, QLPreviewPanelDataSource, Q
         let pasteboard = NSPasteboard.general
         pasteboard.clearContents()
         for index in actionIndexes {
-            if let item = item(atRow: index) as? FileItem {
+            if let node = item(atRow: index) as? NSTreeNode,
+                let item = node.representedObject as? FileItem
+            {
                 pasteboard.writeObjects([URL(filePath: item.path) as NSURL])
             }
         }
@@ -288,7 +302,8 @@ private class FileManagerOutlineView: NSOutlineView, QLPreviewPanelDataSource, Q
     private func pasteAction(actionIndexes: IndexSet) {
         var destinationPath: URL
         if actionIndexes.count == 1 {
-            let selectedFile = item(atRow: actionIndexes.first!) as! FileItem
+            let node = item(atRow: actionIndexes.first!) as! NSTreeNode
+            let selectedFile = node.representedObject as! FileItem
             destinationPath = URL(filePath: selectedFile.path)
             if selectedFile.type != .directory {
                 destinationPath = destinationPath.deletingLastPathComponent()
@@ -325,7 +340,8 @@ private class FileManagerOutlineView: NSOutlineView, QLPreviewPanelDataSource, Q
 
     @objc func openInFinderItem() {
         // openInFinderItem is only called if a single item is selected
-        let item = item(atRow: selectedRowIndexes.first!) as! FileItem
+        let node = item(atRow: selectedRowIndexes.first!) as! NSTreeNode
+        let item = node.representedObject as! FileItem
         NSWorkspace.shared.open(URL(filePath: item.path))
     }
 }
@@ -341,16 +357,14 @@ private class FileManagerPreviewItem: NSObject, QLPreviewItem {
     }
 }
 
-private class FileManagerOutlineDelegate: NSObject, NSOutlineViewDelegate, NSOutlineViewDataSource,
+private class FileManagerOutlineDelegate: NSObject, NSOutlineViewDelegate,
     ObservableObject
 {
     var view: FileManagerOutlineView!
     var rootPath: String?
 
-    private var sortDesc = AKSortDescriptor(columnId: Columns.name, ascending: true)
-
     private var expandedPaths = Set<String>()
-    private var rootItems: [FileItem] = []
+    @objc dynamic var rootItems: [FileItem] = []
 
     private func getDirectoryItems(path: String) async throws -> [FileItem] {
         var items = [FileItem]()
@@ -368,26 +382,13 @@ private class FileManagerOutlineDelegate: NSObject, NSOutlineViewDelegate, NSOut
                 let item = FileItem(
                     path: path, name: file.name.string, type: FileItemType(from: file.type),
                     size: info.size, modified: info.lastDataModificationTime.date, icon: icon,
-                    children: file.type == .directory ? [] : nil)
+                    children: nil)
                 if file.type == .directory && expandedPaths.contains(path) {
                     item.children = try await getDirectoryItems(path: path)
                 }
 
                 items.append(item)
             }
-        }
-
-        switch sortDesc.columnId {
-        case Columns.name:
-            items.sort { $0.name < $1.name }
-        case Columns.modified:
-            items.sort { $0.modified < $1.modified }
-        case Columns.size:
-            items.sort { $0.size < $1.size }
-        case Columns.type:
-            items.sort { $0.type < $1.type }
-        default:
-            break
         }
 
         return items
@@ -398,7 +399,6 @@ private class FileManagerOutlineDelegate: NSObject, NSOutlineViewDelegate, NSOut
         expandedPaths.removeAll()
         self.rootPath = rootPath
         self.rootItems = try await getDirectoryItems(path: rootPath)
-        view.reloadData()
     }
 
     @MainActor
@@ -409,48 +409,18 @@ private class FileManagerOutlineDelegate: NSObject, NSOutlineViewDelegate, NSOut
 
     func collapseItem(item: FileItem) {
         expandedPaths.remove(item.path)
-    }
-
-    func reSort() {
-        rootItems.sort(desc: sortDesc)
-        view.reloadData()
-    }
-
-    // MARK: - dataSrc
-    func outlineView(_ outlineView: NSOutlineView, numberOfChildrenOfItem item: Any?) -> Int {
-        if let item = item as? FileItem {
-            return item.children?.count ?? 0
-        } else {
-            return rootItems.count
-        }
-    }
-
-    func outlineView(_ outlineView: NSOutlineView, isItemExpandable item: Any) -> Bool {
-        if let item = item as? FileItem {
-            return item.children != nil
-        } else {
-            return false
-        }
-    }
-
-    func outlineView(_ outlineView: NSOutlineView, child index: Int, ofItem item: Any?) -> Any {
-        if item == nil {
-            return rootItems[index]
-        } else if let item = item as? FileItem {
-            return item.children![index]
-        } else {
-            fatalError("invalid item")
-        }
+        item.children = nil
     }
 
     // MARK: - delegat
     func outlineView(_ outlineView: NSOutlineView, viewFor tableColumn: NSTableColumn?, item: Any)
         -> NSView?
     {
-        let item = item as! FileItem
+        let node = item as! NSTreeNode
+        let item = node.representedObject as! FileItem
         switch tableColumn?.identifier.rawValue {
         case Columns.name:
-            return TextFieldCellView(value: item.name, editable: true, image: item.icon, onRename: { [self] newName in
+            return TextFieldCellView(value: item.name, editable: true, image: item.icon, onRename: { newName in
                 var newPath = FilePath(item.path)
                 newPath.removeLastComponent()
                 newPath.append(newName)
@@ -480,27 +450,6 @@ private class FileManagerOutlineDelegate: NSObject, NSOutlineViewDelegate, NSOut
             return nil
         }
     }
-    // func outlineView(_ outlineView: NSOutlineView, objectValueFor tableColumn: NSTableColumn?, byItem item: Any?) -> Any? {
-    //     let item = item as! FileItem
-    //     switch tableColumn?.identifier.rawValue {
-    //     case Columns.name:
-    //         print("supply name: \(item.name)")
-    //         return item.name
-    //     case Columns.modified:
-    //         return item.modified.formatted(date: .abbreviated, time: .shortened)
-    //     case Columns.size:
-    //         if item.type == .regular {
-    //             return item.size.formatted(.byteCount(style: .file))
-    //         } else {
-    //             return nil
-    //         }
-    //     case Columns.type:
-    //         return item.type.description
-    //     default:
-    //     print("unknown col")
-    //         return nil
-    //     }
-    // }
 
     func outlineView(
         _ outlineView: NSOutlineView, typeSelectStringFor tableColumn: NSTableColumn?, item: Any
@@ -518,19 +467,6 @@ private class FileManagerOutlineDelegate: NSObject, NSOutlineViewDelegate, NSOut
         return column.identifier.rawValue != Columns.name
     }
 
-    func outlineView(
-        _ outlineView: NSOutlineView,
-        sortDescriptorsDidChange oldDescriptors: [NSSortDescriptor]
-    ) {
-        if let newNsSort = outlineView.sortDescriptors.first,
-            let nsSortKey = newNsSort.key
-        {
-            let newSort = AKSortDescriptor(columnId: nsSortKey, ascending: newNsSort.ascending)
-            sortDesc = newSort
-            reSort()
-        }
-    }
-
     func outlineViewSelectionDidChange(_ notification: Notification) {
         if view.quickLookOpen {
             QLPreviewPanel.shared()?.reloadData()
@@ -541,34 +477,28 @@ private class FileManagerOutlineDelegate: NSObject, NSOutlineViewDelegate, NSOut
     //    }
 
     func outlineViewItemDidExpand(_ notification: Notification) {
-        if let node = notification.userInfo?["NSObject"] as? FileItem {
+        if let node = notification.userInfo?["NSObject"] as? NSTreeNode,
+            let item = node.representedObject as? FileItem,
+            item.children == nil
+        {
             Task { @MainActor in
+                print("expanding \(item.name)")
                 do {
-                    try await expandItem(item: node)
+                    try await expandItem(item: item)
                 } catch {
                     NSLog("Error expanding item: \(error)")
                 }
-
-                print("expanding \(node.name)")
-                view.beginUpdates()
-                view.insertItems(
-                    at: IndexSet(integersIn: 0..<node.children!.count), inParent: node,
-                    withAnimation: .effectGap)
-                view.endUpdates()
             }
         }
     }
 
     func outlineViewItemDidCollapse(_ notification: Notification) {
-        if let node = notification.userInfo?["NSObject"] as? FileItem {
-            // clear so that we can redo expand next time without having to diff
-            view.beginUpdates()
-            view.removeItems(
-                at: IndexSet(integersIn: 0..<node.children!.count), inParent: node,
-                withAnimation: .effectGap)
-            view.endUpdates()
-
-            collapseItem(item: node)
+        if let node = notification.userInfo?["NSObject"] as? NSTreeNode,
+            let item = node.representedObject as? FileItem,
+            item.children != nil
+        {
+            print("collapsing \(item.name)")
+            collapseItem(item: item)
         }
     }
 
@@ -579,8 +509,8 @@ private class FileManagerOutlineDelegate: NSObject, NSOutlineViewDelegate, NSOut
             return
         }
 
-        let item = sender.item(atRow: row) as? FileItem
-        guard let item else { return }
+        let node = sender.item(atRow: row) as? NSTreeNode
+        guard let item = node?.representedObject as? FileItem else { return }
         if item.type == .directory {
             if sender.isItemExpanded(item) {
                 sender.animator().collapseItem(item)
@@ -590,7 +520,9 @@ private class FileManagerOutlineDelegate: NSObject, NSOutlineViewDelegate, NSOut
         } else {
             let actionIndexes = sender.selectedRowIndexes.contains(row) ? sender.selectedRowIndexes : IndexSet(integer: row)
             for index in actionIndexes {
-                if let item = sender.item(atRow: index) as? FileItem {
+                if let node = sender.item(atRow: index) as? NSTreeNode,
+                    let item = node.representedObject as? FileItem
+                {
                     NSWorkspace.shared.open(URL(filePath: item.path))
                 }
             }
@@ -665,54 +597,14 @@ private class TextFieldCellView: NSTableCellView, NSTextFieldDelegate {
     }
 }
 
-private func compareWithDesc<T: Comparable>(
-    lhs: T, rhs: T, lhsName: String, rhsName: String, desc: AKSortDescriptor
-) -> Bool {
-    if lhs == rhs {
-        return desc.compare(lhsName, rhsName)
-    }
-
-    return desc.compare(lhs, rhs)
-}
-
-extension [FileItem] {
-    fileprivate mutating func sort(desc: AKSortDescriptor) {
-        // these are structs so we need to mutate in-place
-        for index in self.indices {
-            self[index].children?.sort(desc: desc)
-        }
-
-        switch desc.columnId {
-        case Columns.modified:
-            self.sort {
-                compareWithDesc(
-                    lhs: $0.modified, rhs: $1.modified, lhsName: $0.path, rhsName: $1.path,
-                    desc: desc)
-            }
-        case Columns.size:
-            self.sort {
-                compareWithDesc(
-                    lhs: $0.size, rhs: $1.size, lhsName: $0.path, rhsName: $1.path, desc: desc)
-            }
-        case Columns.type:
-            self.sort {
-                compareWithDesc(
-                    lhs: $0.type, rhs: $1.type, lhsName: $0.path, rhsName: $1.path, desc: desc)
-            }
-        default:
-            self.sort { desc.compare($0.name, $1.name) }
-        }
-    }
-}
-
-private class FileItem: Identifiable, AKListItem, Equatable, Hashable {
+private class FileItem: NSObject, Identifiable {
     let path: String
-    let name: String
-    let type: FileItemType
-    let size: Int64
-    let modified: Date
+    @objc dynamic let name: String
+    @objc dynamic let type: FileItemType
+    @objc dynamic let size: Int64
+    @objc dynamic let modified: Date
     let icon: NSImage
-    var children: [FileItem]?
+    @objc dynamic var children: [FileItem]?
 
     init(
         path: String, name: String, type: FileItemType, size: Int64, modified: Date, icon: NSImage,
@@ -732,22 +624,8 @@ private class FileItem: Identifiable, AKListItem, Equatable, Hashable {
             && lhs.modified == rhs.modified && lhs.icon == rhs.icon && lhs.children == rhs.children
     }
 
-    func hash(into hasher: inout Hasher) {
-        hasher.combine(path)
-        hasher.combine(name)
-        hasher.combine(type)
-        hasher.combine(size)
-        hasher.combine(modified)
-        hasher.combine(icon)
-        hasher.combine(children)
-    }
-
-    var listChildren: [any AKListItem]? {
-        children
-    }
-
-    var textLabel: String? { name }
     var id: String { path }
+    @objc dynamic var isLeaf: Bool { type != .directory }
 }
 
 private enum Columns {
@@ -757,16 +635,16 @@ private enum Columns {
     static let type = "type"
 }
 
-private enum FileItemType: Comparable {
-    case regular
-    case block
-    case character
-    case fifo
-    case directory
-    case symlink
-    case socket
-    case whiteout
-    case unknown
+@objc private enum FileItemType: Int {
+    case regular = 0
+    case block = 1
+    case character = 2
+    case fifo = 3
+    case directory = 4
+    case symlink = 5
+    case socket = 6
+    case whiteout = 7
+    case unknown = 8
 
     init(from fileType: FileType) {
         switch fileType {
