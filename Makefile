@@ -10,6 +10,7 @@ default:
 	@echo "  vmgr: Build vmgr"
 	@echo "  scon: Build scli"
 	@echo "  k8s: Build k3s"
+	@echo "  ghostty: Build libghostty"
 	@echo "  clean: Clean all macOS build artifacts except kernel and rootfs"
 	@echo ""
 	@echo "More rarely used targets:"
@@ -42,6 +43,10 @@ k8s: rootfs/k8s/k3s-arm64
 
 rootfs/k8s/k3s-arm64: scripts/build-k8s.sh $(call rwildcard,vendor/k3s,*)
 	scripts/build-k8s.sh
+
+.PHONY: ghostty
+ghostty: scripts/build-ghostty.sh
+	scripts/build-ghostty.sh
 
 .PHONY: release
 release:

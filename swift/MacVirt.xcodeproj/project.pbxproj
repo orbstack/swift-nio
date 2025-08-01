@@ -7,7 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		3B8056342E3D5785001C859B /* GhosttyKit.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = 3B8056332E3D5785001C859B /* GhosttyKit.xcframework */; };
+		3B80565E2E3D6FFB001C859B /* GhosttyKit.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = 3B80565D2E3D6FFB001C859B /* GhosttyKit.xcframework */; };
 		D805923F2CFF0972005BBB25 /* pstramp in Copy Go executables and other helpers */ = {isa = PBXBuildFile; fileRef = D805911B2CFEF682005BBB25 /* pstramp */; };
 		D805B3312D047B2E005BBB25 /* scli.app in Copy Go executables and other helpers */ = {isa = PBXBuildFile; fileRef = D805B3302D047B2E005BBB25 /* scli.app */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		D805C1AC2D0ADD21005BBB25 /* FsNotify.swift in Sources */ = {isa = PBXBuildFile; fileRef = D805C1A12D0ADD21005BBB25 /* FsNotify.swift */; };
@@ -140,6 +140,7 @@
 
 /* Begin PBXFileReference section */
 		3B8056332E3D5785001C859B /* GhosttyKit.xcframework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcframework; path = GhosttyKit.xcframework; sourceTree = "<group>"; };
+		3B80565D2E3D6FFB001C859B /* GhosttyKit.xcframework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcframework; name = GhosttyKit.xcframework; path = ../vendor/ghostty/macos/GhosttyKit.xcframework; sourceTree = "<group>"; };
 		D805911B2CFEF682005BBB25 /* pstramp */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = pstramp; sourceTree = BUILT_PRODUCTS_DIR; };
 		D805B3302D047B2E005BBB25 /* scli.app */ = {isa = PBXFileReference; lastKnownFileType = wrapper.application; name = scli.app; path = ../out/scli.app; sourceTree = "<group>"; };
 		D805C19E2D0ADD21005BBB25 /* BridgeNet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BridgeNet.swift; sourceTree = "<group>"; };
@@ -264,7 +265,7 @@
 				D8694A3A2991F3C10046B6B6 /* LaunchAtLogin in Frameworks */,
 				D8469CEC2E3B05C500E0C813 /* GRPCCore in Frameworks */,
 				D87745FF2A7CBB2000739040 /* EmbeddedPropertyList in Frameworks */,
-				3B8056342E3D5785001C859B /* GhosttyKit.xcframework in Frameworks */,
+				3B80565E2E3D6FFB001C859B /* GhosttyKit.xcframework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -275,6 +276,7 @@
 			isa = PBXGroup;
 			children = (
 				3B8056332E3D5785001C859B /* GhosttyKit.xcframework */,
+				3B80565D2E3D6FFB001C859B /* GhosttyKit.xcframework */,
 				D81E786229A4CF0E00A1D8AC /* Cocoa.framework */,
 				D81E786029A4CF0B00A1D8AC /* UserNotifications.framework */,
 				D81E785E29A4CEEF00A1D8AC /* Foundation.framework */,
@@ -485,7 +487,7 @@
 			isa = PBXProject;
 			attributes = {
 				BuildIndependentTargetsInParallel = 1;
-				LastSwiftUpdateCheck = 1430;
+				LastSwiftUpdateCheck = 1640;
 				LastUpgradeCheck = 1640;
 				TargetAttributes = {
 					D805911A2CFEF682005BBB25 = {
