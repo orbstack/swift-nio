@@ -51,43 +51,50 @@ struct DockerImageDetails: View {
                 }
             }
 
-            DetailsKvSection("Config") {
-                if let user = image.full.config?.user,
-                    !user.isEmpty
-                {
-                    DetailsRow("User", text: user)
-                }
-                if let cmd = image.full.config?.cmd,
-                    !cmd.isEmpty
-                {
-                    DetailsRow("Command") {
-                        let joinedCmd = cmd.joined(separator: " ")
-                        CopyableText(copyAs: joinedCmd) {
-                            Text(joinedCmd)
-                                .font(.body.monospaced())
+            let hasUser = image.full.config?.user?.isEmpty == false
+            let hasCmd = image.full.config?.cmd?.isEmpty == false
+            let hasEntrypoint = image.full.config?.entrypoint?.isEmpty == false
+            let hasWorkingDir = image.full.config?.workingDir?.isEmpty == false
+            let hasStopSignal = image.full.config?.stopSignal?.isEmpty == false
+            if hasUser || hasCmd || hasEntrypoint || hasWorkingDir || hasStopSignal {
+                DetailsKvSection("Config") {
+                    if let user = image.full.config?.user,
+                        !user.isEmpty
+                    {
+                        DetailsRow("User", text: user)
+                    }
+                    if let cmd = image.full.config?.cmd,
+                        !cmd.isEmpty
+                    {
+                        DetailsRow("Command") {
+                            let joinedCmd = cmd.joined(separator: " ")
+                            CopyableText(copyAs: joinedCmd) {
+                                Text(joinedCmd)
+                                    .font(.body.monospaced())
+                            }
                         }
                     }
-                }
-                if let entrypoint = image.full.config?.entrypoint,
-                    !entrypoint.isEmpty
-                {
-                    DetailsRow("Entrypoint") {
-                        let joinedEntrypoint = entrypoint.joined(separator: " ")
-                        CopyableText(copyAs: joinedEntrypoint) {
-                            Text(joinedEntrypoint)
-                                .font(.body.monospaced())
+                    if let entrypoint = image.full.config?.entrypoint,
+                        !entrypoint.isEmpty
+                    {
+                        DetailsRow("Entrypoint") {
+                            let joinedEntrypoint = entrypoint.joined(separator: " ")
+                            CopyableText(copyAs: joinedEntrypoint) {
+                                Text(joinedEntrypoint)
+                                    .font(.body.monospaced())
+                            }
                         }
                     }
-                }
-                if let workingDir = image.full.config?.workingDir,
-                    !workingDir.isEmpty
-                {
-                    DetailsRow("Working Directory", text: workingDir)
-                }
-                if let stopSignal = image.full.config?.stopSignal,
-                    !stopSignal.isEmpty
-                {
-                    DetailsRow("Stop Signal", text: stopSignal)
+                    if let workingDir = image.full.config?.workingDir,
+                        !workingDir.isEmpty
+                    {
+                        DetailsRow("Working Directory", text: workingDir)
+                    }
+                    if let stopSignal = image.full.config?.stopSignal,
+                        !stopSignal.isEmpty
+                    {
+                        DetailsRow("Stop Signal", text: stopSignal)
+                    }
                 }
             }
 
