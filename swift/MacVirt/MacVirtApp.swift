@@ -8,6 +8,7 @@
 import Defaults
 import Sparkle
 import SwiftUI
+import GhosttyKit
 
 private typealias SingletonWindow = Window
 
@@ -43,6 +44,28 @@ struct MacVirtApp: App {
         appDelegate.actionTracker = actionTracker
         appDelegate.windowTracker = windowTracker
         appDelegate.vmModel = vmModel
+
+        if ghostty_init(UInt(CommandLine.argc), CommandLine.unsafeArgv) != GHOSTTY_SUCCESS {
+            print("Failed to initialize Ghostty")
+            fatalError("Failed to initialize Ghostty")
+        }
+
+        let config = ghostty_config_new()
+        ghostty_config_finalize(config)
+
+        var runtime_cfg = ghostty_runtime_config_s(
+                userdata: nil, 
+                supports_selection_clipboard: false,
+                wakeup_cb: {_ in},
+                action_cb: {_, _, _ in true},
+                read_clipboard_cb: {_, _, _ in},
+                confirm_read_clipboard_cb: {_, _, _, _ in},
+                write_clipboard_cb: {_, _, _, _ in},
+                close_surface_cb: {_, _ in}
+            )
+
+        let app = ghostty_app_new(&runtime_cfg, config)
+        appDelegate.ghostty = app
 
         for arg in CommandLine.arguments {
             if arg == "--check-updates" {
