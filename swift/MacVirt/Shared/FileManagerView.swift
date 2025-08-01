@@ -435,17 +435,15 @@ private class FileManagerOutlineDelegate: NSObject, NSOutlineViewDelegate,
         let pasteboard = NSPasteboard.general
         guard let items = pasteboard.readObjects(forClasses: [NSURL.self], options: nil) as? [NSURL]
         else { return }
-        for item in items {
-            do {
-                if let lastPathComponent = item.lastPathComponent {
-                    try FileManager.default.copyItem(
-                        at: item as URL,
-                        to: destinationPath.appendingPathComponent(lastPathComponent))
-                } else {
-                    NSLog("Error copying item: \(item) has no last path component")
+        Task {
+            for item in items {
+                do {
+                    if let path = item.path, let lastPathComponent = item.lastPathComponent {
+                        try await FileSystem.shared.copyItem(at: FilePath(path), to: FilePath(destinationPath.appendingPathComponent(lastPathComponent).path))
+                    }
+                } catch {
+                    NSLog("Error copying item: \(error)")
                 }
-            } catch {
-                NSLog("Error copying item: \(error)")
             }
         }
     }
