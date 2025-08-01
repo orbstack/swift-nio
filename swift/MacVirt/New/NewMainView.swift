@@ -197,6 +197,7 @@ struct NewMainView: View {
             }
             AKAlertButton("Cancel")
         }
+        .toastOverlay()
     }
 }
 

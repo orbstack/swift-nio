@@ -12,6 +12,8 @@ extension NSPasteboard.PasteboardType {
 }
 
 struct FileManagerView: View {
+    @EnvironmentObject var toaster: Toaster
+
     @StateObject private var model = FileManagerOutlineDelegate()
 
     let rootPath: String
@@ -29,7 +31,7 @@ struct FileManagerView: View {
                     do {
                         try await model.loadRoot(rootPath: newRootPath, readOnly: readOnly)
                     } catch {
-                        NSLog("Error loading files: \(error)")
+                        model.toaster.error(title: "Error loading files", error: error)
                     }
                 }
             }
@@ -37,6 +39,8 @@ struct FileManagerView: View {
 }
 
 private struct FileManagerNSView: NSViewRepresentable {
+    @EnvironmentObject var toaster: Toaster
+
     let delegate: FileManagerOutlineDelegate
 
     func makeNSView(context: Context) -> NSScrollView {
@@ -50,6 +54,7 @@ private struct FileManagerNSView: NSViewRepresentable {
 
         delegate.view = view
         delegate.treeController = treeController // weak
+        delegate.toaster = toaster
         view.delegate = delegate  // weak
 
         view.bind(NSBindingName.content, to: treeController, withKeyPath: "arrangedObjects")
@@ -347,6 +352,7 @@ private class FileManagerPreviewItem: NSObject, QLPreviewItem {
 private class FileManagerOutlineDelegate: NSObject, NSOutlineViewDelegate,
     ObservableObject
 {
+    var toaster: Toaster!
     var view: FileManagerOutlineView!
     var readOnly = false
     var rootPath: String?
@@ -442,7 +448,7 @@ private class FileManagerOutlineDelegate: NSObject, NSOutlineViewDelegate,
                         try await FileSystem.shared.copyItem(at: FilePath(path), to: FilePath(destinationPath.appendingPathComponent(lastPathComponent).path))
                     }
                 } catch {
-                    NSLog("Error copying item: \(error)")
+                    toaster.error(title: "Error copying item", message: error.localizedDescription)
                 }
             }
         }
@@ -464,7 +470,7 @@ private class FileManagerOutlineDelegate: NSObject, NSOutlineViewDelegate,
                 do {
                     try await FileSystem.shared.moveItem(at: FilePath(item.path), to: newPath)
                 } catch {
-                    NSLog("Error renaming item: \(error)")
+                    self.toaster.error(title: "Error renaming item", error: error)
                 }
             })
         case Columns.modified:
@@ -522,7 +528,7 @@ private class FileManagerOutlineDelegate: NSObject, NSOutlineViewDelegate,
                 do {
                     try await expandItem(item: item)
                 } catch {
-                    NSLog("Error expanding item: \(error)")
+                    self.toaster.error(title: "Error expanding item", error: error)
                 }
             }
         }
@@ -568,6 +574,7 @@ private class FileManagerOutlineDelegate: NSObject, NSOutlineViewDelegate,
 
 private class TextFieldCellView: NSTableCellView, NSTextFieldDelegate {
     var renameCallback: ((String) async throws -> Void)?
+    var toaster: Toaster!
 
     init(value: String, editable: Bool = false, image: NSImage? = nil, color: NSColor? = nil, tabularNums: Bool = false, onRename renameCallback: ((String) async -> Void)? = nil) {
         super.init(frame: .zero)
@@ -626,7 +633,7 @@ private class TextFieldCellView: NSTableCellView, NSTextFieldDelegate {
             do {
                 try await renameCallback?(newName)
             } catch {
-                NSLog("Error renaming item: \(error)")
+                self.toaster.error(title: "Error renaming item", error: error)
             }
         }
         return true
