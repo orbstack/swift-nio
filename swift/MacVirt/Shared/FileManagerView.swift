@@ -43,6 +43,7 @@ private struct FileManagerNSView: NSViewRepresentable {
         treeController.bind(NSBindingName.contentArray, to: delegate, withKeyPath: "rootItems")
 
         delegate.view = view
+        delegate.treeController = treeController // weak
         view.delegate = delegate  // weak
 
         view.bind(NSBindingName.content, to: treeController, withKeyPath: "arrangedObjects")
@@ -362,6 +363,7 @@ private class FileManagerOutlineDelegate: NSObject, NSOutlineViewDelegate,
 {
     var view: FileManagerOutlineView!
     var rootPath: String?
+    weak var treeController: NSTreeController?
 
     private var expandedPaths = Set<String>()
     @objc dynamic var rootItems: [FileItem] = []
@@ -399,6 +401,9 @@ private class FileManagerOutlineDelegate: NSObject, NSOutlineViewDelegate,
         expandedPaths.removeAll()
         self.rootPath = rootPath
         self.rootItems = try await getDirectoryItems(path: rootPath)
+
+        // clear selection
+        treeController?.setSelectionIndexPaths([])
     }
 
     @MainActor
