@@ -15,13 +15,19 @@ struct FileManagerView: View {
     @StateObject private var model = FileManagerOutlineDelegate()
 
     let rootPath: String
+    let readOnly: Bool
+
+    init(rootPath: String, readOnly: Bool = false) {
+        self.rootPath = rootPath
+        self.readOnly = readOnly
+    }
 
     var body: some View {
         FileManagerNSView(delegate: model)
             .onChange(of: rootPath, initial: true) { _, newRootPath in
                 Task {
                     do {
-                        try await model.loadRoot(rootPath: newRootPath)
+                        try await model.loadRoot(rootPath: newRootPath, readOnly: readOnly)
                     } catch {
                         NSLog("Error loading files: \(error)")
                     }
@@ -71,7 +77,8 @@ private struct FileManagerNSView: NSViewRepresentable {
 
         let colName = NSTableColumn(identifier: .init(Columns.name))
         colName.title = "Name"
-        colName.isEditable = true
+        // done in NSTextField instead
+        colName.isEditable = false
         colName.sortDescriptorPrototype = NSSortDescriptor(key: Columns.name, ascending: true)
         colName.minWidth = 100
         view.addTableColumn(colName)
@@ -115,6 +122,10 @@ private struct FileManagerNSView: NSViewRepresentable {
 }
 
 private class FileManagerOutlineView: NSOutlineView, QLPreviewPanelDataSource, QLPreviewPanelDelegate {
+    private var filesDelegate: FileManagerOutlineDelegate {
+        delegate as! FileManagerOutlineDelegate
+    }
+
     var quickLookOpen = false
 
     // open quick look on space key pressed
@@ -133,22 +144,31 @@ private class FileManagerOutlineView: NSOutlineView, QLPreviewPanelDataSource, Q
 
     // nsresponder commands
     @objc func copy(_ sender: Any?) {
-        copyAction(actionIndexes: selectedRowIndexes)
+        if !filesDelegate.readOnly {
+            filesDelegate.copyAction(actionIndexes: selectedRowIndexes)
+        }
     }
 
     @objc func paste(_ sender: Any?) {
-        pasteAction(actionIndexes: selectedRowIndexes)
+        if !filesDelegate.readOnly {
+            filesDelegate.pasteAction(actionIndexes: selectedRowIndexes)
+        }
     }
 
     func numberOfPreviewItems(in panel: QLPreviewPanel!) -> Int {
         // number of selected items
-        return self.selectedRowIndexes.count
+        return max(self.selectedRowIndexes.count, 1)
     }
 
     func previewPanel(_ panel: QLPreviewPanel!, previewItemAt index: Int) -> QLPreviewItem! {
-        let viewIndex = Array(self.selectedRowIndexes)[index]
-        let node = self.item(atRow: viewIndex) as! NSTreeNode
-        return FileManagerPreviewItem(outlineItem: node.representedObject as! FileItem)
+        if self.selectedRowIndexes.isEmpty, let rootPath = filesDelegate.rootPath {
+            return FileManagerPreviewItem(treeNode: nil, filePath: rootPath, icon: NSWorkspace.shared.icon(forFile: rootPath))
+        } else {
+            let viewIndex = Array(self.selectedRowIndexes)[index]
+            let node = self.item(atRow: viewIndex) as! NSTreeNode
+            let item = node.representedObject as! FileItem
+            return FileManagerPreviewItem(treeNode: node, filePath: item.path, icon: item.icon)
+        }
     }
 
     func previewPanel(
@@ -177,7 +197,7 @@ private class FileManagerOutlineView: NSOutlineView, QLPreviewPanelDataSource, Q
         guard let item = item as? FileManagerPreviewItem else {
             return .zero
         }
-        let row = self.row(forItem: item.outlineItem)
+        let row = self.row(forItem: item.treeNode)
         guard row != -1 else {
             return .zero
         }
@@ -201,7 +221,7 @@ private class FileManagerOutlineView: NSOutlineView, QLPreviewPanelDataSource, Q
             return nil
         }
 
-        return item.outlineItem.icon
+        return item.icon
     }
 
     override func acceptsPreviewPanelControl(_ panel: QLPreviewPanel!) -> Bool {
@@ -227,9 +247,9 @@ private class FileManagerOutlineView: NSOutlineView, QLPreviewPanelDataSource, Q
         let actionIndexes: IndexSet = if clickedRow == -1 {
             []
         } else if selectedRowIndexes.contains(clickedRow) {
-            [clickedRow]
-        } else {
             selectedRowIndexes
+        } else {
+            [clickedRow]
         }
         return RIMenu {
             if actionIndexes.count >= 1 {
@@ -245,23 +265,29 @@ private class FileManagerOutlineView: NSOutlineView, QLPreviewPanelDataSource, Q
 
                 RIMenuItem.separator()
 
-                RIMenuItem("Rename") {
-                    // TODO
+                if !filesDelegate.readOnly {
+                    RIMenuItem("Rename") {
+                        // TODO
+                    }
+
+                    RIMenuItem("Delete") {
+                        // TODO
+                    }
+
+                    RIMenuItem.separator()
+
+                    RIMenuItem("Copy") {
+                        self.filesDelegate.copyAction(actionIndexes: actionIndexes)
+                    }
                 }
+            }
 
-                RIMenuItem("Delete") {
-                    // TODO
-                }
+            RIMenuItem.separator()
 
-                RIMenuItem.separator()
-
-                RIMenuItem("Copy") {
-                    self.copyAction(actionIndexes: actionIndexes)
-                }
-
-                RIMenuItem.separator()
-
-                RIMenuItem("Show in Finder") { [self] in
+            RIMenuItem("Show in Finder") { [self] in
+                if actionIndexes.isEmpty, let rootPath = filesDelegate.rootPath {
+                    NSWorkspace.shared.selectFile(nil, inFileViewerRootedAtPath: rootPath)
+                } else {
                     for index in actionIndexes {
                         if let node = item(atRow: index) as? NSTreeNode,
                             let item = node.representedObject as? FileItem
@@ -271,77 +297,30 @@ private class FileManagerOutlineView: NSOutlineView, QLPreviewPanelDataSource, Q
                         }
                     }
                 }
-
-                RIMenuItem("Quick Look") {
-                    QLPreviewPanel.shared()?.makeKeyAndOrderFront(nil)
-                }
             }
 
-            if actionIndexes.count == 0 {
-                RIMenuItem("New Folder") {
-                    // TODO
-                }
+            RIMenuItem("Quick Look") {
+                QLPreviewPanel.shared()?.makeKeyAndOrderFront(nil)
             }
 
-            if actionIndexes.count <= 1 {
-                RIMenuItem("Paste") {
-                    self.pasteAction(actionIndexes: actionIndexes)
+            RIMenuItem.separator()
+
+            if !filesDelegate.readOnly {
+                if actionIndexes.count == 0 {
+                    RIMenuItem("New Folder") {
+                        // TODO
+                    }
+                }
+
+                if actionIndexes.count <= 1 {
+                    RIMenuItem("Paste") {
+                        self.filesDelegate.pasteAction(actionIndexes: actionIndexes)
+                    }
                 }
             }
 
             RIMenuItem.separator()
         }.menu
-    }
-
-    private func copyAction(actionIndexes: IndexSet) {
-        let pasteboard = NSPasteboard.general
-        pasteboard.clearContents()
-        for index in actionIndexes {
-            if let node = item(atRow: index) as? NSTreeNode,
-                let item = node.representedObject as? FileItem
-            {
-                pasteboard.writeObjects([URL(filePath: item.path) as NSURL])
-            }
-        }
-    }
-
-    private func pasteAction(actionIndexes: IndexSet) {
-        var destinationPath: URL
-        if actionIndexes.count == 1 {
-            let node = item(atRow: actionIndexes.first!) as! NSTreeNode
-            let selectedFile = node.representedObject as! FileItem
-            destinationPath = URL(filePath: selectedFile.path)
-            if selectedFile.type != .directory {
-                destinationPath = destinationPath.deletingLastPathComponent()
-            }
-        } else if selectedRowIndexes.count == 0 {
-            if let delegate = self.delegate as? FileManagerOutlineDelegate,
-                let rootPath = delegate.rootPath
-            {
-                destinationPath = URL(filePath: rootPath)
-            } else {
-                return
-            }
-        } else {
-            return
-        }
-
-        let pasteboard = NSPasteboard.general
-        guard let items = pasteboard.readObjects(forClasses: [NSURL.self], options: nil) as? [NSURL]
-        else { return }
-        for item in items {
-            do {
-                if let lastPathComponent = item.lastPathComponent {
-                    try FileManager.default.copyItem(
-                        at: item as URL,
-                        to: destinationPath.appendingPathComponent(lastPathComponent))
-                } else {
-                    NSLog("Error copying item: \(item) has no last path component")
-                }
-            } catch {
-                NSLog("Error copying item: \(error)")
-            }
-        }
     }
 
     @objc func openInFinderItem() {
@@ -353,13 +332,15 @@ private class FileManagerOutlineView: NSOutlineView, QLPreviewPanelDataSource, Q
 }
 
 private class FileManagerPreviewItem: NSObject, QLPreviewItem {
-    let outlineItem: FileItem
+    let treeNode: NSTreeNode?
+    let icon: NSImage
     var previewItemURL: URL!
 
-    init(outlineItem: FileItem) {
-        self.outlineItem = outlineItem
+    init(treeNode: NSTreeNode?, filePath: String, icon: NSImage) {
+        self.treeNode = treeNode
+        self.icon = icon
         super.init()
-        previewItemURL = URL(filePath: outlineItem.path)
+        previewItemURL = URL(filePath: filePath)
     }
 }
 
@@ -367,6 +348,7 @@ private class FileManagerOutlineDelegate: NSObject, NSOutlineViewDelegate,
     ObservableObject
 {
     var view: FileManagerOutlineView!
+    var readOnly = false
     var rootPath: String?
     weak var treeController: NSTreeController?
 
@@ -402,9 +384,10 @@ private class FileManagerOutlineDelegate: NSObject, NSOutlineViewDelegate,
     }
 
     @MainActor
-    func loadRoot(rootPath: String) async throws {
+    func loadRoot(rootPath: String, readOnly: Bool) async throws {
         expandedPaths.removeAll()
         self.rootPath = rootPath
+        self.readOnly = readOnly
         self.rootItems = try await getDirectoryItems(path: rootPath)
 
         // clear selection
@@ -422,6 +405,51 @@ private class FileManagerOutlineDelegate: NSObject, NSOutlineViewDelegate,
         item.children = nil
     }
 
+    func copyAction(actionIndexes: IndexSet) {
+        let pasteboard = NSPasteboard.general
+        pasteboard.clearContents()
+        for index in actionIndexes {
+            if let node = view.item(atRow: index) as? NSTreeNode,
+                let item = node.representedObject as? FileItem
+            {
+                pasteboard.writeObjects([URL(filePath: item.path) as NSURL])
+            }
+        }
+    }
+
+    func pasteAction(actionIndexes: IndexSet) {
+        var destinationPath: URL
+        if let index = actionIndexes.first {
+            let node = view.item(atRow: index) as! NSTreeNode
+            let selectedFile = node.representedObject as! FileItem
+            destinationPath = URL(filePath: selectedFile.path)
+            if selectedFile.type != .directory {
+                destinationPath = destinationPath.deletingLastPathComponent()
+            }
+        } else if view.selectedRowIndexes.count == 0, let rootPath {
+            destinationPath = URL(filePath: rootPath)
+        } else {
+            return
+        }
+
+        let pasteboard = NSPasteboard.general
+        guard let items = pasteboard.readObjects(forClasses: [NSURL.self], options: nil) as? [NSURL]
+        else { return }
+        for item in items {
+            do {
+                if let lastPathComponent = item.lastPathComponent {
+                    try FileManager.default.copyItem(
+                        at: item as URL,
+                        to: destinationPath.appendingPathComponent(lastPathComponent))
+                } else {
+                    NSLog("Error copying item: \(item) has no last path component")
+                }
+            } catch {
+                NSLog("Error copying item: \(error)")
+            }
+        }
+    }
+
     // MARK: - delegat
     func outlineView(_ outlineView: NSOutlineView, viewFor tableColumn: NSTableColumn?, item: Any)
         -> NSView?
@@ -430,7 +458,7 @@ private class FileManagerOutlineDelegate: NSObject, NSOutlineViewDelegate,
         let item = node.representedObject as! FileItem
         switch tableColumn?.identifier.rawValue {
         case Columns.name:
-            return TextFieldCellView(value: item.name, editable: true, image: item.icon, onRename: { newName in
+            return TextFieldCellView(value: item.name, editable: !readOnly, image: item.icon, onRename: { newName in
                 var newPath = FilePath(item.path)
                 newPath.removeLastComponent()
                 newPath.append(newName)

@@ -6,7 +6,7 @@ struct DockerImageFilesTab: View {
     let image: DKSummaryAndFullImage
 
     var body: some View {
-        FileManagerView(rootPath: image.summary.nfsPath)
+        FileManagerView(rootPath: image.summary.nfsPath, readOnly: true)
             // render under toolbar
             .ignoresSafeArea()
             .onReceive(vmModel.toolbarActionRouter) { action in
