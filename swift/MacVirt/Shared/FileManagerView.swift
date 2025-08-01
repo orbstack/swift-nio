@@ -540,27 +540,28 @@ private class FileManagerOutlineDelegate: NSObject, NSOutlineViewDelegate, NSOut
     //    func outlineView(_ outlineView: NSOutlineView, pasteboardWriterForItem item: Any) -> NSPasteboardWriting? {
     //    }
 
-    func outlineViewItemWillExpand(_ notification: Notification) {
+    func outlineViewItemDidExpand(_ notification: Notification) {
         if let node = notification.userInfo?["NSObject"] as? FileItem {
-            Task {
+            Task { @MainActor in
                 do {
                     try await expandItem(item: node)
                 } catch {
                     NSLog("Error expanding item: \(error)")
                 }
-            }
 
-            print("expanding \(node.name)")
-            view.beginUpdates()
-            view.insertItems(
-                at: IndexSet(integersIn: 0..<node.children!.count), inParent: node,
-                withAnimation: .effectGap)
-            view.endUpdates()
+                print("expanding \(node.name)")
+                view.beginUpdates()
+                view.insertItems(
+                    at: IndexSet(integersIn: 0..<node.children!.count), inParent: node,
+                    withAnimation: .effectGap)
+                view.endUpdates()
+            }
         }
     }
 
-    func outlineViewItemWillCollapse(_ notification: Notification) {
+    func outlineViewItemDidCollapse(_ notification: Notification) {
         if let node = notification.userInfo?["NSObject"] as? FileItem {
+            // clear so that we can redo expand next time without having to diff
             view.beginUpdates()
             view.removeItems(
                 at: IndexSet(integersIn: 0..<node.children!.count), inParent: node,
@@ -660,6 +661,7 @@ private class TextFieldCellView: NSTableCellView, NSTextFieldDelegate {
                 NSLog("Error renaming item: \(error)")
             }
         }
+        return true
     }
 }
 
