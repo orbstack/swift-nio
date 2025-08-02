@@ -56,7 +56,11 @@ struct MacVirtApp: App {
         var runtime_cfg = ghostty_runtime_config_s(
                 userdata: nil, 
                 supports_selection_clipboard: false,
-                wakeup_cb: {_ in},
+                wakeup_cb: {userdata in 
+                    DispatchQueue.main.async {
+                        ghostty_app_tick(AppDelegate.shared.ghostty)
+                    }
+                },
                 action_cb: {_, _, _ in true},
                 read_clipboard_cb: {_, _, _ in},
                 confirm_read_clipboard_cb: {_, _, _, _ in},
