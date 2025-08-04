@@ -41,6 +41,8 @@ struct TerminalTabNSViewRepresentable: NSViewRepresentable {
 
     func updateNSView(_ nsView: TerminalTabNSView, context: Context) {
         nsView.sizeDidChange(size)
+
+        nsView.updateConfig(executable: executable, args: args, env: env)
     }
 }
 
@@ -48,9 +50,9 @@ class TerminalTabNSView: NSView {
     @Environment(\.colorScheme) var colorScheme
     @Default(.terminalTheme) var terminalTheme
 
-    let executable: String
-    let args: [String]
-    let env: [String]
+    var executable: String
+    var args: [String]
+    var env: [String]
 
     override var acceptsFirstResponder: Bool {
         return true
@@ -66,10 +68,7 @@ class TerminalTabNSView: NSView {
 
         super.init(frame: NSMakeRect(0, 0, 800, 600))
 
-        let surface_config = SurfaceConfiguration()
-        surface = surface_config.withCValue(view: self) { config in
-            ghostty_surface_new(AppDelegate.shared.ghostty, &config)
-        }
+        createSurface()
     }
 
     deinit {
@@ -78,6 +77,28 @@ class TerminalTabNSView: NSView {
 
     required init?(coder: NSCoder) {
         fatalError("init(coder:) has not been implemented")
+    }
+
+    private func createSurface() {
+        let surface_config = SurfaceConfiguration(executable: executable, args: args, env: env)
+
+        surface = surface_config.withCValue(view: self) { config in
+            ghostty_surface_new(AppDelegate.shared.ghostty, &config)
+        }
+        ghostty_surface_set_size(surface, surfaceSize?.width_px ?? 800, surfaceSize?.height_px ?? 600)
+    }
+
+    func updateConfig(executable: String, args: [String], env: [String]) {
+        if self.executable == executable && self.args == args && self.env == env {
+            return
+        }
+
+        self.executable = executable
+        self.args = args
+        self.env = env
+
+        ghostty_surface_free(surface)
+        createSurface()
     }
 
     func sizeDidChange(_ size: CGSize) {
@@ -499,6 +520,14 @@ struct SurfaceConfiguration {
     var initialInput: String? = nil
 
     init() {}
+
+    init(executable: String, args: [String], env: [String]) {
+        self.command = executable + " " + args.joined(separator: " ")
+        for envvar in env {
+            let parts = envvar.split(separator: "=")
+            self.environmentVariables[String(parts[0])] = String(parts[1])
+        }
+    }
 
     init(from config: ghostty_surface_config_s) {
         self.fontSize = config.font_size
