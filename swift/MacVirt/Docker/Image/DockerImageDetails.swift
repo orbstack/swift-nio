@@ -24,6 +24,14 @@ struct DockerImageDetails: View {
                     .font(.body.monospaced())
                 }
 
+                if let tags = image.summary.repoTags,
+                    tags.count == 1
+                {
+                    DetailsRow("Tag") {
+                        CopyableText(tags.first!)
+                    }
+                }
+
                 DetailsRow("Created", text: "\(image.summary.formattedCreated) (\(image.summary.formattedCreatedLong))")
                 DetailsRow("Size", text: image.summary.formattedSize)
                 DetailsRow("Platform", text: image.full.platform)
@@ -42,7 +50,7 @@ struct DockerImageDetails: View {
             }
 
             if let tags = image.summary.repoTags,
-                !tags.isEmpty
+                tags.count > 1
             {
                 DetailsListSection("Tags") {
                     ForEach(tags, id: \.self) { tag in
