@@ -30,13 +30,9 @@ struct DockerContainerTerminalTab: View {
             statusBar
 
             TerminalTabView(
-                executable: useDebugShell ? AppConfig.ctlExe : AppConfig.dockerExe,
-                args: useDebugShell
-                    ? ["debug", "-f", container.id]
-                    : [
-                        "exec", "-it", container.id, "sh", "-c",
-                        "command -v bash > /dev/null && exec bash || exec sh",
-                    ],
+                command: useDebugShell 
+                ? AppConfig.ctlExe + " debug -f \(container.id)" 
+                : AppConfig.dockerExe + " exec -it \(container.id) sh -c 'command -v bash > /dev/null && exec bash || exec sh'",
                 env: [
                     // env is more robust, user can mess with context
                     "DOCKER_HOST=unix://\(Files.dockerSocket)",

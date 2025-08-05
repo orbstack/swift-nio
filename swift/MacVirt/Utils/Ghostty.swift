@@ -97,8 +97,8 @@ extension Ghostty {
             return CGSize(width: CGFloat(ghostty_size.width_px), height: CGFloat(ghostty_size.height_px))
         }
 
-        init(app: ghostty_app_t, view: NSView, executable: String, args: [String], env: [String], size: CGSize) {
-            let surface_config = Configuration(executable: executable, args: args, env: env)
+        init(app: ghostty_app_t, view: NSView, command: String, env: [String], size: CGSize) {
+            let surface_config = Configuration(command: command, env: env)
 
             self.surface = surface_config.withCValue(view: view) { config in
                 ghostty_surface_new(AppDelegate.shared.ghostty.app, &config)
@@ -108,8 +108,8 @@ extension Ghostty {
             self.ghostty_size = ghostty_surface_size(surface)
         }
 
-        convenience init(app: ghostty_app_t, view: NSView, executable: String, args: [String], env: [String]) {
-            self.init(app: app, view: view, executable: executable, args: args, env: env, size: CGSize(width: 800, height: 600))
+        convenience init(app: ghostty_app_t, view: NSView, command: String, env: [String]) {
+            self.init(app: app, view: view, command: command, env: env, size: CGSize(width: 800, height: 600))
         }
 
         deinit {
@@ -223,8 +223,8 @@ extension Ghostty.Surface {
         /// Extra input to send as stdin
         var initialInput: String? = nil
 
-        init(executable: String, args: [String], env: [String]) {
-            self.command = executable + " " + args.joined(separator: " ")
+        init(command: String, env: [String]) {
+            self.command = command
             for envvar in env {
                 let parts = envvar.split(separator: "=")
                 self.environmentVariables[String(parts[0])] = String(parts[1])

@@ -9,8 +9,7 @@ struct MachineTerminalTab: View {
         Group {
             if machine.record.state == .running {
                 TerminalTabView(
-                    executable: AppConfig.ctlExe,
-                    args: ["run", "-m", machine.id]
+                    command: AppConfig.ctlExe + " run -m \(machine.id)"
                 )
             } else {
                 VStack(spacing: 16) {  // match ContentUnavailableViewCompat desc padding

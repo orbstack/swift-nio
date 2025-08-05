@@ -8,8 +8,7 @@ struct K8SPodTerminalTab: View {
     var body: some View {
         if pod.uiState == .running {
             TerminalTabView(
-                executable: AppConfig.kubectlExe,
-                args: pod.terminalArgs,
+                command: AppConfig.kubectlExe + " " + pod.terminalArgs.joined(separator: " "),
             )
             .onReceive(vmModel.toolbarActionRouter) { action in
                 if action == .k8sPodOpenInNewWindow {
