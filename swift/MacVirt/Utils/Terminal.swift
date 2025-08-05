@@ -58,8 +58,7 @@ class TerminalTabNSView: NSView {
         return true
     }
 
-    var surface: ghostty_surface_t?
-    var surfaceSize: ghostty_surface_size_s?
+    var surface: Ghostty.Surface?
 
     init(executable: String, args: [String], env: [String] = []) {
         self.executable = executable
@@ -71,21 +70,12 @@ class TerminalTabNSView: NSView {
         createSurface()
     }
 
-    deinit {
-        ghostty_surface_free(surface)
-    }
-
     required init?(coder: NSCoder) {
         fatalError("init(coder:) has not been implemented")
     }
 
     private func createSurface() {
-        let surface_config = SurfaceConfiguration(executable: executable, args: args, env: env)
-
-        surface = surface_config.withCValue(view: self) { config in
-            ghostty_surface_new(AppDelegate.shared.ghostty.app, &config)
-        }
-        ghostty_surface_set_size(surface, surfaceSize?.width_px ?? 800, surfaceSize?.height_px ?? 600)
+        surface = Ghostty.Surface(app: AppDelegate.shared.ghostty.app, view: self, executable: executable, args: args, env: env)
     }
 
     func updateConfig(executable: String, args: [String], env: [String]) {
@@ -97,7 +87,6 @@ class TerminalTabNSView: NSView {
         self.args = args
         self.env = env
 
-        ghostty_surface_free(surface)
         createSurface()
     }
 
@@ -107,25 +96,11 @@ class TerminalTabNSView: NSView {
         // an animation (i.e. a fullscreen animation), the frame will not yet be updated.
         // The size represents our final size we're going for.
         let scaledSize = self.convertToBacking(size)
-        setSurfaceSize(width: UInt32(scaledSize.width), height: UInt32(scaledSize.height))
+        surface?.setSize(width: UInt32(scaledSize.width), height: UInt32(scaledSize.height))
     }
 
     private func setSurfaceSize(width: UInt32, height: UInt32) {
-        guard let surface = surface else { return }
-
-        NSLog("setting surface size to \(width)x\(height)")
-
-        // Update our core surface
-        ghostty_surface_set_size(surface, width, height)
-
-        // Update our cached size metrics
-        let size = ghostty_surface_size(surface)
-        DispatchQueue.main.async {
-            // DispatchQueue required since this may be called by SwiftUI off
-            // the main thread and Published changes need to be on the main
-            // thread. This caused a crash on macOS <= 14.
-            self.surfaceSize = size
-        }
+        surface?.setSize(width: width, height: height)
     }
 
     override func keyUp(with event: NSEvent) {
@@ -145,9 +120,7 @@ class TerminalTabNSView: NSView {
     ) -> Bool {
         NSLog("keyAction: \(action) \(event.characters ?? "nil")")
 
-        guard let surface = self.surface else { return false }
-
-        NSLog("keyAction: \(action) \(event.characters ?? "nil")")
+        guard let surface = surface else { return false }
 
         var key_ev = ghosttyKeyEvent(
             event, action, translationMods: translationEvent?.modifierFlags)
@@ -161,10 +134,10 @@ class TerminalTabNSView: NSView {
         {
             return text.withCString { ptr in
                 key_ev.text = ptr
-                return ghostty_surface_key(surface, key_ev)
+                return surface.key(key_ev)
             }
         } else {
-            return ghostty_surface_key(surface, key_ev)
+            return surface.key(key_ev)
         }
     }
 
@@ -254,7 +227,7 @@ class TerminalTabNSView: NSView {
         // We need to translate the mods (maybe) to handle configs such as option-as-alt
         let translationModsGhostty = eventModifierFlags(
             mods: ghostty_surface_key_translation_mods(
-                surface,
+                surface.surface,
                 ghosttyMods(event.modifierFlags)
             )
         )
@@ -334,7 +307,7 @@ class TerminalTabNSView: NSView {
         // do this and the key event callbacks below doesn't matter since
         // we control the preedit state only through the preedit API.
         syncPreedit(clearIfNeeded: markedTextBefore)
-        
+
         NSLog("keydown about to send")
 
         if let list = keyTextAccumulator, list.count > 0 {
@@ -367,13 +340,10 @@ class TerminalTabNSView: NSView {
             )
         }
     }
-    
 
-
-
-        /// Sync the preedit state based on the markedText value to libghostty
+    /// Sync the preedit state based on the markedText value to libghostty
     private func syncPreedit(clearIfNeeded: Bool = true) {
-        guard let surface else { return }
+        guard let surface = self.surface else { return }
 
         if markedText.length > 0 {
             let str = markedText.string
@@ -381,13 +351,13 @@ class TerminalTabNSView: NSView {
             if len > 0 {
                 markedText.string.withCString { ptr in
                     // Subtract 1 for the null terminator
-                    ghostty_surface_preedit(surface, ptr, UInt(len - 1))
+                    ghostty_surface_preedit(surface.surface, ptr, UInt(len - 1))
                 }
             }
         } else if clearIfNeeded {
             // If we had marked text before but don't now, we're no longer
             // in a preedit state so we can clear it.
-            ghostty_surface_preedit(surface, nil, 0)
+            ghostty_surface_preedit(surface.surface, nil, 0)
         }
     }
 
@@ -439,28 +409,29 @@ class KeyboardLayout {
     }
 }
 
-    func ghosttyCharacters(event: NSEvent) -> String? {
-        // If we have no characters associated with this event we do nothing.
-        guard let characters = event.characters else { return nil }
+func ghosttyCharacters(event: NSEvent) -> String? {
+    // If we have no characters associated with this event we do nothing.
+    guard let characters = event.characters else { return nil }
 
-        if characters.count == 1,
-           let scalar = characters.unicodeScalars.first {
-            // If we have a single control character, then we return the characters
-            // without control pressed. We do this because we handle control character
-            // encoding directly within Ghostty's KeyEncoder.
-            if scalar.value < 0x20 {
-                return event.characters(byApplyingModifiers: event.modifierFlags.subtracting(.control))
-            }
-
-            // If we have a single value in the PUA, then it's a function key and
-            // we don't want to send PUA ranges down to Ghostty.
-            if scalar.value >= 0xF700 && scalar.value <= 0xF8FF {
-                return nil
-            }
+    if characters.count == 1,
+        let scalar = characters.unicodeScalars.first
+    {
+        // If we have a single control character, then we return the characters
+        // without control pressed. We do this because we handle control character
+        // encoding directly within Ghostty's KeyEncoder.
+        if scalar.value < 0x20 {
+            return event.characters(byApplyingModifiers: event.modifierFlags.subtracting(.control))
         }
 
-        return characters
+        // If we have a single value in the PUA, then it's a function key and
+        // we don't want to send PUA ranges down to Ghostty.
+        if scalar.value >= 0xF700 && scalar.value <= 0xF8FF {
+            return nil
+        }
     }
+
+    return characters
+}
 
 extension Array where Element == String {
     /// Executes a closure with an array of C string pointers.
@@ -497,129 +468,6 @@ extension Optional where Wrapped == String {
             return try string.withCString(body)
         } else {
             return try body(nil)
-        }
-    }
-}
-
-/// The configuration for a surface. For any configuration not set, defaults will be chosen from
-/// libghostty, usually from the Ghostty configuration.
-struct SurfaceConfiguration {
-    /// Explicit font size to use in points
-    var fontSize: Float32? = nil
-
-    /// Explicit working directory to set
-    var workingDirectory: String? = nil
-
-    /// Explicit command to set
-    var command: String? = nil
-
-    /// Environment variables to set for the terminal
-    var environmentVariables: [String: String] = [:]
-
-    /// Extra input to send as stdin
-    var initialInput: String? = nil
-
-    init() {}
-
-    init(executable: String, args: [String], env: [String]) {
-        self.command = executable + " " + args.joined(separator: " ")
-        for envvar in env {
-            let parts = envvar.split(separator: "=")
-            self.environmentVariables[String(parts[0])] = String(parts[1])
-        }
-    }
-
-    init(from config: ghostty_surface_config_s) {
-        self.fontSize = config.font_size
-        if let workingDirectory = config.working_directory {
-            self.workingDirectory = String.init(cString: workingDirectory, encoding: .utf8)
-        }
-        if let command = config.command {
-            self.command = String.init(cString: command, encoding: .utf8)
-        }
-
-        // Convert the C env vars to Swift dictionary
-        if config.env_var_count > 0, let envVars = config.env_vars {
-            for i in 0..<config.env_var_count {
-                let envVar = envVars[i]
-                if let key = String(cString: envVar.key, encoding: .utf8),
-                    let value = String(cString: envVar.value, encoding: .utf8)
-                {
-                    self.environmentVariables[key] = value
-                }
-            }
-        }
-    }
-
-    /// Provides a C-compatible ghostty configuration within a closure. The configuration
-    /// and all its string pointers are only valid within the closure.
-    func withCValue<T>(
-        view: TerminalTabNSView, _ body: (inout ghostty_surface_config_s) throws -> T
-    ) rethrows -> T {
-        var config = ghostty_surface_config_new()
-        config.userdata = Unmanaged.passUnretained(view).toOpaque()
-        #if os(macOS)
-            config.platform_tag = GHOSTTY_PLATFORM_MACOS
-            config.platform = ghostty_platform_u(
-                macos: ghostty_platform_macos_s(
-                    nsview: Unmanaged.passUnretained(view).toOpaque()
-                ))
-            config.scale_factor = NSScreen.main!.backingScaleFactor
-        #elseif os(iOS)
-            config.platform_tag = GHOSTTY_PLATFORM_IOS
-            config.platform = ghostty_platform_u(
-                ios: ghostty_platform_ios_s(
-                    uiview: Unmanaged.passUnretained(view).toOpaque()
-                ))
-            // Note that UIScreen.main is deprecated and we're supposed to get the
-            // screen through the view hierarchy instead. This means that we should
-            // probably set this to some default, then modify the scale factor through
-            // libghostty APIs when a UIView is attached to a window/scene. TODO.
-            config.scale_factor = UIScreen.main.scale
-        #else
-            #error("unsupported target")
-        #endif
-
-        // Zero is our default value that means to inherit the font size.
-        config.font_size = fontSize ?? 0
-
-        // Use withCString to ensure strings remain valid for the duration of the closure
-        return try workingDirectory.withCString { cWorkingDir in
-            config.working_directory = cWorkingDir
-
-            return try command.withCString { cCommand in
-                config.command = cCommand
-
-                return try initialInput.withCString { cInput in
-                    config.initial_input = cInput
-
-                    // Convert dictionary to arrays for easier processing
-                    let keys = Array(environmentVariables.keys)
-                    let values = Array(environmentVariables.values)
-
-                    // Create C strings for all keys and values
-                    return try keys.withCStrings { keyCStrings in
-                        return try values.withCStrings { valueCStrings in
-                            // Create array of ghostty_env_var_s
-                            var envVars = [ghostty_env_var_s]()
-                            envVars.reserveCapacity(environmentVariables.count)
-                            for i in 0..<environmentVariables.count {
-                                envVars.append(
-                                    ghostty_env_var_s(
-                                        key: keyCStrings[i],
-                                        value: valueCStrings[i]
-                                    ))
-                            }
-
-                            return try envVars.withUnsafeMutableBufferPointer { buffer in
-                                config.env_vars = buffer.baseAddress
-                                config.env_var_count = environmentVariables.count
-                                return try body(&config)
-                            }
-                        }
-                    }
-                }
-            }
         }
     }
 }
