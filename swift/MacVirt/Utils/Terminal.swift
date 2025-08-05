@@ -9,7 +9,7 @@ import Foundation
 import GhosttyKit
 import SwiftUI
 
-struct TerminalTabView: View {
+struct TerminalView: View {
     let command: String
     let env: [String]
 
@@ -20,30 +20,30 @@ struct TerminalTabView: View {
 
     var body: some View {
         GeometryReader { geometry in
-            TerminalTabNSViewRepresentable(
+            TerminalNSViewRepresentable(
                 command: command, env: env, size: geometry.size)
         }
     }
 }
 
-struct TerminalTabNSViewRepresentable: NSViewRepresentable {
+struct TerminalNSViewRepresentable: NSViewRepresentable {
     let command: String
     let env: [String]
 
     let size: CGSize
 
-    func makeNSView(context: Context) -> TerminalTabNSView {
-        return TerminalTabNSView(command: command, env: env)
+    func makeNSView(context: Context) -> TerminalNSView {
+        return TerminalNSView(command: command, env: env)
     }
 
-    func updateNSView(_ nsView: TerminalTabNSView, context: Context) {
+    func updateNSView(_ nsView: TerminalNSView, context: Context) {
         nsView.sizeDidChange(size)
 
         nsView.updateConfig(command: command, env: env)
     }
 }
 
-class TerminalTabNSView: NSView {
+class TerminalNSView: NSView {
     @Environment(\.colorScheme) var colorScheme
     @Default(.terminalTheme) var terminalTheme
 
@@ -386,7 +386,7 @@ class TerminalTabNSView: NSView {
 
 }
 
-extension TerminalTabNSView: NSTextInputClient {
+extension TerminalNSView: NSTextInputClient {
     func hasMarkedText() -> Bool {
         return markedText.length > 0
     }

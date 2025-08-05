@@ -29,7 +29,7 @@ struct DockerContainerTerminalTab: View {
         VStack {
             statusBar
 
-            TerminalTabView(
+            TerminalView(
                 command: useDebugShell 
                 ? AppConfig.ctlExe + " debug -f \(container.id)" 
                 : AppConfig.dockerExe + " exec -it \(container.id) sh -c 'command -v bash > /dev/null && exec bash || exec sh'",

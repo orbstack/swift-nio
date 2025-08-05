@@ -8,7 +8,7 @@ struct MachineTerminalTab: View {
     var body: some View {
         Group {
             if machine.record.state == .running {
-                TerminalTabView(
+                TerminalView(
                     command: AppConfig.ctlExe + " run -m \(machine.id)"
                 )
             } else {
