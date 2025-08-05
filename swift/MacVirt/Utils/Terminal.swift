@@ -68,10 +68,26 @@ class TerminalTabNSView: NSView {
         super.init(frame: NSMakeRect(0, 0, 800, 600))
 
         createSurface()
+
+        let center = NotificationCenter.default
+        center.addObserver(
+            self,
+            selector: #selector(self.handleCloseSurface),
+            name: .ghosttyCloseSurface,
+            object: nil
+        )
     }
 
     required init?(coder: NSCoder) {
         fatalError("init(coder:) has not been implemented")
+    }
+
+    deinit {
+        NotificationCenter.default.removeObserver(self)
+    }
+
+    @objc func handleCloseSurface() {
+        createSurface()
     }
 
     private func createSurface() {

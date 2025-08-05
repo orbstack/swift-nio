@@ -22,11 +22,14 @@ class Ghostty {
                     ghostty_app_tick(AppDelegate.shared.ghostty.app)
                 }
             },
-            action_cb: { _, _, _ in true },
+            action_cb: { _, _, _ in false },
             read_clipboard_cb: { _, _, _ in },
             confirm_read_clipboard_cb: { _, _, _, _ in },
             write_clipboard_cb: { _, _, _, _ in },
-            close_surface_cb: { _, _ in }
+            close_surface_cb: { userdata, processAlive in
+                NSLog("close_surface_cb: \(processAlive)")
+                NotificationCenter.default.post(name: .ghosttyCloseSurface, object: Surface.surfaceUserdata(from: userdata))
+            }
         )
 
         self.app = ghostty_app_new(&runtime_cfg, config.ghostty_config)
@@ -111,6 +114,10 @@ extension Ghostty {
 
         deinit {
             ghostty_surface_free(surface)
+        }
+
+        static func surfaceUserdata(from userdata: UnsafeMutableRawPointer?) -> NSView {
+            return Unmanaged<NSView>.fromOpaque(userdata!).takeUnretainedValue()
         }
 
         func setSize(width: UInt32, height: UInt32) {
@@ -206,4 +213,8 @@ extension Ghostty {
             }
         }
     }
+}
+
+extension Notification.Name {
+    static let ghosttyCloseSurface = Notification.Name("dev.orbstack.macvirt.ghostty.closeSurface")
 }
