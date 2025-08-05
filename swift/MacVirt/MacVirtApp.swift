@@ -64,7 +64,7 @@ struct MacVirtApp: App {
             fatalError("Failed to initialize Ghostty")
         }
 
-        let config_strings = ["--theme=dark:Apple System Colors,light:Apple System Colors Light"]
+        let config_strings = TerminalTheme.defaultDark.toGhosttyArgs()
         let config_strings_unsafe: UnsafeMutablePointer<UnsafeMutablePointer<CChar>?> = config_strings
             .map { strdup($0) }
             .withUnsafeBufferPointer { buffer in

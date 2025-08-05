@@ -3,19 +3,17 @@ import SwiftTerm
 import SwiftUI
 
 struct TerminalTheme: Equatable, Hashable {
-    let palette: [SwiftTerm.Color]
+    let palette: [NSColor]
 
     let background: NSColor
     let foreground: NSColor
     let cursorColor: NSColor
     let cursorText: NSColor
     let selectionBackground: NSColor
-
-    // unsupported
     let selectionForeground: NSColor
 
     private init(
-        palette: [SwiftTerm.Color], background: NSColor, foreground: NSColor, cursorColor: NSColor,
+        palette: [NSColor], background: NSColor, foreground: NSColor, cursorColor: NSColor,
         cursorText: NSColor, selectionBackground: NSColor, selectionForeground: NSColor
     ) {
         self.palette = palette
@@ -36,7 +34,7 @@ struct TerminalTheme: Equatable, Hashable {
         selectionBackground: UInt32,
         selectionForeground: UInt32,
     ) {
-        self.palette = palette.map { SwiftTerm.Color(hex: $0) }
+        self.palette = palette.map { NSColor(hex: $0) }
         self.background = NSColor(hex: background)
         self.foreground = NSColor(hex: foreground)
         self.cursorColor = NSColor(hex: cursorColor)
@@ -46,7 +44,7 @@ struct TerminalTheme: Equatable, Hashable {
     }
 
     private init(palette: [UInt32]) {
-        self.palette = palette.map { SwiftTerm.Color(hex: $0) }
+        self.palette = palette.map { NSColor(hex: $0) }
         self.background = NSColor.textBackgroundColor
         self.foreground = NSColor.textColor
         self.cursorColor = NSColor.selectedControlColor
@@ -54,81 +52,33 @@ struct TerminalTheme: Equatable, Hashable {
         self.selectionBackground = NSColor.selectedTextBackgroundColor
         self.selectionForeground = NSColor.textColor
     }
+
+    func toGhosttyArgs() -> [String] {
+        var args = [String]()
+        for i in 0..<palette.count {
+            args.append("--palette=\(i)=\(palette[i].hexString)")
+        }
+        args.append("--background=\(background.hexString)")
+        args.append("--foreground=\(foreground.hexString)")
+        args.append("--cursor-color=\(cursorColor.hexString)")
+        args.append("--cursor-text=\(cursorText.hexString)")
+        args.append("--selection-background=\(selectionBackground.hexString)")
+        args.append("--selection-foreground=\(selectionForeground.hexString)")
+        return args
+    }
 }
 
-extension SwiftTerm.Color {
-    fileprivate convenience init(hex: UInt32) {
-        // 255 -> 65535 scale
-        self.init(
-            red: UInt16((hex >> 16) & 0xFF) * 257, green: UInt16((hex >> 8) & 0xFF) * 257,
-            blue: UInt16(hex & 0xFF) * 257)
-    }
-
-    // private for some reason
-    fileprivate convenience init(red8: UInt8, green8: UInt8, blue8: UInt8) {
-        self.init(red: UInt16(red8) * 257, green: UInt16(green8) * 257, blue: UInt16(blue8) * 257)
+extension NSColor {
+    var hexString: String {
+        let components = self.cgColor.components
+        return String(format: "#%02X%02X%02X", Int(components![0] * 255), Int(components![1] * 255), Int(components![2] * 255))
     }
 }
+
 
 extension TerminalTheme {
     static let defaultDark: TerminalTheme = ghosttyAppleSystemColors
     static let defaultLight: TerminalTheme = ghosttyAppleSystemColorsLight
-
-    // palette from SwiftTerm.Color private
-    static let terminalApp = TerminalTheme(
-        palette: [
-            SwiftTerm.Color(red8: 0, green8: 0, blue8: 0),
-            SwiftTerm.Color(red8: 194, green8: 54, blue8: 33),
-            SwiftTerm.Color(red8: 37, green8: 188, blue8: 36),
-            SwiftTerm.Color(red8: 173, green8: 173, blue8: 39),
-            SwiftTerm.Color(red8: 73, green8: 46, blue8: 225),
-            SwiftTerm.Color(red8: 211, green8: 56, blue8: 211),
-            SwiftTerm.Color(red8: 51, green8: 187, blue8: 200),
-            SwiftTerm.Color(red8: 203, green8: 204, blue8: 205),
-            SwiftTerm.Color(red8: 129, green8: 131, blue8: 131),
-            SwiftTerm.Color(red8: 252, green8: 57, blue8: 31),
-            SwiftTerm.Color(red8: 49, green8: 231, blue8: 34),
-            SwiftTerm.Color(red8: 234, green8: 236, blue8: 35),
-            SwiftTerm.Color(red8: 88, green8: 51, blue8: 255),
-            SwiftTerm.Color(red8: 249, green8: 53, blue8: 248),
-            SwiftTerm.Color(red8: 20, green8: 240, blue8: 240),
-            SwiftTerm.Color(red8: 233, green8: 235, blue8: 235),
-        ],
-        background: NSColor.textBackgroundColor,
-        foreground: NSColor.textColor,
-        cursorColor: NSColor.selectedControlColor,
-        cursorText: NSColor.textColor,
-        selectionBackground: NSColor.selectedTextBackgroundColor,
-        selectionForeground: NSColor.textColor,
-    )
-
-    // palette from SwiftTerm.Color private
-    static let swiftTermDefault = TerminalTheme(
-        palette: [
-            Color(red8: 0, green8: 0, blue8: 0),
-            Color(red8: 153, green8: 0, blue8: 1),
-            Color(red8: 0, green8: 166, blue8: 3),
-            Color(red8: 153, green8: 153, blue8: 0),
-            Color(red8: 3, green8: 0, blue8: 178),
-            Color(red8: 178, green8: 0, blue8: 178),
-            Color(red8: 0, green8: 165, blue8: 178),
-            Color(red8: 191, green8: 191, blue8: 191),
-            Color(red8: 138, green8: 137, blue8: 138),
-            Color(red8: 229, green8: 0, blue8: 1),
-            Color(red8: 0, green8: 216, blue8: 0),
-            Color(red8: 229, green8: 229, blue8: 0),
-            Color(red8: 7, green8: 0, blue8: 254),
-            Color(red8: 229, green8: 0, blue8: 229),
-            Color(red8: 0, green8: 229, blue8: 229),
-            Color(red8: 229, green8: 229, blue8: 229),
-        ],
-        background: NSColor.textBackgroundColor,
-        foreground: NSColor.textColor,
-        cursorColor: NSColor.selectedControlColor,
-        cursorText: NSColor.textColor,
-        selectionBackground: NSColor.selectedTextBackgroundColor,
-        selectionForeground: NSColor.textColor,
-    )
 
     // Ghostty: rose-pine
     static let rosePine = TerminalTheme(
