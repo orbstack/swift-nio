@@ -45,7 +45,7 @@ struct GeneralSettingsView: View {
                     Text("System").tag(TerminalThemePreference.def)
                     Text("Rosé Pine").tag(TerminalThemePreference.rosePine)
                 } label: {
-                    Text("Theme")
+                    Text("Terminal theme")
                 }
 
                 Picker(selection: $terminalDefaultApp) {
