@@ -98,7 +98,7 @@ extension Ghostty {
         }
 
         init(app: ghostty_app_t, view: NSView, executable: String, args: [String], env: [String], size: CGSize) {
-            let surface_config = SurfaceConfiguration(executable: executable, args: args, env: env)
+            let surface_config = Configuration(executable: executable, args: args, env: env)
 
             self.surface = surface_config.withCValue(view: view) { config in
                 ghostty_surface_new(AppDelegate.shared.ghostty.app, &config)
@@ -128,11 +128,86 @@ extension Ghostty {
         func key(_ key_ev: ghostty_input_key_s) -> Bool {
             return ghostty_surface_key(surface, key_ev)
         }
+
+        func sendText(_ text: String) {
+            let len = text.utf8CString.count
+            if (len == 0) { return }
+
+            text.withCString { ptr in
+                // len includes the null terminator so we do len - 1
+                ghostty_surface_text(surface, ptr, UInt(len - 1))
+            }
+        }
+
+        func selectedText() -> SelectedText {
+            return SelectedText(surface: surface)
+        }
+
+        func quicklookFont() -> CTFont? {
+            // Memory management here is wonky: ghostty_surface_quicklook_font
+            // will create a copy of a CTFont, Swift will auto-retain the
+            // unretained value passed into the dict, so we release the original.
+            if let fontRaw = ghostty_surface_quicklook_font(surface) {
+                let font = Unmanaged<CTFont>.fromOpaque(fontRaw)
+                let ret = font.takeUnretainedValue()
+                font.release()
+                return ret
+            }
+            return nil
+        }
+
+        /// Returns the x/y coordinate of where the IME (Input Method Editor)
+        /// keyboard should be rendered.
+        func imePoint() -> (x: Double, y: Double) {
+            var x: Double = 0
+            var y: Double = 0
+            ghostty_surface_ime_point(surface, &x, &y)
+            return (x: x, y: y)
+        }
+
+        func preEdit(_ str: String?) {
+            if let str {
+                str.withCString { ptr in
+                    ghostty_surface_preedit(surface, ptr, UInt(str.utf8CString.count - 1))
+                }
+            } else {
+                ghostty_surface_preedit(surface, nil, 0)
+            }
+        }
+    }
+}
+
+extension Ghostty.Surface {
+    class SelectedText {
+        private var text: ghostty_text_s
+        private var surface: ghostty_surface_t
+
+        init(surface: ghostty_surface_t) {
+            self.surface = surface
+            self.text = ghostty_text_s()
+            ghostty_surface_read_selection(surface, &text)
+        }
+
+        deinit {
+            ghostty_surface_free_text(surface, &text)
+        }
+
+        func range() -> NSRange {
+            return NSRange(location: Int(text.offset_start), length: Int(text.offset_len))
+        }
+
+        func string() -> String {
+            return String(cString: text.text)
+        }
+
+        func topLeftCoords() -> (x: Double, y: Double) {
+            return (x: text.tl_px_x, y: text.tl_px_y)
+        }
     }
 
     /// The configuration for a surface. For any configuration not set, defaults will be chosen from
     // /// libghostty, usually from the Ghostty configuration.
-    struct SurfaceConfiguration {
+    struct Configuration {
         /// Explicit font size to use in points
         var fontSize: Float32? = nil
 

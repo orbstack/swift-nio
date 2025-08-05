@@ -358,26 +358,6 @@ class TerminalTabNSView: NSView {
         }
     }
 
-    /// Sync the preedit state based on the markedText value to libghostty
-    private func syncPreedit(clearIfNeeded: Bool = true) {
-        guard let surface = self.surface else { return }
-
-        if markedText.length > 0 {
-            let str = markedText.string
-            let len = str.utf8CString.count
-            if len > 0 {
-                markedText.string.withCString { ptr in
-                    // Subtract 1 for the null terminator
-                    ghostty_surface_preedit(surface.surface, ptr, UInt(len - 1))
-                }
-            }
-        } else if clearIfNeeded {
-            // If we had marked text before but don't now, we're no longer
-            // in a preedit state so we can clear it.
-            ghostty_surface_preedit(surface.surface, nil, 0)
-        }
-    }
-
     /// Returns the event modifier flags set for the Ghostty mods enum.
     func eventModifierFlags(mods: ghostty_input_mods_e) -> NSEvent.ModifierFlags {
         var flags = NSEvent.ModifierFlags(rawValue: 0)
@@ -410,6 +390,191 @@ class TerminalTabNSView: NSView {
         return ghostty_input_mods_e(mods)
     }
 
+}
+
+extension TerminalTabNSView: NSTextInputClient {
+    func hasMarkedText() -> Bool {
+        return markedText.length > 0
+    }
+
+    func markedRange() -> NSRange {
+        guard markedText.length > 0 else { return NSRange() }
+        return NSRange(0...(markedText.length-1))
+    }
+
+    func selectedRange() -> NSRange {
+        guard let surface = self.surface else { return NSRange() }
+
+        // Get our range from the Ghostty API. There is a race condition between getting the
+        // range and actually using it since our selection may change but there isn't a good
+        // way I can think of to solve this for AppKit.
+        return surface.selectedText().range()
+    }
+
+    func setMarkedText(_ string: Any, selectedRange: NSRange, replacementRange: NSRange) {
+        switch string {
+        case let v as NSAttributedString:
+            self.markedText = NSMutableAttributedString(attributedString: v)
+
+        case let v as String:
+            self.markedText = NSMutableAttributedString(string: v)
+
+        default:
+            print("unknown marked text: \(string)")
+        }
+
+        // If we're not in a keyDown event, then we want to update our preedit
+        // text immediately. This can happen due to external events, for example
+        // changing keyboard layouts while composing: (1) set US intl (2) type '
+        // to enter dead key state (3)
+        if keyTextAccumulator == nil {
+            syncPreedit()
+        }
+    }
+
+    func unmarkText() {
+        if self.markedText.length > 0 {
+            self.markedText.mutableString.setString("")
+            syncPreedit()
+        }
+    }
+
+    func validAttributesForMarkedText() -> [NSAttributedString.Key] {
+        return []
+    }
+
+    func attributedSubstring(forProposedRange range: NSRange, actualRange: NSRangePointer?) -> NSAttributedString? {
+        // Ghostty.logger.warning("pressure substring range=\(range) selectedRange=\(self.selectedRange())")
+        guard let surface = self.surface else { return nil }
+
+        // If the range is empty then we don't need to return anything
+        guard range.length > 0 else { return nil }
+
+        // I used to do a bunch of testing here that the range requested matches the
+        // selection range or contains it but a lot of macOS system behaviors request
+        // bogus ranges I truly don't understand so we just always return the
+        // attributed string containing our selection which is... weird but works?
+
+        // Get our selection text
+        let text = surface.selectedText()
+
+        // If we can get a font then we use the font. This should always work
+        // since we always have a primary font. The only scenario this doesn't
+        // work is if someone is using a non-CoreText build which would be
+        // unofficial.
+        var attributes: [ NSAttributedString.Key : Any ] = [:];
+        if let font = surface.quicklookFont() {
+            attributes[.font] = font
+        }
+
+        return .init(string: text.string(), attributes: attributes)
+    }
+
+    func characterIndex(for point: NSPoint) -> Int {
+        return 0
+    }
+
+    func firstRect(forCharacterRange range: NSRange, actualRange: NSRangePointer?) -> NSRect {
+        guard let surface = self.surface else {
+            return NSMakeRect(frame.origin.x, frame.origin.y, 0, 0)
+        }
+
+        // Ghostty will tell us where it thinks an IME keyboard should render.
+        var x: Double = 0;
+        var y: Double = 0;
+
+        // QuickLook never gives us a matching range to our selection so if we detect
+        // this then we return the top-left selection point rather than the cursor point.
+        // This is hacky but I can't think of a better way to get the right IME vs. QuickLook
+        // point right now. I'm sure I'm missing something fundamental...
+        if range.length > 0 && range != self.selectedRange() {
+            // QuickLook
+            let text = surface.selectedText()
+            if text.range().length > 0 {
+                // The -2/+2 here is subjective. QuickLook seems to offset the rectangle
+                // a bit and I think these small adjustments make it look more natural.
+                (x, y) = text.topLeftCoords()
+            } else {
+                (x, y) = surface.imePoint()
+            }
+        } else {
+            (x, y) = surface.imePoint()
+        }
+
+        // Ghostty coordinates are in top-left (0, 0) so we have to convert to
+        // bottom-left since that is what UIKit expects
+        let viewRect = NSMakeRect(x, frame.size.height - y, 0, 0)
+
+        // Convert the point to the window coordinates
+        let winRect = self.convert(viewRect, to: nil)
+
+        // Convert from view to screen coordinates
+        guard let window = self.window else { return winRect }
+        return window.convertToScreen(winRect)
+    }
+
+    func insertText(_ string: Any, replacementRange: NSRange) {
+        // We must have an associated event
+        guard NSApp.currentEvent != nil else { return }
+        guard let surface else { return }
+
+        // We want the string view of the any value
+        var chars = ""
+        switch (string) {
+        case let v as NSAttributedString:
+            chars = v.string
+        case let v as String:
+            chars = v
+        default:
+            return
+        }
+
+        // If insertText is called, our preedit must be over.
+        unmarkText()
+
+        // If we have an accumulator we're in another key event so we just
+        // accumulate and return.
+        if var acc = keyTextAccumulator {
+            acc.append(chars)
+            keyTextAccumulator = acc
+            return
+        }
+
+        surface.sendText(chars)
+    }
+
+    /// This function needs to exist for two reasons:
+    /// 1. Prevents an audible NSBeep for unimplemented actions.
+    /// 2. Allows us to properly encode super+key input events that we don't handle
+    override func doCommand(by selector: Selector) {
+        // If we are being processed by performKeyEquivalent with a command binding,
+        // we send it back through the event system so it can be encoded.
+        if let lastPerformKeyEvent,
+           let current = NSApp.currentEvent,
+           lastPerformKeyEvent == current.timestamp
+        {
+            NSApp.sendEvent(current)
+            return
+        }
+
+        print("SEL: \(selector)")
+    }
+
+    /// Sync the preedit state based on the markedText value to libghostty
+    private func syncPreedit(clearIfNeeded: Bool = true) {
+        guard let surface else { return }
+
+        if markedText.length > 0 {
+            let str = markedText.string
+            if !str.isEmpty {
+                surface.preEdit(str)
+            }
+        } else if clearIfNeeded {
+            // If we had marked text before but don't now, we're no longer
+            // in a preedit state so we can clear it.
+            surface.preEdit(nil)
+        }
+    }
 }
 
 class KeyboardLayout {
