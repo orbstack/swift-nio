@@ -19,6 +19,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
     var vmModel: VmViewModel!
 
     var ghostty: Ghostty!
+    var ghosttyAppearanceObserver: NSKeyValueObservation?
 
     private var menuBar: MenuBarController?
 
@@ -74,6 +75,15 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
         }
 
         vmModel.initLaunch()
+
+        // Observe our appearance so we can report the correct value to libghostty.
+        self.ghosttyAppearanceObserver = NSApplication.shared.observe(
+            \.effectiveAppearance,
+             options: [.new, .initial]
+        ) { _, change in
+            guard let appearance = change.newValue else { return }
+            self.ghostty.config.setAppearance(appearance: appearance)
+        }
     }
 
     func shouldPromptToMoveApplication() -> Bool {

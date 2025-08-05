@@ -83,7 +83,7 @@ class TerminalTabNSView: NSView {
         let surface_config = SurfaceConfiguration(executable: executable, args: args, env: env)
 
         surface = surface_config.withCValue(view: self) { config in
-            ghostty_surface_new(AppDelegate.shared.ghostty, &config)
+            ghostty_surface_new(AppDelegate.shared.ghostty.app, &config)
         }
         ghostty_surface_set_size(surface, surfaceSize?.width_px ?? 800, surfaceSize?.height_px ?? 600)
     }

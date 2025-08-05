@@ -1,15 +1,18 @@
 import GhosttyKit
 import Foundation
+import AppKit
+import SwiftUI
 
 struct Ghostty {
     let app: ghostty_app_t
+    var config: Config
 
     init() {
         if ghostty_init(UInt(CommandLine.argc), CommandLine.unsafeArgv) != GHOSTTY_SUCCESS {
             fatalError("Failed to initialize Ghostty")
         }
 
-        let config = Config(theme: TerminalTheme.defaultDark)
+        config = Config()
 
         var runtime_cfg = ghostty_runtime_config_s(
                 userdata: nil, 
@@ -32,7 +35,15 @@ struct Ghostty {
 
 extension Ghostty {
     struct Config {
-        var theme: TerminalTheme
+        private var effectiveAppearance: NSAppearance
+        private var colorScheme: ColorScheme {
+            return effectiveAppearance.name.rawValue.lowercased().contains("dark") ? .dark : .light
+        }
+
+        var themePreference: TerminalThemePreference = .def
+        var theme: TerminalTheme {
+            return TerminalTheme.forPreference(themePreference, colorScheme: colorScheme)
+        }
 
         var ghostty_config: ghostty_config_t {
             var config_strings: [String] = []
@@ -56,12 +67,19 @@ extension Ghostty {
             return config
         }
 
-        init(theme: TerminalTheme) {
-            self.theme = theme
+        init() {
+            self.effectiveAppearance = NSApplication.shared.effectiveAppearance
         }
 
-        func reload(app: ghostty_app_t) {
-            ghostty_app_update_config(app, ghostty_config)
+        mutating func setAppearance(appearance: NSAppearance) {
+            self.effectiveAppearance = appearance
+            reload()
+        }
+
+        func reload() {
+            DispatchQueue.main.async {
+                ghostty_app_update_config(AppDelegate.shared.ghostty.app, self.ghostty_config)
+            }
         }
     }
 }
