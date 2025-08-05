@@ -45,12 +45,39 @@ struct MacVirtApp: App {
         appDelegate.windowTracker = windowTracker
         appDelegate.vmModel = vmModel
 
+        createGhosttyApp()
+
+        for arg in CommandLine.arguments {
+            if arg == "--check-updates" {
+                updaterController.updater.checkForUpdates()
+            }
+        }
+
+        // redirect logs
+        #if !DEBUG
+            freopen(Files.guiLog, "w+", stderr)
+        #endif
+    }
+
+    private func createGhosttyApp() {
         if ghostty_init(UInt(CommandLine.argc), CommandLine.unsafeArgv) != GHOSTTY_SUCCESS {
-            print("Failed to initialize Ghostty")
             fatalError("Failed to initialize Ghostty")
         }
 
+        let config_strings = ["--theme=dark:Apple System Colors,light:Apple System Colors Light"]
+        let config_strings_unsafe: UnsafeMutablePointer<UnsafeMutablePointer<CChar>?> = config_strings
+            .map { strdup($0) }
+            .withUnsafeBufferPointer { buffer in
+                let ptr = UnsafeMutablePointer<UnsafeMutablePointer<CChar>?>.allocate(capacity: buffer.count + 1)
+                for (i, cstr) in buffer.enumerated() {
+                    ptr[i] = cstr
+                }
+                ptr[buffer.count] = nil // Add terminating nullptr
+                return ptr
+            }
+
         let config = ghostty_config_new()
+        ghostty_config_load_strings(config, config_strings_unsafe, config_strings.count)
         ghostty_config_finalize(config)
 
         var runtime_cfg = ghostty_runtime_config_s(
@@ -69,18 +96,8 @@ struct MacVirtApp: App {
             )
 
         let app = ghostty_app_new(&runtime_cfg, config)
-        appDelegate.ghostty = app
+        appDelegate.ghostty = app        
 
-        for arg in CommandLine.arguments {
-            if arg == "--check-updates" {
-                updaterController.updater.checkForUpdates()
-            }
-        }
-
-        // redirect logs
-        #if !DEBUG
-            freopen(Files.guiLog, "w+", stderr)
-        #endif
     }
 
     var body: some Scene {
