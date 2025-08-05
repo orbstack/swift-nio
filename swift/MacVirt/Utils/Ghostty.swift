@@ -89,17 +89,24 @@ extension Ghostty {
 extension Ghostty {
     class Surface {
         let surface: ghostty_surface_t
-        var size: ghostty_surface_size_s
+        private var ghostty_size: ghostty_surface_size_s
+        var size: CGSize {
+            return CGSize(width: CGFloat(ghostty_size.width_px), height: CGFloat(ghostty_size.height_px))
+        }
 
-        init(app: ghostty_app_t, view: NSView, executable: String, args: [String], env: [String]) {
+        init(app: ghostty_app_t, view: NSView, executable: String, args: [String], env: [String], size: CGSize) {
             let surface_config = SurfaceConfiguration(executable: executable, args: args, env: env)
 
             self.surface = surface_config.withCValue(view: view) { config in
                 ghostty_surface_new(AppDelegate.shared.ghostty.app, &config)
             }
 
-            ghostty_surface_set_size(surface, 800, 600)
-            self.size = ghostty_surface_size(surface)
+            ghostty_surface_set_size(surface, UInt32(size.width), UInt32(size.height))
+            self.ghostty_size = ghostty_surface_size(surface)
+        }
+
+        convenience init(app: ghostty_app_t, view: NSView, executable: String, args: [String], env: [String]) {
+            self.init(app: app, view: view, executable: executable, args: args, env: env, size: CGSize(width: 800, height: 600))
         }
 
         deinit {
@@ -108,8 +115,7 @@ extension Ghostty {
 
         func setSize(width: UInt32, height: UInt32) {
             ghostty_surface_set_size(surface, width, height)
-            let size = ghostty_surface_size(surface)
-            self.size = size
+            self.ghostty_size = ghostty_surface_size(surface)
         }
 
         func key(_ key_ev: ghostty_input_key_s) -> Bool {

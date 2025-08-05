@@ -75,7 +75,8 @@ class TerminalTabNSView: NSView {
     }
 
     private func createSurface() {
-        surface = Ghostty.Surface(app: AppDelegate.shared.ghostty.app, view: self, executable: executable, args: args, env: env)
+        let size = surface?.size ?? CGSize(width: 800, height: 600)
+        surface = Ghostty.Surface(app: AppDelegate.shared.ghostty.app, view: self, executable: executable, args: args, env: env, size: size)
     }
 
     func updateConfig(executable: String, args: [String], env: [String]) {
