@@ -2,6 +2,7 @@ import AppKit
 import Foundation
 import GhosttyKit
 import SwiftUI
+import Defaults
 
 class Ghostty {
     let app: ghostty_app_t
@@ -43,7 +44,9 @@ extension Ghostty {
             return effectiveAppearance.name.rawValue.lowercased().contains("dark") ? .dark : .light
         }
 
-        var themePreference: TerminalThemePreference = .def
+        var themePreference: TerminalThemePreference {
+            return Defaults[.terminalTheme]
+        }
         var theme: TerminalTheme {
             return TerminalTheme.forPreference(themePreference, colorScheme: colorScheme)
         }
@@ -74,6 +77,12 @@ extension Ghostty {
 
         init() {
             self.effectiveAppearance = NSApplication.shared.effectiveAppearance
+
+            Task {
+                for await _ in Defaults.updates(.terminalTheme) {
+                    reload()
+                }
+            }
         }
 
         func setAppearance(appearance: NSAppearance) {
