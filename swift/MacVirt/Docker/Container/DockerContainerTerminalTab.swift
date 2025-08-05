@@ -37,8 +37,12 @@ struct DockerContainerTerminalTab: View {
                         "exec", "-it", container.id, "sh", "-c",
                         "command -v bash > /dev/null && exec bash || exec sh",
                     ],
-                // env is more robust, user can mess with context
-                env: ["DOCKER_HOST=unix://\(Files.dockerSocket)"]
+                env: [
+                    // env is more robust, user can mess with context
+                    "DOCKER_HOST=unix://\(Files.dockerSocket)",
+                    // don't show docker debug ads
+                    "DOCKER_CLI_HINTS=0",
+                ]
             )
         }
         .onReceive(vmModel.toolbarActionRouter) { action in
