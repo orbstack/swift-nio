@@ -9,7 +9,6 @@ import Sentry
 import Sparkle
 import SwiftUI
 import UserNotifications
-import GhosttyKit
 
 private let debugAlwaysCliBackground = false
 
@@ -19,7 +18,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
     var windowTracker: WindowTracker!
     var vmModel: VmViewModel!
 
-    var ghostty: ghostty_app_t!
+    var ghostty: Ghostty!
 
     private var menuBar: MenuBarController?
 
