@@ -43,6 +43,7 @@ class Toaster: ObservableObject {
     }
 
     func error(title: String, error: any Error, duration: TimeInterval = 3, action: (() -> Void)? = nil) {
+        NSLog("toasting error: [\(title)] \(error)")
         add(toast: Toast(type: .error, title: AttributedString(title), message: AttributedString(error.localizedDescription), duration: duration, action: action))
     }
 }

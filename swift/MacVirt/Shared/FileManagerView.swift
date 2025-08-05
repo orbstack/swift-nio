@@ -354,11 +354,13 @@ private class FileManagerOutlineDelegate: NSObject, NSOutlineViewDelegate,
 {
     var toaster: Toaster!
     var view: FileManagerOutlineView!
-    var readOnly = false
-    var rootPath: String?
     weak var treeController: NSTreeController?
 
+    // per-root state
+    var readOnly = false
+    var rootPath: String?
     private var expandedPaths = Set<String>()
+    private var fsEvents: FSEventsListener?
     @objc dynamic var rootItems: [FileItem] = []
 
     private func getDirectoryItems(path: String) async throws -> [FileItem] {
@@ -391,10 +393,28 @@ private class FileManagerOutlineDelegate: NSObject, NSOutlineViewDelegate,
 
     @MainActor
     func loadRoot(rootPath: String, readOnly: Bool) async throws {
+        // stop old fs events
+        fsEvents = nil
         expandedPaths.removeAll()
+
         self.rootPath = rootPath
         self.readOnly = readOnly
         self.rootItems = try await getDirectoryItems(path: rootPath)
+
+        // start fs events
+        do {
+            fsEvents = try FSEventsListener(paths: [rootPath], flags: UInt32(kFSEventStreamCreateFlagNoDefer), latency: 0.1, callback: { events in
+                Task { @MainActor in
+                    // TODO: granular reload
+                    for event in events {
+                        print("fs event: \(event)")
+                    }
+                    self.rootItems = try await self.getDirectoryItems(path: rootPath)
+                }
+            })
+        } catch {
+            NSLog("Error starting fs events: \(error)")
+        }
 
         // clear selection
         treeController?.setSelectionIndexPaths([])
