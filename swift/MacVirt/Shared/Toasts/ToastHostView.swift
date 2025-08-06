@@ -4,7 +4,7 @@ struct ToastHostView: View {
     @EnvironmentObject var toaster: Toaster
 
     var body: some View {
-        List {
+        VStack {
             ForEach(toaster.toasts) { toast in
                 ToastView(toast: toast)
                 .tag(toast.id)

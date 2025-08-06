@@ -15,6 +15,7 @@ struct FileManagerView: View {
     @EnvironmentObject var toaster: Toaster
 
     @StateObject private var model = FileManagerOutlineDelegate()
+    @State private var rootLoadError: Error?
 
     let rootPath: String
     let readOnly: Bool
@@ -25,13 +26,21 @@ struct FileManagerView: View {
     }
 
     var body: some View {
-        FileManagerNSView(delegate: model)
+        Group {
+            if let rootLoadError {
+                ContentUnavailableViewCompat("Failed to Load Files", systemImage: "externaldrive.trianglebadge.exclamationmark", desc: "\(rootLoadError)")
+                .padding()
+            } else {
+                FileManagerNSView(delegate: model)
+            }
+        }
             .onChange(of: rootPath, initial: true) { _, newRootPath in
                 Task {
                     do {
                         try await model.loadRoot(rootPath: newRootPath, readOnly: readOnly)
+                        rootLoadError = nil
                     } catch {
-                        model.toaster.error(title: "Error loading files", error: error)
+                        rootLoadError = error
                     }
                 }
             }
@@ -468,7 +477,7 @@ private class FileManagerOutlineDelegate: NSObject, NSOutlineViewDelegate,
                         try await FileSystem.shared.copyItem(at: FilePath(path), to: FilePath(destinationPath.appendingPathComponent(lastPathComponent).path))
                     }
                 } catch {
-                    toaster.error(title: "Error copying item", message: error.localizedDescription)
+                    toaster.error(title: "Failed to copy item", message: error.localizedDescription)
                 }
             }
         }
@@ -490,7 +499,7 @@ private class FileManagerOutlineDelegate: NSObject, NSOutlineViewDelegate,
                 do {
                     try await FileSystem.shared.moveItem(at: FilePath(item.path), to: newPath)
                 } catch {
-                    self.toaster.error(title: "Error renaming item", error: error)
+                    self.toaster.error(title: "Failed to rename \(item.type.lowerDescription)", error: error)
                 }
             })
         case Columns.modified:
@@ -548,7 +557,7 @@ private class FileManagerOutlineDelegate: NSObject, NSOutlineViewDelegate,
                 do {
                     try await expandItem(item: item)
                 } catch {
-                    self.toaster.error(title: "Error expanding item", error: error)
+                    self.toaster.error(title: "Failed to expand folder", error: error)
                 }
             }
         }
@@ -653,7 +662,7 @@ private class TextFieldCellView: NSTableCellView, NSTextFieldDelegate {
             do {
                 try await renameCallback?(newName)
             } catch {
-                self.toaster.error(title: "Error renaming item", error: error)
+                self.toaster.error(title: "Failed to rename item", error: error)
             }
         }
         return true
@@ -734,6 +743,20 @@ private enum Columns {
         case .socket: return "Socket"
         case .whiteout: return "Whiteout"
         case .unknown: return "Unknown"
+        }
+    }
+
+    var lowerDescription: String {
+        switch self {
+        case .regular: return "file"
+        case .block: return "block device"
+        case .character: return "character device"
+        case .fifo: return "FIFO"
+        case .directory: return "folder"
+        case .symlink: return "symlink"
+        case .socket: return "socket"
+        case .whiteout: return "whiteout"
+        case .unknown: return "unknown"
         }
     }
 }
