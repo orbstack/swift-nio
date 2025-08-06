@@ -183,6 +183,10 @@ extension Ghostty {
                 ghostty_surface_preedit(surface, nil, 0)
             }
         }
+
+        func sendMouseScroll(_ scrollEvent: MouseScrollEvent) {
+            ghostty_surface_mouse_scroll(surface, scrollEvent.x, scrollEvent.y, scrollEvent.mods.cScrollMods)
+        }
     }
 }
 
@@ -211,6 +215,89 @@ extension Ghostty.Surface {
 
         func topLeftCoords() -> (x: Double, y: Double) {
             return (x: text.tl_px_x, y: text.tl_px_y)
+        }
+    }
+
+    /// `ghostty_input_mouse_momentum_e` - Momentum phase for scroll events
+    enum Momentum: UInt8, CaseIterable {
+        case none = 0
+        case began = 1
+        case stationary = 2
+        case changed = 3
+        case ended = 4
+        case cancelled = 5
+        case mayBegin = 6
+        
+        var cMomentum: ghostty_input_mouse_momentum_e {
+            switch self {
+            case .none: GHOSTTY_MOUSE_MOMENTUM_NONE
+            case .began: GHOSTTY_MOUSE_MOMENTUM_BEGAN
+            case .stationary: GHOSTTY_MOUSE_MOMENTUM_STATIONARY
+            case .changed: GHOSTTY_MOUSE_MOMENTUM_CHANGED
+            case .ended: GHOSTTY_MOUSE_MOMENTUM_ENDED
+            case .cancelled: GHOSTTY_MOUSE_MOMENTUM_CANCELLED
+            case .mayBegin: GHOSTTY_MOUSE_MOMENTUM_MAY_BEGIN
+            }
+        }
+
+        init(_ phase: NSEvent.Phase) {
+        switch phase {
+        case .began: self = .began
+        case .stationary: self = .stationary
+        case .changed: self = .changed
+        case .ended: self = .ended
+        case .cancelled: self = .cancelled
+        case .mayBegin: self = .mayBegin
+        default: self = .none
+        }
+    }
+    }
+
+    struct ScrollMods {
+        let rawValue: Int32
+        
+        /// True if this is a high-precision scroll event (e.g., trackpad, Magic Mouse)
+        var precision: Bool {
+            rawValue & 0b0000_0001 != 0
+        }
+        
+        /// The momentum phase of the scroll event for inertial scrolling
+        var momentum: Momentum {
+            let momentumBits = (rawValue >> 1) & 0b0000_0111
+            return Momentum(rawValue: UInt8(momentumBits)) ?? .none
+        }
+        
+        init(precision: Bool = false, momentum: Momentum = .none) {
+            var value: Int32 = 0
+            if precision {
+                value |= 0b0000_0001
+            }
+            value |= Int32(momentum.rawValue) << 1
+            self.rawValue = value
+        }
+        
+        init(rawValue: Int32) {
+            self.rawValue = rawValue
+        }
+        
+        var cScrollMods: ghostty_input_scroll_mods_t {
+            rawValue
+        }
+    }
+
+    struct MouseScrollEvent {
+        let x: Double
+        let y: Double
+        let mods: ScrollMods
+
+        init(
+            x: Double,
+            y: Double,
+            mods: ScrollMods = .init(rawValue: 0)
+        ) {
+            self.x = x
+            self.y = y
+            self.mods = mods
         }
     }
 

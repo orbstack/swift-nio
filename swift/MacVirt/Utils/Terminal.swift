@@ -352,6 +352,29 @@ class TerminalNSView: NSView {
         }
     }
 
+    override func scrollWheel(with event: NSEvent) {
+            guard let surface else { return }
+
+            var x = event.scrollingDeltaX
+            var y = event.scrollingDeltaY
+            let precision = event.hasPreciseScrollingDeltas
+            
+            if precision {
+                // We do a 2x speed multiplier. This is subjective, it "feels" better to me.
+                x *= 2;
+                y *= 2;
+
+                // TODO(mitchellh): do we have to scale the x/y here by window scale factor?
+            }
+
+            let scrollEvent = Ghostty.Surface.MouseScrollEvent(
+                x: x,
+                y: y,
+                mods: .init(precision: precision, momentum: .init(event.momentumPhase))
+            )
+            surface.sendMouseScroll(scrollEvent)
+        }
+
     /// Returns the event modifier flags set for the Ghostty mods enum.
     func eventModifierFlags(mods: ghostty_input_mods_e) -> NSEvent.ModifierFlags {
         var flags = NSEvent.ModifierFlags(rawValue: 0)
