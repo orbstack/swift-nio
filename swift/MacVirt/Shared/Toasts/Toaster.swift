@@ -1,6 +1,7 @@
 import SwiftUI
 
 private let maxToasts = 4
+private let defaultDuration: TimeInterval = 5
 
 enum ToastType {
     case success
@@ -26,24 +27,29 @@ class Toaster: ObservableObject {
             return
         }
 
-        if toasts.count >= maxToasts {
-            toasts.removeFirst()
+        withAnimation {
+            if toasts.count >= maxToasts {
+                toasts.removeFirst()
+            }
+
+            toasts.append(toast)
+            self.toasts = toasts
         }
 
-        toasts.append(toast)
-        self.toasts = toasts
-
         DispatchQueue.main.asyncAfter(deadline: .now() + toast.duration) {
-            self.toasts.removeAll { $0.id == toast.id }
+            withAnimation { 
+                self.toasts.removeAll { $0.id == toast.id }
+            }
         }
     }
 
-    func error(title: String, message: String, duration: TimeInterval = 3, action: (() -> Void)? = nil) {
+    func error(title: String, message: String, duration: TimeInterval = defaultDuration, action: (() -> Void)? = nil) {
         add(toast: Toast(type: .error, title: AttributedString(title), message: AttributedString(message), duration: duration, action: action))
     }
 
-    func error(title: String, error: any Error, duration: TimeInterval = 3, action: (() -> Void)? = nil) {
+    func error(title: String, error: any Error, duration: TimeInterval = defaultDuration, action: (() -> Void)? = nil) {
         NSLog("toasting error: [\(title)] \(error)")
-        add(toast: Toast(type: .error, title: AttributedString(title), message: AttributedString(error.localizedDescription), duration: duration, action: action))
+        // localizedDescription i
+        add(toast: Toast(type: .error, title: AttributedString(title), message: AttributedString("\(error)"), duration: duration, action: action))
     }
 }

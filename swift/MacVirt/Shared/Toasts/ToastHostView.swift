@@ -4,12 +4,13 @@ struct ToastHostView: View {
     @EnvironmentObject var toaster: Toaster
 
     var body: some View {
-        VStack(alignment: .trailing) {
+        List {
             ForEach(toaster.toasts) { toast in
                 ToastView(toast: toast)
                 .tag(toast.id)
             }
         }
+        .padding()
     }
 }
 
@@ -34,43 +35,73 @@ extension View {
 private struct ToastView: View {
     @EnvironmentObject var toaster: Toaster
 
+    @State private var closeButtonHovered = false
+
     let toast: Toast
 
     var body: some View {
-        HStack(alignment: .top) {
-            switch toast.type {
-            case .success:
-                Image(systemName: "checkmark.circle")
-                .foregroundStyle(.green)
-            case .info:
-                Image(systemName: "info.circle")
-            case .warning:
-                Image(systemName: "exclamationmark.triangle")
-                .foregroundStyle(.yellow)
-            case .error:
-                Image(systemName: "xmark.circle")
-                .foregroundStyle(.red)
-            }
+        VStack(alignment: .leading) {
+            HStack(alignment: .center, spacing: 8) {
+                Group {
+                    switch toast.type {
+                    case .success:
+                        Image(systemName: "checkmark.circle.fill")
+                        .resizable()
+                        .foregroundStyle(.green)
+                    case .info:
+                        Image(systemName: "info.circle.fill")
+                        .resizable()
+                    case .warning:
+                        Image(systemName: "exclamationmark.triangle.fill")
+                        .resizable()
+                        .foregroundStyle(.yellow)
+                    case .error:
+                        Image(systemName: "xmark.circle.fill")
+                        .resizable()
+                        .foregroundStyle(.red)
+                    }
+                }
+                .frame(width: 16, height: 16)
 
-            VStack(alignment: .leading) {
                 Text(toast.title)
                 .foregroundStyle(.primary)
+            }
+
+            HStack(alignment: .top, spacing: 8) {
+                Spacer()
+                .frame(width: 16, height: 16)
+
                 Text(toast.message)
                 .foregroundStyle(.secondary)
             }
-
-            Button {
-                toaster.toasts.removeAll { $0.id == toast.id }
-            } label: {
-                Image(systemName: "xmark")
-            }
-            .buttonStyle(.plain)
         }
         .padding()
-        .background(.regularMaterial)
-        .clipShape(RoundedRectangle(cornerRadius: 10))
-        .shadow(radius: 10)
-        .padding()
+        .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 16))
+        .overlay(RoundedRectangle(cornerRadius: 16)
+            .stroke(.secondary.opacity(0.25), lineWidth: 1))
+        .frame(width: 375)
+        .shadow(radius: 2)
+        .overlay(alignment: .topLeading) {
+            Button {
+                withAnimation {
+                    toaster.toasts.removeAll { $0.id == toast.id }
+                }
+            } label: {
+                Image(systemName: "xmark")
+                    .resizable()
+                .frame(width: 8, height: 8)
+            }
+            .buttonStyle(.plain)
+            .padding(4)
+            .background(.regularMaterial, in: .circle)
+            .shadow(radius: 2)
+            .opacity(closeButtonHovered ? 1 : 0)
+        }
+        .onHover { hovered in
+            withAnimation {
+                closeButtonHovered = hovered
+            }
+        }
         .transition(.move(edge: .bottom).combined(with: .opacity))
     }
 }

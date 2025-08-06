@@ -64,7 +64,7 @@ private struct FileManagerNSView: NSViewRepresentable {
         view.setDraggingSourceOperationMask([.copy, .delete], forLocal: false)
         view.registerForDraggedTypes(
             NSFilePromiseReceiver.readableDraggedTypes.map { NSPasteboard.PasteboardType($0) })
-        view.registerForDraggedTypes([.nodeRowPasteboardType, .fileURL])
+        view.registerForDraggedTypes([.fileURL])
 
         // dummy menu to trigger highlight
         view.menu = NSMenu()
