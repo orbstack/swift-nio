@@ -25,9 +25,13 @@ class Ghostty {
                 }
             },
             action_cb: { _, _, _ in false },
-            read_clipboard_cb: { _, _, _ in },
-            confirm_read_clipboard_cb: { _, _, _, _ in },
-            write_clipboard_cb: { _, _, _, _ in },
+            read_clipboard_cb: {userdata, location, state in
+                Ghostty.readClipboard(userdata, location, state)
+            },
+            confirm_read_clipboard_cb: {_, _, _, _ in }, // we disable safe paste in config
+            write_clipboard_cb: {userdata, text, location, confirm in
+                Ghostty.writeClipboard(userdata, text, location, confirm)
+            },
             close_surface_cb: { userdata, processAlive in
                 NSLog("close_surface_cb: \(processAlive)")
                 NotificationCenter.default.post(name: .ghosttyCloseSurface, object: Surface.surfaceUserdata(from: userdata))
@@ -35,6 +39,29 @@ class Ghostty {
         )
 
         self.app = ghostty_app_new(&runtime_cfg, config.ghostty_config)
+    }
+
+    @MainActor
+    static func writeClipboard(_ userdata: UnsafeMutableRawPointer?, _ text: UnsafePointer<CChar>?, _ location: ghostty_clipboard_e, _ confirm: Bool) {
+        if location == GHOSTTY_CLIPBOARD_SELECTION {
+            return // not supporting this for now
+        }
+        guard let text else { return }
+
+        NSPasteboard.copy(String(cString: text))
+    }
+
+    @MainActor
+    static func readClipboard(_ userdata: UnsafeMutableRawPointer?, _ location: ghostty_clipboard_e, _ state: UnsafeMutableRawPointer?) {
+        if location == GHOSTTY_CLIPBOARD_SELECTION {
+            return // not supporting this for now
+        }
+        
+        guard let surface = Surface.surfaceUserdata(from: userdata).surface else { return }
+        let text = NSPasteboard.general.string(forType: .string)
+        if let text {
+           ghostty_surface_complete_clipboard_request(surface.surface, text, state, true)
+        }
     }
 }
 
@@ -89,6 +116,8 @@ extension Ghostty {
         var ghostty_config: ghostty_config_t {
             var config_strings: [String] = []
             config_strings.append(contentsOf: theme.toGhosttyArgs())
+
+            config_strings.append("--clipboard-paste-protection=false") // so we don't have to implement confirm_read_clipboard_cb
 
             let config_strings_unsafe: UnsafeMutablePointer<UnsafeMutablePointer<CChar>?> =
                 config_strings
@@ -160,8 +189,9 @@ extension Ghostty {
             ghostty_surface_free(surface)
         }
 
-        static func surfaceUserdata(from userdata: UnsafeMutableRawPointer?) -> NSView {
-            return Unmanaged<NSView>.fromOpaque(userdata!).takeUnretainedValue()
+        static func surfaceUserdata(from userdata: UnsafeMutableRawPointer?) -> TerminalNSView {
+            // TODO: this is a hack to get the surface from the userdata
+            return Unmanaged<TerminalNSView>.fromOpaque(userdata!).takeUnretainedValue()
         }
 
         func setSize(width: UInt32, height: UInt32) {
