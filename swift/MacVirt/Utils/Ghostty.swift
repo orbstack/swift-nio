@@ -76,6 +76,12 @@ class Ghostty {
                 let surface = Surface.surfaceUserdata(from: ghostty_surface_userdata(target.target.surface))
                 let shape = Surface.MouseShape(ghosttyValue: action.action.mouse_shape)
                 surface.setMouseShape(shape)
+            case GHOSTTY_ACTION_SET_TITLE:
+                if target.tag != GHOSTTY_TARGET_SURFACE {
+                    break
+                }
+                // since we're guaranteed to only ever have one surface, we can just post a notification
+                NotificationCenter.default.post(name: .ghosttySetTitle, object: String(cString: action.action.set_title.title))
             default:
                 return false
         }
@@ -206,6 +212,7 @@ extension Ghostty {
 
         deinit {
             ghostty_surface_free(surface)
+            NotificationCenter.default.post(name: .ghosttySetTitle, object: "")
         }
 
         static func surfaceUserdata(from userdata: UnsafeMutableRawPointer?) -> TerminalNSView {
@@ -607,4 +614,5 @@ extension Ghostty.Surface {
 
 extension Notification.Name {
     static let ghosttyCloseSurface = Notification.Name("dev.orbstack.macvirt.ghostty.closeSurface")
+    static let ghosttySetTitle = Notification.Name("dev.orbstack.macvirt.ghostty.setTitle")
 }
