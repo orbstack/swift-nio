@@ -74,6 +74,12 @@ class TerminalNSView: NSView {
             name: .ghosttyCloseSurface,
             object: nil
         )
+        center.addObserver(
+            self,
+            selector: #selector(self.windowDidChangeScreen),
+            name: NSWindow.didChangeScreenNotification,
+            object: nil
+        )
 
         updateTrackingAreas()
 
@@ -142,10 +148,6 @@ class TerminalNSView: NSView {
         // The size represents our final size we're going for.
         let scaledSize = self.convertToBacking(size)
         surface?.setSize(width: UInt32(scaledSize.width), height: UInt32(scaledSize.height))
-    }
-
-    private func setSurfaceSize(width: UInt32, height: UInt32) {
-        surface?.setSize(width: width, height: height)
     }
 
     override func keyUp(with event: NSEvent) {
@@ -844,6 +846,55 @@ extension TerminalNSView: NSTextInputClient {
             }
 
             _ = keyAction(action, event: event)
+        }
+
+        @objc private func windowDidChangeScreen(notification: Notification) {
+            guard let window = self.window else { return }
+            guard let screen = window.screen else { return }
+            guard let surface = self.surface else { return }
+            guard let object = notification.object as? NSWindow, window == object else { return }
+
+            surface.setDisplayID(screen.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? UInt32 ?? 0)
+
+            DispatchQueue.main.async {
+                self.viewDidChangeBackingProperties()
+            }
+        }
+
+        override func viewDidChangeBackingProperties() {
+            super.viewDidChangeBackingProperties()
+
+            // The Core Animation compositing engine uses the layer's contentsScale property
+            // to determine whether to scale its contents during compositing. When the window
+            // moves between a high DPI display and a low DPI display, or the user modifies
+            // the DPI scaling for a display in the system settings, this can result in the
+            // layer being scaled inappropriately. Since we handle the adjustment of scale
+            // and resolution ourselves below, we update the layer's contentsScale property
+            // to match the window's backingScaleFactor, so as to ensure it is not scaled by
+            // the compositor.
+            //
+            // Ref: High Resolution Guidelines for OS X
+            // https://developer.apple.com/library/archive/documentation/GraphicsAnimation/Conceptual/HighResolutionOSX/CapturingScreenContents/CapturingScreenContents.html#//apple_ref/doc/uid/TP40012302-CH10-SW27
+            if let window = window {
+                CATransaction.begin()
+                // Disable the implicit transition animation that Core Animation applies to
+                // property changes. Otherwise it will apply a scale animation to the layer
+                // contents which looks pretty janky.
+                CATransaction.setDisableActions(true)
+                layer?.contentsScale = window.backingScaleFactor
+                CATransaction.commit()
+            }
+
+            guard let surface = self.surface else { return }
+
+            // Detect our X/Y scale factor so we can update our surface
+            let fbFrame = self.convertToBacking(self.frame)
+            let xScale = fbFrame.size.width / self.frame.size.width
+            let yScale = fbFrame.size.height / self.frame.size.height
+            surface.setContentScale(xScale, yScale)
+
+            // When our scale factor changes, so does our fb size so we send that too
+            surface.setSize(width: UInt32(fbFrame.size.width), height: UInt32(fbFrame.size.height))
         }
 }
 

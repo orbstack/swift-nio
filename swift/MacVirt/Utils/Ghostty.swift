@@ -290,6 +290,14 @@ extension Ghostty {
         func setFocus(_ focused: Bool) {
             ghostty_surface_set_focus(surface, focused)
         }
+
+        func setDisplayID(_ displayID: UInt32) {
+            ghostty_surface_set_display_id(surface, displayID)
+        }
+
+        func setContentScale(_ xScale: Double, _ yScale: Double) {
+            ghostty_surface_set_content_scale(surface, xScale, yScale)
+        }
     }
 }
 
