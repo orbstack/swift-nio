@@ -24,7 +24,9 @@ class Ghostty {
                     ghostty_app_tick(AppDelegate.shared.ghostty.app)
                 }
             },
-            action_cb: { _, _, _ in false },
+            action_cb: { userdata, target, action in
+                Ghostty.action(userdata, target, action)
+            },
             read_clipboard_cb: {userdata, location, state in
                 Ghostty.readClipboard(userdata, location, state)
             },
@@ -62,6 +64,23 @@ class Ghostty {
         if let text {
            ghostty_surface_complete_clipboard_request(surface.surface, text, state, true)
         }
+    }
+
+    @MainActor
+    static func action(_ userdata: UnsafeMutableRawPointer?, _ target: ghostty_target_s, _ action: ghostty_action_s) -> Bool {
+        switch action.tag {
+            case GHOSTTY_ACTION_MOUSE_SHAPE:
+                if target.tag != GHOSTTY_TARGET_SURFACE {
+                    break
+                }
+                let surface = Surface.surfaceUserdata(from: ghostty_surface_userdata(target.target.surface))
+                let shape = Surface.MouseShape(ghosttyValue: action.action.mouse_shape)
+                surface.setMouseShape(shape)
+            default:
+                return false
+        }
+
+        return true
     }
 }
 
@@ -525,6 +544,52 @@ extension Ghostty.Surface {
                 }
             }
         }
+    }
+
+    struct MouseShape: OptionSet {
+        let rawValue: UInt32
+
+        var appKitValue: NSCursor {
+            switch self {
+            case .defaultCursor: return .arrow
+            case .textCursor: return .iBeam
+            case .linkCursor: return .pointingHand
+            case .grabIdleCursor: return .closedHand
+            case .grabActiveCursor: return .openHand
+            case .resizeUpCursor: return .resizeUp
+            case .resizeDownCursor: return .resizeDown
+            case .resizeUpDownCursor: return .resizeUpDown
+            case .resizeLeftRightCursor: return .resizeLeftRight
+            case .verticalTextCursor: return .arrow
+            case .contextMenuCursor: return .arrow
+            case .crosshairCursor: return .crosshair
+            case .notAllowedCursor: return .operationNotAllowed
+            default: return .arrow
+            }
+        }
+
+        static let defaultCursor = MouseShape(ghosttyValue: GHOSTTY_MOUSE_SHAPE_DEFAULT)
+        static let textCursor = MouseShape(ghosttyValue: GHOSTTY_MOUSE_SHAPE_TEXT)
+        static let linkCursor = MouseShape(ghosttyValue: GHOSTTY_MOUSE_SHAPE_POINTER)
+        static let grabIdleCursor = MouseShape(ghosttyValue: GHOSTTY_MOUSE_SHAPE_GRAB)
+        static let grabActiveCursor = MouseShape(ghosttyValue: GHOSTTY_MOUSE_SHAPE_GRABBING)
+        static let resizeUpCursor = MouseShape(ghosttyValue: GHOSTTY_MOUSE_SHAPE_N_RESIZE)
+        static let resizeDownCursor = MouseShape(ghosttyValue: GHOSTTY_MOUSE_SHAPE_S_RESIZE)
+        static let resizeUpDownCursor = MouseShape(ghosttyValue: GHOSTTY_MOUSE_SHAPE_NS_RESIZE)
+        static let resizeLeftRightCursor = MouseShape(ghosttyValue: GHOSTTY_MOUSE_SHAPE_EW_RESIZE)
+        static let verticalTextCursor = MouseShape(ghosttyValue: GHOSTTY_MOUSE_SHAPE_VERTICAL_TEXT)
+        static let contextMenuCursor = MouseShape(ghosttyValue: GHOSTTY_MOUSE_SHAPE_CONTEXT_MENU)
+        static let crosshairCursor = MouseShape(ghosttyValue: GHOSTTY_MOUSE_SHAPE_CROSSHAIR)
+        static let notAllowedCursor = MouseShape(ghosttyValue: GHOSTTY_MOUSE_SHAPE_NOT_ALLOWED)
+
+        init(ghosttyValue: ghostty_action_mouse_shape_e) {
+            self.rawValue = ghosttyValue.rawValue
+        }
+
+        init(rawValue: UInt32) {
+            self.rawValue = rawValue
+        }
+
     }
 }
 

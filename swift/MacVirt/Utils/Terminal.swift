@@ -56,6 +56,9 @@ class TerminalNSView: NSView {
 
     var surface: Ghostty.Surface?
 
+    var mouseShape: Ghostty.Surface.MouseShape = .textCursor
+    var focused: Bool = false
+
     init(command: String, env: [String] = []) {
         self.command = command
         self.env = env
@@ -81,6 +84,19 @@ class TerminalNSView: NSView {
 
     deinit {
         NotificationCenter.default.removeObserver(self)
+    }
+
+    func focusDidChange(_ focused: Bool) {
+        self.focused = focused
+    }
+
+    func setMouseShape(_ shape: Ghostty.Surface.MouseShape) {
+        mouseShape = shape
+        window?.invalidateCursorRects(for: self)
+    }
+
+    override func resetCursorRects() {
+        addCursorRect(bounds, cursor: mouseShape.appKitValue)
     }
 
     @objc func handleCloseSurface() {
@@ -149,8 +165,6 @@ class TerminalNSView: NSView {
         text: String? = nil,
         composing: Bool = false
     ) -> Bool {
-        NSLog("keyAction: \(action) \(event.characters ?? "nil")")
-
         guard let surface = surface else { return false }
 
         var key_ev = ghosttyKeyEvent(
@@ -440,6 +454,7 @@ class TerminalNSView: NSView {
         }
 
         override func mouseEntered(with event: NSEvent) {
+            self.mouseShape = .textCursor
             self.mouseMoved(with: event)
         }
 
@@ -654,6 +669,53 @@ extension TerminalNSView: NSTextInputClient {
             surface.preEdit(nil)
         }
     }
+
+        override func flagsChanged(with event: NSEvent) {
+            let mod: UInt32;
+            switch (event.keyCode) {
+            case 0x39: mod = GHOSTTY_MODS_CAPS.rawValue
+            case 0x38, 0x3C: mod = GHOSTTY_MODS_SHIFT.rawValue
+            case 0x3B, 0x3E: mod = GHOSTTY_MODS_CTRL.rawValue
+            case 0x3A, 0x3D: mod = GHOSTTY_MODS_ALT.rawValue
+            case 0x37, 0x36: mod = GHOSTTY_MODS_SUPER.rawValue
+            default: return
+            }
+
+            // If we're in the middle of a preedit, don't do anything with mods.
+            if hasMarkedText() { return }
+
+            // The keyAction function will do this AGAIN below which sucks to repeat
+            // but this is super cheap and flagsChanged isn't that common.
+            let mods = Ghostty.ghosttyMods(event.modifierFlags)
+
+            // If the key that pressed this is active, its a press, else release.
+            var action = GHOSTTY_ACTION_RELEASE
+            if (mods.rawValue & mod != 0) {
+                // If the key is pressed, its slightly more complicated, because we
+                // want to check if the pressed modifier is the correct side. If the
+                // correct side is pressed then its a press event otherwise its a release
+                // event with the opposite modifier still held.
+                let sidePressed: Bool
+                switch (event.keyCode) {
+                case 0x3C:
+                    sidePressed = event.modifierFlags.rawValue & UInt(NX_DEVICERSHIFTKEYMASK) != 0;
+                case 0x3E:
+                    sidePressed = event.modifierFlags.rawValue & UInt(NX_DEVICERCTLKEYMASK) != 0;
+                case 0x3D:
+                    sidePressed = event.modifierFlags.rawValue & UInt(NX_DEVICERALTKEYMASK) != 0;
+                case 0x36:
+                    sidePressed = event.modifierFlags.rawValue & UInt(NX_DEVICERCMDKEYMASK) != 0;
+                default:
+                    sidePressed = true
+                }
+
+                if (sidePressed) {
+                    action = GHOSTTY_ACTION_PRESS
+                }
+            }
+
+            _ = keyAction(action, event: event)
+        }
 }
 
 class KeyboardLayout {
