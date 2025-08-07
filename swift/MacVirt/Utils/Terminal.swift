@@ -686,6 +686,119 @@ extension TerminalNSView: NSTextInputClient {
         }
     }
 
+    /// Special case handling for some control keys
+        override func performKeyEquivalent(with event: NSEvent) -> Bool {
+            switch (event.type) {
+            case .keyDown:
+                // Continue, we care about key down events
+                break
+
+            default:
+                // Any other key event we don't care about. I don't think its even
+                // possible to receive any other event type.
+                return false
+            }
+
+            // Only process events if we're focused. Some key events like C-/ macOS
+            // appears to send to the first view in the hierarchy rather than the
+            // the first responder (I don't know why). This prevents us from handling it.
+            // Besides C-/, its important we don't process key equivalents if unfocused
+            // because there are other event listeners for that (i.e. AppDelegate's
+            // local event handler).
+            if (!focused) {
+                return false
+            }
+
+            // If this event as-is would result in a key binding then we send it.
+            if let surface {
+                var ghosttyEvent = ghosttyKeyEvent(event, GHOSTTY_ACTION_PRESS)
+                let match = (event.characters ?? "").withCString { ptr in
+                    ghosttyEvent.text = ptr
+                    return ghostty_surface_key_is_binding(surface.surface, ghosttyEvent)
+                }
+                if match {
+                    self.keyDown(with: event)
+                    return true
+                }
+            }
+
+            let equivalent: String
+            switch (event.charactersIgnoringModifiers) {
+            case "\r":
+                // Pass C-<return> through verbatim
+                // (prevent the default context menu equivalent)
+                if (!event.modifierFlags.contains(.control)) {
+                    return false
+                }
+
+                equivalent = "\r"
+
+            case "/":
+                // Treat C-/ as C-_. We do this because C-/ makes macOS make a beep
+                // sound and we don't like the beep sound.
+                if (!event.modifierFlags.contains(.control) ||
+                    !event.modifierFlags.isDisjoint(with: [.shift, .command, .option])) {
+                    return false
+                }
+
+                equivalent = "_"
+
+            default:
+                // It looks like some part of AppKit sometimes generates synthetic NSEvents
+                // with a zero timestamp. We never process these at this point. Concretely,
+                // this happens for me when pressing Cmd+period with default bindings. This
+                // binds to "cancel" which goes through AppKit to produce a synthetic "escape".
+                //
+                // Question: should we be ignoring all synthetic events? Should we be finding
+                // synthetic escape and ignoring it? I feel like Cmd+period could map to a
+                // escape binding by accident, but it hasn't happened yet...
+                if event.timestamp == 0 {
+                    return false
+                }
+
+                // All of this logic here re: lastCommandEvent is to workaround some
+                // nasty behavior. See the docs for lastCommandEvent for more info.
+
+                // Ignore all other non-command events. This lets the event continue
+                // through the AppKit event systems.
+                if (!event.modifierFlags.contains(.command) &&
+                    !event.modifierFlags.contains(.control)) {
+                    // Reset since we got a non-command event.
+                    lastPerformKeyEvent = nil
+                    return false
+                }
+
+                // If we have a prior command binding and the timestamp matches exactly
+                // then we pass it through to keyDown for encoding.
+                if let lastPerformKeyEvent {
+                    self.lastPerformKeyEvent = nil
+                    if lastPerformKeyEvent == event.timestamp {
+                        equivalent = event.characters ?? ""
+                        break
+                    }
+                }
+
+                lastPerformKeyEvent = event.timestamp
+                return false
+            }
+
+            let finalEvent = NSEvent.keyEvent(
+                with: .keyDown,
+                location: event.locationInWindow,
+                modifierFlags: event.modifierFlags,
+                timestamp: event.timestamp,
+                windowNumber: event.windowNumber,
+                context: nil,
+                characters: equivalent,
+                charactersIgnoringModifiers: equivalent,
+                isARepeat: event.isARepeat,
+                keyCode: event.keyCode
+            )
+
+            self.keyDown(with: finalEvent!)
+            return true
+        }
+
         override func flagsChanged(with event: NSEvent) {
             let mod: UInt32;
             switch (event.keyCode) {
