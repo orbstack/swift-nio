@@ -276,8 +276,6 @@ class TerminalNSView: NSView {
     var lastPerformKeyEvent: TimeInterval?
 
     override func keyDown(with event: NSEvent) {
-        NSLog("keydown: \(event.characters ?? "nil")")
-
         guard let surface = self.surface else {
             self.interpretKeyEvents([event])
             NSLog("surface is nil")
@@ -370,8 +368,6 @@ class TerminalNSView: NSView {
         // do this and the key event callbacks below doesn't matter since
         // we control the preedit state only through the preedit API.
         syncPreedit(clearIfNeeded: markedTextBefore)
-
-        NSLog("keydown about to send")
 
         if let list = keyTextAccumulator, list.count > 0 {
             // If we have text, then we've composed a character, send that down.
@@ -532,7 +528,7 @@ extension TerminalNSView: NSTextInputClient {
             self.markedText = NSMutableAttributedString(string: v)
 
         default:
-            print("unknown marked text: \(string)")
+            break
         }
 
         // If we're not in a keyDown event, then we want to update our preedit
@@ -668,8 +664,6 @@ extension TerminalNSView: NSTextInputClient {
             NSApp.sendEvent(current)
             return
         }
-
-        print("SEL: \(selector)")
     }
 
     /// Sync the preedit state based on the markedText value to libghostty

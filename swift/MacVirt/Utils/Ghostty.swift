@@ -35,7 +35,6 @@ class Ghostty {
                 Ghostty.writeClipboard(userdata, text, location, confirm)
             },
             close_surface_cb: { userdata, processAlive in
-                NSLog("close_surface_cb: \(processAlive)")
                 NotificationCenter.default.post(name: .ghosttyCloseSurface, object: Surface.surfaceUserdata(from: userdata))
             }
         )
