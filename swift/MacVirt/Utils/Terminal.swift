@@ -76,6 +76,8 @@ class TerminalNSView: NSView {
         )
 
         updateTrackingAreas()
+
+        surface?.setFocus(focused)
     }
 
     required init?(coder: NSCoder) {
@@ -86,7 +88,20 @@ class TerminalNSView: NSView {
         NotificationCenter.default.removeObserver(self)
     }
 
+    override func becomeFirstResponder() -> Bool {
+        let result = super.becomeFirstResponder()
+        if (result) { focusDidChange(true) }
+        return result
+    }
+
+    override func resignFirstResponder() -> Bool {
+        let result = super.resignFirstResponder()
+        if (result) { focusDidChange(false) }
+        return result
+    }
+
     func focusDidChange(_ focused: Bool) {
+        surface?.setFocus(focused)
         self.focused = focused
     }
 
@@ -106,6 +121,7 @@ class TerminalNSView: NSView {
     private func createSurface() {
         let size = surface?.size ?? CGSize(width: 800, height: 600)
         surface = Ghostty.Surface(app: AppDelegate.shared.ghostty.app, view: self, command: command, env: env, size: size)
+        surface?.setFocus(focused)
     }
 
     func updateConfig(command: String, env: [String]) {

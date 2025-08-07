@@ -286,6 +286,10 @@ extension Ghostty {
         func sendMouseButton(_ button: MouseButton, _ action: MouseAction, _ mods: InputMods) {
             sendMouseButton(MouseButtonEvent(action: action, button: button, mods: mods))
         }
+
+        func setFocus(_ focused: Bool) {
+            ghostty_surface_set_focus(surface, focused)
+        }
     }
 }
 
