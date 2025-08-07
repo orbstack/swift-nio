@@ -71,6 +71,8 @@ class TerminalNSView: NSView {
             name: .ghosttyCloseSurface,
             object: nil
         )
+
+        updateTrackingAreas()
     }
 
     required init?(coder: NSCoder) {
@@ -118,9 +120,27 @@ class TerminalNSView: NSView {
         _ = keyAction(GHOSTTY_ACTION_RELEASE, event: event)
     }
 
-    // ---- ---- ---- ---- ---- ---- ----- ---- ----- ---- -----
-    // ---- ---- ---- START GHOSTTY PASTE-DUMPING ---- ---- ----
-    // ---- ---- ---- ---- ---- ---- ----- ---- ----- ---- -----
+    override func updateTrackingAreas() {
+            // To update our tracking area we just recreate it all.
+            trackingAreas.forEach { removeTrackingArea($0) }
+
+            // This tracking area is across the entire frame to notify us of mouse movements.
+            addTrackingArea(NSTrackingArea(
+                rect: frame,
+                options: [
+                    .mouseEnteredAndExited,
+                    .mouseMoved,
+
+                    // Only send mouse events that happen in our visible (not obscured) rect
+                    .inVisibleRect,
+
+                    // We want active always because we want to still send mouse reports
+                    // even if we're not focused or key.
+                    .activeAlways,
+                ],
+                owner: self,
+                userInfo: nil))
+        }
 
     private func keyAction(
         _ action: ghostty_input_action_e,
@@ -171,8 +191,8 @@ class TerminalNSView: NSView {
         // producing text. We apply a simple heuristic here that has worked for years
         // so far: control and command never contribute to the translation of text,
         // assume everything else did.
-        key_ev.mods = ghosttyMods(event.modifierFlags)
-        key_ev.consumed_mods = ghosttyMods(
+        key_ev.mods = Ghostty.ghosttyMods(event.modifierFlags)
+        key_ev.consumed_mods = Ghostty.ghosttyMods(
             (translationMods ?? event.modifierFlags)
                 .subtracting([.control, .command]))
 
@@ -236,10 +256,10 @@ class TerminalNSView: NSView {
         // bell = false
 
         // We need to translate the mods (maybe) to handle configs such as option-as-alt
-        let translationModsGhostty = eventModifierFlags(
+        let translationModsGhostty = Ghostty.eventModifierFlags(
             mods: ghostty_surface_key_translation_mods(
                 surface.surface,
-                ghosttyMods(event.modifierFlags)
+                Ghostty.ghosttyMods(event.modifierFlags)
             )
         )
 
@@ -375,38 +395,80 @@ class TerminalNSView: NSView {
             surface.sendMouseScroll(scrollEvent)
         }
 
-    /// Returns the event modifier flags set for the Ghostty mods enum.
-    func eventModifierFlags(mods: ghostty_input_mods_e) -> NSEvent.ModifierFlags {
-        var flags = NSEvent.ModifierFlags(rawValue: 0)
-        if mods.rawValue & GHOSTTY_MODS_SHIFT.rawValue != 0 { flags.insert(.shift) }
-        if mods.rawValue & GHOSTTY_MODS_CTRL.rawValue != 0 { flags.insert(.control) }
-        if mods.rawValue & GHOSTTY_MODS_ALT.rawValue != 0 { flags.insert(.option) }
-        if mods.rawValue & GHOSTTY_MODS_SUPER.rawValue != 0 { flags.insert(.command) }
-        return flags
-    }
+        override func mouseDown(with event: NSEvent) {
+           guard let surface else { return }
 
-    func ghosttyMods(_ flags: NSEvent.ModifierFlags) -> ghostty_input_mods_e {
-        var mods: UInt32 = GHOSTTY_MODS_NONE.rawValue
-
-        if flags.contains(.shift) { mods |= GHOSTTY_MODS_SHIFT.rawValue }
-        if flags.contains(.control) { mods |= GHOSTTY_MODS_CTRL.rawValue }
-        if flags.contains(.option) { mods |= GHOSTTY_MODS_ALT.rawValue }
-        if flags.contains(.command) { mods |= GHOSTTY_MODS_SUPER.rawValue }
-        if flags.contains(.capsLock) { mods |= GHOSTTY_MODS_CAPS.rawValue }
-
-        // Handle sided input. We can't tell that both are pressed in the
-        // Ghostty structure but thats okay -- we don't use that information.
-        let rawFlags = flags.rawValue
-        if rawFlags & UInt(NX_DEVICERSHIFTKEYMASK) != 0 {
-            mods |= GHOSTTY_MODS_SHIFT_RIGHT.rawValue
+           let mods = Ghostty.Surface.InputMods(nsFlags: event.modifierFlags)
+           surface.sendMouseButton(.left, .pressed, mods)
         }
-        if rawFlags & UInt(NX_DEVICERCTLKEYMASK) != 0 { mods |= GHOSTTY_MODS_CTRL_RIGHT.rawValue }
-        if rawFlags & UInt(NX_DEVICERALTKEYMASK) != 0 { mods |= GHOSTTY_MODS_ALT_RIGHT.rawValue }
-        if rawFlags & UInt(NX_DEVICERCMDKEYMASK) != 0 { mods |= GHOSTTY_MODS_SUPER_RIGHT.rawValue }
 
-        return ghostty_input_mods_e(mods)
-    }
+        override func mouseUp(with event: NSEvent) {
+            guard let surface else { return }
 
+            let mods = Ghostty.Surface.InputMods(nsFlags: event.modifierFlags)
+            surface.sendMouseButton(.left, .released, mods)
+        }
+
+        override func rightMouseDown(with event: NSEvent) {
+            guard let surface else { return }
+
+            let mods = Ghostty.Surface.InputMods(nsFlags: event.modifierFlags)
+            surface.sendMouseButton(.right, .pressed, mods)
+        }
+
+        override func rightMouseUp(with event: NSEvent) {
+            guard let surface else { return }
+
+            let mods = Ghostty.Surface.InputMods(nsFlags: event.modifierFlags)
+            surface.sendMouseButton(.right, .released, mods)
+        }
+        
+        override func otherMouseDown(with event: NSEvent) {
+            guard let surface else { return }
+            guard event.buttonNumber == 2 else { return }
+
+            let mods = Ghostty.Surface.InputMods(nsFlags: event.modifierFlags)
+            surface.sendMouseButton(.middle, .pressed, mods)
+        }
+
+        override func otherMouseUp(with event: NSEvent) {
+            guard let surface else { return }
+            guard event.buttonNumber == 2 else { return }
+
+            let mods = Ghostty.Surface.InputMods(nsFlags: event.modifierFlags)
+            surface.sendMouseButton(.middle, .released, mods)
+        }
+
+        override func mouseEntered(with event: NSEvent) {
+            self.mouseMoved(with: event)
+        }
+
+        override func mouseExited(with event: NSEvent) {
+            self.mouseMoved(with: event)
+        }
+
+        override func mouseDragged(with event: NSEvent) {
+            self.mouseMoved(with: event)
+        }
+        
+        override func rightMouseDragged(with event: NSEvent) {
+            self.mouseMoved(with: event)
+        }
+
+        override func otherMouseDragged(with event: NSEvent) {
+            self.mouseMoved(with: event)
+        }
+
+        override func mouseMoved(with event: NSEvent) {
+            guard let surface else { return }
+
+            let pos = self.convert(event.locationInWindow, from: nil)
+            surface.sendMousePos(Ghostty.Surface.MousePosEvent(
+                x: pos.x,
+                y: frame.height - pos.y,
+                mods: .init(nsFlags: event.modifierFlags)
+            ))
+        }
 }
 
 extension TerminalNSView: NSTextInputClient {

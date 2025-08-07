@@ -8,6 +8,7 @@ class Ghostty {
     let app: ghostty_app_t
     var config: Config
 
+    @MainActor
     init() {
         if ghostty_init(UInt(CommandLine.argc), CommandLine.unsafeArgv) != GHOSTTY_SUCCESS {
             fatalError("Failed to initialize Ghostty")
@@ -35,6 +36,40 @@ class Ghostty {
 
         self.app = ghostty_app_new(&runtime_cfg, config.ghostty_config)
     }
+}
+
+extension Ghostty {
+    static func ghosttyMods(_ flags: NSEvent.ModifierFlags) -> ghostty_input_mods_e {
+        var mods: UInt32 = GHOSTTY_MODS_NONE.rawValue
+
+        if flags.contains(.shift) { mods |= GHOSTTY_MODS_SHIFT.rawValue }
+        if flags.contains(.control) { mods |= GHOSTTY_MODS_CTRL.rawValue }
+        if flags.contains(.option) { mods |= GHOSTTY_MODS_ALT.rawValue }
+        if flags.contains(.command) { mods |= GHOSTTY_MODS_SUPER.rawValue }
+        if flags.contains(.capsLock) { mods |= GHOSTTY_MODS_CAPS.rawValue }
+
+        // Handle sided input. We can't tell that both are pressed in the
+        // Ghostty structure but thats okay -- we don't use that information.
+        let rawFlags = flags.rawValue
+        if rawFlags & UInt(NX_DEVICERSHIFTKEYMASK) != 0 {
+            mods |= GHOSTTY_MODS_SHIFT_RIGHT.rawValue
+        }
+        if rawFlags & UInt(NX_DEVICERCTLKEYMASK) != 0 { mods |= GHOSTTY_MODS_CTRL_RIGHT.rawValue }
+        if rawFlags & UInt(NX_DEVICERALTKEYMASK) != 0 { mods |= GHOSTTY_MODS_ALT_RIGHT.rawValue }
+        if rawFlags & UInt(NX_DEVICERCMDKEYMASK) != 0 { mods |= GHOSTTY_MODS_SUPER_RIGHT.rawValue }
+
+        return ghostty_input_mods_e(mods)
+    }
+    
+    /// Returns the event modifier flags set for the Ghostty mods enum.
+    static func eventModifierFlags(mods: ghostty_input_mods_e) -> NSEvent.ModifierFlags {
+        var flags = NSEvent.ModifierFlags(rawValue: 0)
+        if mods.rawValue & GHOSTTY_MODS_SHIFT.rawValue != 0 { flags.insert(.shift) }
+        if mods.rawValue & GHOSTTY_MODS_CTRL.rawValue != 0 { flags.insert(.control) }
+        if mods.rawValue & GHOSTTY_MODS_ALT.rawValue != 0 { flags.insert(.option) }
+        if mods.rawValue & GHOSTTY_MODS_SUPER.rawValue != 0 { flags.insert(.command) }
+        return flags
+    }    
 }
 
 extension Ghostty {
@@ -187,6 +222,21 @@ extension Ghostty {
         func sendMouseScroll(_ scrollEvent: MouseScrollEvent) {
             ghostty_surface_mouse_scroll(surface, scrollEvent.x, scrollEvent.y, scrollEvent.mods.cScrollMods)
         }
+
+        func sendMousePos(_ posEvent: MousePosEvent) {
+            ghostty_surface_mouse_pos(surface, posEvent.x, posEvent.y, posEvent.mods.cMods) 
+        }
+
+        func sendMouseButton(_ buttonEvent: MouseButtonEvent) {
+            ghostty_surface_mouse_button(surface, 
+            ghostty_input_mouse_state_e(buttonEvent.action.rawValue),
+            ghostty_input_mouse_button_e(buttonEvent.button.rawValue),
+            buttonEvent.mods.cMods)
+        }
+        
+        func sendMouseButton(_ button: MouseButton, _ action: MouseAction, _ mods: InputMods) {
+            sendMouseButton(MouseButtonEvent(action: action, button: button, mods: mods))
+        }
     }
 }
 
@@ -299,6 +349,68 @@ extension Ghostty.Surface {
             self.y = y
             self.mods = mods
         }
+    }
+
+    struct InputMods: OptionSet {
+        let rawValue: UInt32
+        
+        static let none = InputMods(rawValue: GHOSTTY_MODS_NONE.rawValue)
+        static let shift = InputMods(rawValue: GHOSTTY_MODS_SHIFT.rawValue)
+        static let ctrl = InputMods(rawValue: GHOSTTY_MODS_CTRL.rawValue)
+        static let alt = InputMods(rawValue: GHOSTTY_MODS_ALT.rawValue)
+        static let `super` = InputMods(rawValue: GHOSTTY_MODS_SUPER.rawValue)
+        static let caps = InputMods(rawValue: GHOSTTY_MODS_CAPS.rawValue)
+        static let shiftRight = InputMods(rawValue: GHOSTTY_MODS_SHIFT_RIGHT.rawValue)
+        static let ctrlRight = InputMods(rawValue: GHOSTTY_MODS_CTRL_RIGHT.rawValue)
+        static let altRight = InputMods(rawValue: GHOSTTY_MODS_ALT_RIGHT.rawValue)
+        static let superRight = InputMods(rawValue: GHOSTTY_MODS_SUPER_RIGHT.rawValue)
+        
+        var cMods: ghostty_input_mods_e {
+            ghostty_input_mods_e(rawValue)
+        }
+        
+        init(rawValue: UInt32) {
+            self.rawValue = rawValue
+        }
+        
+        init(cMods: ghostty_input_mods_e) {
+            self.rawValue = cMods.rawValue
+        }
+        
+        init(nsFlags: NSEvent.ModifierFlags) {
+            self.init(cMods: Ghostty.ghosttyMods(nsFlags))
+        }
+        
+        var nsFlags: NSEvent.ModifierFlags {
+            Ghostty.eventModifierFlags(mods: cMods)
+        }
+    }
+
+    struct MousePosEvent {
+        let x: Double
+        let y: Double
+        let mods: InputMods 
+    }
+
+    struct MouseButton: OptionSet {
+        let rawValue: UInt32
+        
+        static let left = MouseButton(rawValue: GHOSTTY_MOUSE_LEFT.rawValue)
+        static let right = MouseButton(rawValue: GHOSTTY_MOUSE_RIGHT.rawValue)
+        static let middle = MouseButton(rawValue: GHOSTTY_MOUSE_MIDDLE.rawValue)
+    }
+
+    struct MouseAction: OptionSet {
+        let rawValue: UInt32
+        
+        static let pressed = MouseAction(rawValue: GHOSTTY_MOUSE_PRESS.rawValue)
+        static let released = MouseAction(rawValue: GHOSTTY_MOUSE_RELEASE.rawValue)
+    }
+
+    struct MouseButtonEvent {
+        let action: MouseAction
+        let button: MouseButton
+        let mods: InputMods
     }
 
     /// The configuration for a surface. For any configuration not set, defaults will be chosen from
