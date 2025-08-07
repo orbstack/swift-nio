@@ -143,6 +143,9 @@ extension Ghostty {
 
             config_strings.append("--clipboard-paste-protection=false") // so we don't have to implement confirm_read_clipboard_cb
 
+            config_strings.append("--window-padding-x=4")
+            config_strings.append("--window-padding-y=4")
+
             let config_strings_unsafe: UnsafeMutablePointer<UnsafeMutablePointer<CChar>?> =
                 config_strings
                 .map { strdup($0) }
