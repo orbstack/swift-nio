@@ -1,8 +1,8 @@
 import AppKit
+import Defaults
 import Foundation
 import GhosttyKit
 import SwiftUI
-import Defaults
 
 class Ghostty {
     let app: ghostty_app_t
@@ -27,15 +27,16 @@ class Ghostty {
             action_cb: { userdata, target, action in
                 Ghostty.action(userdata, target, action)
             },
-            read_clipboard_cb: {userdata, location, state in
+            read_clipboard_cb: { userdata, location, state in
                 Ghostty.readClipboard(userdata, location, state)
             },
-            confirm_read_clipboard_cb: {_, _, _, _ in }, // we disable safe paste in config
-            write_clipboard_cb: {userdata, text, location, confirm in
+            confirm_read_clipboard_cb: { _, _, _, _ in },  // we disable safe paste in config
+            write_clipboard_cb: { userdata, text, location, confirm in
                 Ghostty.writeClipboard(userdata, text, location, confirm)
             },
             close_surface_cb: { userdata, processAlive in
-                NotificationCenter.default.post(name: .ghosttyCloseSurface, object: Surface.surfaceUserdata(from: userdata))
+                NotificationCenter.default.post(
+                    name: .ghosttyCloseSurface, object: Surface.surfaceUserdata(from: userdata))
             }
         )
 
@@ -43,9 +44,12 @@ class Ghostty {
     }
 
     @MainActor
-    static func writeClipboard(_ userdata: UnsafeMutableRawPointer?, _ text: UnsafePointer<CChar>?, _ location: ghostty_clipboard_e, _ confirm: Bool) {
+    static func writeClipboard(
+        _ userdata: UnsafeMutableRawPointer?, _ text: UnsafePointer<CChar>?,
+        _ location: ghostty_clipboard_e, _ confirm: Bool
+    ) {
         if location == GHOSTTY_CLIPBOARD_SELECTION {
-            return // not supporting this for now
+            return  // not supporting this for now
         }
         guard let text else { return }
 
@@ -53,36 +57,43 @@ class Ghostty {
     }
 
     @MainActor
-    static func readClipboard(_ userdata: UnsafeMutableRawPointer?, _ location: ghostty_clipboard_e, _ state: UnsafeMutableRawPointer?) {
+    static func readClipboard(
+        _ userdata: UnsafeMutableRawPointer?, _ location: ghostty_clipboard_e,
+        _ state: UnsafeMutableRawPointer?
+    ) {
         if location == GHOSTTY_CLIPBOARD_SELECTION {
-            return // not supporting this for now
+            return  // not supporting this for now
         }
-        
+
         guard let surface = Surface.surfaceUserdata(from: userdata).surface else { return }
         let text = NSPasteboard.general.string(forType: .string)
         if let text {
-           ghostty_surface_complete_clipboard_request(surface.surface, text, state, true)
+            ghostty_surface_complete_clipboard_request(surface.surface, text, state, true)
         }
     }
 
     @MainActor
-    static func action(_ userdata: UnsafeMutableRawPointer?, _ target: ghostty_target_s, _ action: ghostty_action_s) -> Bool {
+    static func action(
+        _ userdata: UnsafeMutableRawPointer?, _ target: ghostty_target_s, _ action: ghostty_action_s
+    ) -> Bool {
         switch action.tag {
-            case GHOSTTY_ACTION_MOUSE_SHAPE:
-                if target.tag != GHOSTTY_TARGET_SURFACE {
-                    break
-                }
-                let surface = Surface.surfaceUserdata(from: ghostty_surface_userdata(target.target.surface))
-                let shape = Surface.MouseShape(ghosttyValue: action.action.mouse_shape)
-                surface.setMouseShape(shape)
-            case GHOSTTY_ACTION_SET_TITLE:
-                if target.tag != GHOSTTY_TARGET_SURFACE {
-                    break
-                }
-                // since we're guaranteed to only ever have one surface, we can just post a notification
-                NotificationCenter.default.post(name: .ghosttySetTitle, object: String(cString: action.action.set_title.title))
-            default:
-                return false
+        case GHOSTTY_ACTION_MOUSE_SHAPE:
+            if target.tag != GHOSTTY_TARGET_SURFACE {
+                break
+            }
+            let surface = Surface.surfaceUserdata(
+                from: ghostty_surface_userdata(target.target.surface))
+            let shape = Surface.MouseShape(ghosttyValue: action.action.mouse_shape)
+            surface.setMouseShape(shape)
+        case GHOSTTY_ACTION_SET_TITLE:
+            if target.tag != GHOSTTY_TARGET_SURFACE {
+                break
+            }
+            // since we're guaranteed to only ever have one surface, we can just post a notification
+            NotificationCenter.default.post(
+                name: .ghosttySetTitle, object: String(cString: action.action.set_title.title))
+        default:
+            return false
         }
 
         return true
@@ -111,7 +122,7 @@ extension Ghostty {
 
         return ghostty_input_mods_e(mods)
     }
-    
+
     /// Returns the event modifier flags set for the Ghostty mods enum.
     static func eventModifierFlags(mods: ghostty_input_mods_e) -> NSEvent.ModifierFlags {
         var flags = NSEvent.ModifierFlags(rawValue: 0)
@@ -120,7 +131,7 @@ extension Ghostty {
         if mods.rawValue & GHOSTTY_MODS_ALT.rawValue != 0 { flags.insert(.option) }
         if mods.rawValue & GHOSTTY_MODS_SUPER.rawValue != 0 { flags.insert(.command) }
         return flags
-    }    
+    }
 }
 
 extension Ghostty {
@@ -141,7 +152,7 @@ extension Ghostty {
             var config_strings: [String] = []
             config_strings.append(contentsOf: theme.toGhosttyArgs())
 
-            config_strings.append("--clipboard-paste-protection=false") // so we don't have to implement confirm_read_clipboard_cb
+            config_strings.append("--clipboard-paste-protection=false")  // so we don't have to implement confirm_read_clipboard_cb
 
             config_strings.append("--window-padding-x=4")
             config_strings.append("--window-padding-y=4")
@@ -194,7 +205,8 @@ extension Ghostty {
         let surface: ghostty_surface_t
         private var ghostty_size: ghostty_surface_size_s
         var size: CGSize {
-            return CGSize(width: CGFloat(ghostty_size.width_px), height: CGFloat(ghostty_size.height_px))
+            return CGSize(
+                width: CGFloat(ghostty_size.width_px), height: CGFloat(ghostty_size.height_px))
         }
 
         init(app: ghostty_app_t, view: NSView, command: String, env: [String], size: CGSize) {
@@ -209,7 +221,9 @@ extension Ghostty {
         }
 
         convenience init(app: ghostty_app_t, view: NSView, command: String, env: [String]) {
-            self.init(app: app, view: view, command: command, env: env, size: CGSize(width: 800, height: 600))
+            self.init(
+                app: app, view: view, command: command, env: env,
+                size: CGSize(width: 800, height: 600))
         }
 
         deinit {
@@ -233,7 +247,7 @@ extension Ghostty {
 
         func sendText(_ text: String) {
             let len = text.utf8CString.count
-            if (len == 0) { return }
+            if len == 0 { return }
 
             text.withCString { ptr in
                 // len includes the null terminator so we do len - 1
@@ -278,20 +292,22 @@ extension Ghostty {
         }
 
         func sendMouseScroll(_ scrollEvent: MouseScrollEvent) {
-            ghostty_surface_mouse_scroll(surface, scrollEvent.x, scrollEvent.y, scrollEvent.mods.cScrollMods)
+            ghostty_surface_mouse_scroll(
+                surface, scrollEvent.x, scrollEvent.y, scrollEvent.mods.cScrollMods)
         }
 
         func sendMousePos(_ posEvent: MousePosEvent) {
-            ghostty_surface_mouse_pos(surface, posEvent.x, posEvent.y, posEvent.mods.cMods) 
+            ghostty_surface_mouse_pos(surface, posEvent.x, posEvent.y, posEvent.mods.cMods)
         }
 
         func sendMouseButton(_ buttonEvent: MouseButtonEvent) {
-            ghostty_surface_mouse_button(surface, 
-            ghostty_input_mouse_state_e(buttonEvent.action.rawValue),
-            ghostty_input_mouse_button_e(buttonEvent.button.rawValue),
-            buttonEvent.mods.cMods)
+            ghostty_surface_mouse_button(
+                surface,
+                ghostty_input_mouse_state_e(buttonEvent.action.rawValue),
+                ghostty_input_mouse_button_e(buttonEvent.button.rawValue),
+                buttonEvent.mods.cMods)
         }
-        
+
         func sendMouseButton(_ button: MouseButton, _ action: MouseAction, _ mods: InputMods) {
             sendMouseButton(MouseButtonEvent(action: action, button: button, mods: mods))
         }
@@ -347,7 +363,7 @@ extension Ghostty.Surface {
         case ended = 4
         case cancelled = 5
         case mayBegin = 6
-        
+
         var cMomentum: ghostty_input_mouse_momentum_e {
             switch self {
             case .none: GHOSTTY_MOUSE_MOMENTUM_NONE
@@ -361,32 +377,32 @@ extension Ghostty.Surface {
         }
 
         init(_ phase: NSEvent.Phase) {
-        switch phase {
-        case .began: self = .began
-        case .stationary: self = .stationary
-        case .changed: self = .changed
-        case .ended: self = .ended
-        case .cancelled: self = .cancelled
-        case .mayBegin: self = .mayBegin
-        default: self = .none
+            switch phase {
+            case .began: self = .began
+            case .stationary: self = .stationary
+            case .changed: self = .changed
+            case .ended: self = .ended
+            case .cancelled: self = .cancelled
+            case .mayBegin: self = .mayBegin
+            default: self = .none
+            }
         }
-    }
     }
 
     struct ScrollMods {
         let rawValue: Int32
-        
+
         /// True if this is a high-precision scroll event (e.g., trackpad, Magic Mouse)
         var precision: Bool {
             rawValue & 0b0000_0001 != 0
         }
-        
+
         /// The momentum phase of the scroll event for inertial scrolling
         var momentum: Momentum {
             let momentumBits = (rawValue >> 1) & 0b0000_0111
             return Momentum(rawValue: UInt8(momentumBits)) ?? .none
         }
-        
+
         init(precision: Bool = false, momentum: Momentum = .none) {
             var value: Int32 = 0
             if precision {
@@ -395,11 +411,11 @@ extension Ghostty.Surface {
             value |= Int32(momentum.rawValue) << 1
             self.rawValue = value
         }
-        
+
         init(rawValue: Int32) {
             self.rawValue = rawValue
         }
-        
+
         var cScrollMods: ghostty_input_scroll_mods_t {
             rawValue
         }
@@ -423,7 +439,7 @@ extension Ghostty.Surface {
 
     struct InputMods: OptionSet {
         let rawValue: UInt32
-        
+
         static let none = InputMods(rawValue: GHOSTTY_MODS_NONE.rawValue)
         static let shift = InputMods(rawValue: GHOSTTY_MODS_SHIFT.rawValue)
         static let ctrl = InputMods(rawValue: GHOSTTY_MODS_CTRL.rawValue)
@@ -434,23 +450,23 @@ extension Ghostty.Surface {
         static let ctrlRight = InputMods(rawValue: GHOSTTY_MODS_CTRL_RIGHT.rawValue)
         static let altRight = InputMods(rawValue: GHOSTTY_MODS_ALT_RIGHT.rawValue)
         static let superRight = InputMods(rawValue: GHOSTTY_MODS_SUPER_RIGHT.rawValue)
-        
+
         var cMods: ghostty_input_mods_e {
             ghostty_input_mods_e(rawValue)
         }
-        
+
         init(rawValue: UInt32) {
             self.rawValue = rawValue
         }
-        
+
         init(cMods: ghostty_input_mods_e) {
             self.rawValue = cMods.rawValue
         }
-        
+
         init(nsFlags: NSEvent.ModifierFlags) {
             self.init(cMods: Ghostty.ghosttyMods(nsFlags))
         }
-        
+
         var nsFlags: NSEvent.ModifierFlags {
             Ghostty.eventModifierFlags(mods: cMods)
         }
@@ -459,12 +475,12 @@ extension Ghostty.Surface {
     struct MousePosEvent {
         let x: Double
         let y: Double
-        let mods: InputMods 
+        let mods: InputMods
     }
 
     struct MouseButton: OptionSet {
         let rawValue: UInt32
-        
+
         static let left = MouseButton(rawValue: GHOSTTY_MOUSE_LEFT.rawValue)
         static let right = MouseButton(rawValue: GHOSTTY_MOUSE_RIGHT.rawValue)
         static let middle = MouseButton(rawValue: GHOSTTY_MOUSE_MIDDLE.rawValue)
@@ -472,7 +488,7 @@ extension Ghostty.Surface {
 
     struct MouseAction: OptionSet {
         let rawValue: UInt32
-        
+
         static let pressed = MouseAction(rawValue: GHOSTTY_MOUSE_PRESS.rawValue)
         static let released = MouseAction(rawValue: GHOSTTY_MOUSE_RELEASE.rawValue)
     }
@@ -518,9 +534,9 @@ extension Ghostty.Surface {
             config.userdata = Unmanaged.passUnretained(view).toOpaque()
             config.platform_tag = GHOSTTY_PLATFORM_MACOS
             config.platform = ghostty_platform_u(
-            macos: ghostty_platform_macos_s(
-                nsview: Unmanaged.passUnretained(view).toOpaque()
-            ))
+                macos: ghostty_platform_macos_s(
+                    nsview: Unmanaged.passUnretained(view).toOpaque()
+                ))
             config.scale_factor = NSScreen.main!.backingScaleFactor
 
             // Zero is our default value that means to inherit the font size.

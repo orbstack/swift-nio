@@ -96,13 +96,13 @@ class TerminalNSView: NSView {
 
     override func becomeFirstResponder() -> Bool {
         let result = super.becomeFirstResponder()
-        if (result) { focusDidChange(true) }
+        if result { focusDidChange(true) }
         return result
     }
 
     override func resignFirstResponder() -> Bool {
         let result = super.resignFirstResponder()
-        if (result) { focusDidChange(false) }
+        if result { focusDidChange(false) }
         return result
     }
 
@@ -126,7 +126,8 @@ class TerminalNSView: NSView {
 
     private func createSurface() {
         let size = surface?.size ?? CGSize(width: 800, height: 600)
-        surface = Ghostty.Surface(app: AppDelegate.shared.ghostty.app, view: self, command: command, env: env, size: size)
+        surface = Ghostty.Surface(
+            app: AppDelegate.shared.ghostty.app, view: self, command: command, env: env, size: size)
         surface?.setFocus(focused)
     }
 
@@ -155,11 +156,12 @@ class TerminalNSView: NSView {
     }
 
     override func updateTrackingAreas() {
-            // To update our tracking area we just recreate it all.
-            trackingAreas.forEach { removeTrackingArea($0) }
+        // To update our tracking area we just recreate it all.
+        trackingAreas.forEach { removeTrackingArea($0) }
 
-            // This tracking area is across the entire frame to notify us of mouse movements.
-            addTrackingArea(NSTrackingArea(
+        // This tracking area is across the entire frame to notify us of mouse movements.
+        addTrackingArea(
+            NSTrackingArea(
                 rect: frame,
                 options: [
                     .mouseEnteredAndExited,
@@ -174,7 +176,7 @@ class TerminalNSView: NSView {
                 ],
                 owner: self,
                 userInfo: nil))
-        }
+    }
 
     private func keyAction(
         _ action: ghostty_input_action_e,
@@ -401,103 +403,104 @@ class TerminalNSView: NSView {
     }
 
     override func scrollWheel(with event: NSEvent) {
-            guard let surface else { return }
+        guard let surface else { return }
 
-            var x = event.scrollingDeltaX
-            var y = event.scrollingDeltaY
-            let precision = event.hasPreciseScrollingDeltas
-            
-            if precision {
-                // We do a 2x speed multiplier. This is subjective, it "feels" better to me.
-                x *= 2;
-                y *= 2;
+        var x = event.scrollingDeltaX
+        var y = event.scrollingDeltaY
+        let precision = event.hasPreciseScrollingDeltas
 
-                // TODO(mitchellh): do we have to scale the x/y here by window scale factor?
-            }
+        if precision {
+            // We do a 2x speed multiplier. This is subjective, it "feels" better to me.
+            x *= 2
+            y *= 2
 
-            let scrollEvent = Ghostty.Surface.MouseScrollEvent(
-                x: x,
-                y: y,
-                mods: .init(precision: precision, momentum: .init(event.momentumPhase))
-            )
-            surface.sendMouseScroll(scrollEvent)
+            // TODO(mitchellh): do we have to scale the x/y here by window scale factor?
         }
 
-        override func mouseDown(with event: NSEvent) {
-           guard let surface else { return }
+        let scrollEvent = Ghostty.Surface.MouseScrollEvent(
+            x: x,
+            y: y,
+            mods: .init(precision: precision, momentum: .init(event.momentumPhase))
+        )
+        surface.sendMouseScroll(scrollEvent)
+    }
 
-           let mods = Ghostty.Surface.InputMods(nsFlags: event.modifierFlags)
-           surface.sendMouseButton(.left, .pressed, mods)
-        }
+    override func mouseDown(with event: NSEvent) {
+        guard let surface else { return }
 
-        override func mouseUp(with event: NSEvent) {
-            guard let surface else { return }
+        let mods = Ghostty.Surface.InputMods(nsFlags: event.modifierFlags)
+        surface.sendMouseButton(.left, .pressed, mods)
+    }
 
-            let mods = Ghostty.Surface.InputMods(nsFlags: event.modifierFlags)
-            surface.sendMouseButton(.left, .released, mods)
-        }
+    override func mouseUp(with event: NSEvent) {
+        guard let surface else { return }
 
-        override func rightMouseDown(with event: NSEvent) {
-            guard let surface else { return }
+        let mods = Ghostty.Surface.InputMods(nsFlags: event.modifierFlags)
+        surface.sendMouseButton(.left, .released, mods)
+    }
 
-            let mods = Ghostty.Surface.InputMods(nsFlags: event.modifierFlags)
-            surface.sendMouseButton(.right, .pressed, mods)
-        }
+    override func rightMouseDown(with event: NSEvent) {
+        guard let surface else { return }
 
-        override func rightMouseUp(with event: NSEvent) {
-            guard let surface else { return }
+        let mods = Ghostty.Surface.InputMods(nsFlags: event.modifierFlags)
+        surface.sendMouseButton(.right, .pressed, mods)
+    }
 
-            let mods = Ghostty.Surface.InputMods(nsFlags: event.modifierFlags)
-            surface.sendMouseButton(.right, .released, mods)
-        }
-        
-        override func otherMouseDown(with event: NSEvent) {
-            guard let surface else { return }
-            guard event.buttonNumber == 2 else { return }
+    override func rightMouseUp(with event: NSEvent) {
+        guard let surface else { return }
 
-            let mods = Ghostty.Surface.InputMods(nsFlags: event.modifierFlags)
-            surface.sendMouseButton(.middle, .pressed, mods)
-        }
+        let mods = Ghostty.Surface.InputMods(nsFlags: event.modifierFlags)
+        surface.sendMouseButton(.right, .released, mods)
+    }
 
-        override func otherMouseUp(with event: NSEvent) {
-            guard let surface else { return }
-            guard event.buttonNumber == 2 else { return }
+    override func otherMouseDown(with event: NSEvent) {
+        guard let surface else { return }
+        guard event.buttonNumber == 2 else { return }
 
-            let mods = Ghostty.Surface.InputMods(nsFlags: event.modifierFlags)
-            surface.sendMouseButton(.middle, .released, mods)
-        }
+        let mods = Ghostty.Surface.InputMods(nsFlags: event.modifierFlags)
+        surface.sendMouseButton(.middle, .pressed, mods)
+    }
 
-        override func mouseEntered(with event: NSEvent) {
-            self.mouseShape = .textCursor
-            self.mouseMoved(with: event)
-        }
+    override func otherMouseUp(with event: NSEvent) {
+        guard let surface else { return }
+        guard event.buttonNumber == 2 else { return }
 
-        override func mouseExited(with event: NSEvent) {
-            self.mouseMoved(with: event)
-        }
+        let mods = Ghostty.Surface.InputMods(nsFlags: event.modifierFlags)
+        surface.sendMouseButton(.middle, .released, mods)
+    }
 
-        override func mouseDragged(with event: NSEvent) {
-            self.mouseMoved(with: event)
-        }
-        
-        override func rightMouseDragged(with event: NSEvent) {
-            self.mouseMoved(with: event)
-        }
+    override func mouseEntered(with event: NSEvent) {
+        self.mouseShape = .textCursor
+        self.mouseMoved(with: event)
+    }
 
-        override func otherMouseDragged(with event: NSEvent) {
-            self.mouseMoved(with: event)
-        }
+    override func mouseExited(with event: NSEvent) {
+        self.mouseMoved(with: event)
+    }
 
-        override func mouseMoved(with event: NSEvent) {
-            guard let surface else { return }
+    override func mouseDragged(with event: NSEvent) {
+        self.mouseMoved(with: event)
+    }
 
-            let pos = self.convert(event.locationInWindow, from: nil)
-            surface.sendMousePos(Ghostty.Surface.MousePosEvent(
+    override func rightMouseDragged(with event: NSEvent) {
+        self.mouseMoved(with: event)
+    }
+
+    override func otherMouseDragged(with event: NSEvent) {
+        self.mouseMoved(with: event)
+    }
+
+    override func mouseMoved(with event: NSEvent) {
+        guard let surface else { return }
+
+        let pos = self.convert(event.locationInWindow, from: nil)
+        surface.sendMousePos(
+            Ghostty.Surface.MousePosEvent(
                 x: pos.x,
                 y: frame.height - pos.y,
                 mods: .init(nsFlags: event.modifierFlags)
             ))
-        }
+    }
 }
 
 extension TerminalNSView: NSTextInputClient {
@@ -507,7 +510,7 @@ extension TerminalNSView: NSTextInputClient {
 
     func markedRange() -> NSRange {
         guard markedText.length > 0 else { return NSRange() }
-        return NSRange(0...(markedText.length-1))
+        return NSRange(0...(markedText.length - 1))
     }
 
     func selectedRange() -> NSRange {
@@ -551,7 +554,9 @@ extension TerminalNSView: NSTextInputClient {
         return []
     }
 
-    func attributedSubstring(forProposedRange range: NSRange, actualRange: NSRangePointer?) -> NSAttributedString? {
+    func attributedSubstring(forProposedRange range: NSRange, actualRange: NSRangePointer?)
+        -> NSAttributedString?
+    {
         // Ghostty.logger.warning("pressure substring range=\(range) selectedRange=\(self.selectedRange())")
         guard let surface = self.surface else { return nil }
 
@@ -570,7 +575,7 @@ extension TerminalNSView: NSTextInputClient {
         // since we always have a primary font. The only scenario this doesn't
         // work is if someone is using a non-CoreText build which would be
         // unofficial.
-        var attributes: [ NSAttributedString.Key : Any ] = [:];
+        var attributes: [NSAttributedString.Key: Any] = [:]
         if let font = surface.quicklookFont() {
             attributes[.font] = font
         }
@@ -588,8 +593,8 @@ extension TerminalNSView: NSTextInputClient {
         }
 
         // Ghostty will tell us where it thinks an IME keyboard should render.
-        var x: Double = 0;
-        var y: Double = 0;
+        var x: Double = 0
+        var y: Double = 0
 
         // QuickLook never gives us a matching range to our selection so if we detect
         // this then we return the top-left selection point rather than the cursor point.
@@ -628,7 +633,7 @@ extension TerminalNSView: NSTextInputClient {
 
         // We want the string view of the any value
         var chars = ""
-        switch (string) {
+        switch string {
         case let v as NSAttributedString:
             chars = v.string
         case let v as String:
@@ -658,8 +663,8 @@ extension TerminalNSView: NSTextInputClient {
         // If we are being processed by performKeyEquivalent with a command binding,
         // we send it back through the event system so it can be encoded.
         if let lastPerformKeyEvent,
-           let current = NSApp.currentEvent,
-           lastPerformKeyEvent == current.timestamp
+            let current = NSApp.currentEvent,
+            lastPerformKeyEvent == current.timestamp
         {
             NSApp.sendEvent(current)
             return
@@ -683,213 +688,214 @@ extension TerminalNSView: NSTextInputClient {
     }
 
     /// Special case handling for some control keys
-        override func performKeyEquivalent(with event: NSEvent) -> Bool {
-            switch (event.type) {
-            case .keyDown:
-                // Continue, we care about key down events
-                break
+    override func performKeyEquivalent(with event: NSEvent) -> Bool {
+        switch event.type {
+        case .keyDown:
+            // Continue, we care about key down events
+            break
 
-            default:
-                // Any other key event we don't care about. I don't think its even
-                // possible to receive any other event type.
-                return false
-            }
-
-            // Only process events if we're focused. Some key events like C-/ macOS
-            // appears to send to the first view in the hierarchy rather than the
-            // the first responder (I don't know why). This prevents us from handling it.
-            // Besides C-/, its important we don't process key equivalents if unfocused
-            // because there are other event listeners for that (i.e. AppDelegate's
-            // local event handler).
-            if (!focused) {
-                return false
-            }
-
-            // If this event as-is would result in a key binding then we send it.
-            if let surface {
-                var ghosttyEvent = ghosttyKeyEvent(event, GHOSTTY_ACTION_PRESS)
-                let match = (event.characters ?? "").withCString { ptr in
-                    ghosttyEvent.text = ptr
-                    return ghostty_surface_key_is_binding(surface.surface, ghosttyEvent)
-                }
-                if match {
-                    self.keyDown(with: event)
-                    return true
-                }
-            }
-
-            let equivalent: String
-            switch (event.charactersIgnoringModifiers) {
-            case "\r":
-                // Pass C-<return> through verbatim
-                // (prevent the default context menu equivalent)
-                if (!event.modifierFlags.contains(.control)) {
-                    return false
-                }
-
-                equivalent = "\r"
-
-            case "/":
-                // Treat C-/ as C-_. We do this because C-/ makes macOS make a beep
-                // sound and we don't like the beep sound.
-                if (!event.modifierFlags.contains(.control) ||
-                    !event.modifierFlags.isDisjoint(with: [.shift, .command, .option])) {
-                    return false
-                }
-
-                equivalent = "_"
-
-            default:
-                // It looks like some part of AppKit sometimes generates synthetic NSEvents
-                // with a zero timestamp. We never process these at this point. Concretely,
-                // this happens for me when pressing Cmd+period with default bindings. This
-                // binds to "cancel" which goes through AppKit to produce a synthetic "escape".
-                //
-                // Question: should we be ignoring all synthetic events? Should we be finding
-                // synthetic escape and ignoring it? I feel like Cmd+period could map to a
-                // escape binding by accident, but it hasn't happened yet...
-                if event.timestamp == 0 {
-                    return false
-                }
-
-                // All of this logic here re: lastCommandEvent is to workaround some
-                // nasty behavior. See the docs for lastCommandEvent for more info.
-
-                // Ignore all other non-command events. This lets the event continue
-                // through the AppKit event systems.
-                if (!event.modifierFlags.contains(.command) &&
-                    !event.modifierFlags.contains(.control)) {
-                    // Reset since we got a non-command event.
-                    lastPerformKeyEvent = nil
-                    return false
-                }
-
-                // If we have a prior command binding and the timestamp matches exactly
-                // then we pass it through to keyDown for encoding.
-                if let lastPerformKeyEvent {
-                    self.lastPerformKeyEvent = nil
-                    if lastPerformKeyEvent == event.timestamp {
-                        equivalent = event.characters ?? ""
-                        break
-                    }
-                }
-
-                lastPerformKeyEvent = event.timestamp
-                return false
-            }
-
-            let finalEvent = NSEvent.keyEvent(
-                with: .keyDown,
-                location: event.locationInWindow,
-                modifierFlags: event.modifierFlags,
-                timestamp: event.timestamp,
-                windowNumber: event.windowNumber,
-                context: nil,
-                characters: equivalent,
-                charactersIgnoringModifiers: equivalent,
-                isARepeat: event.isARepeat,
-                keyCode: event.keyCode
-            )
-
-            self.keyDown(with: finalEvent!)
-            return true
+        default:
+            // Any other key event we don't care about. I don't think its even
+            // possible to receive any other event type.
+            return false
         }
 
-        override func flagsChanged(with event: NSEvent) {
-            let mod: UInt32;
-            switch (event.keyCode) {
-            case 0x39: mod = GHOSTTY_MODS_CAPS.rawValue
-            case 0x38, 0x3C: mod = GHOSTTY_MODS_SHIFT.rawValue
-            case 0x3B, 0x3E: mod = GHOSTTY_MODS_CTRL.rawValue
-            case 0x3A, 0x3D: mod = GHOSTTY_MODS_ALT.rawValue
-            case 0x37, 0x36: mod = GHOSTTY_MODS_SUPER.rawValue
-            default: return
-            }
-
-            // If we're in the middle of a preedit, don't do anything with mods.
-            if hasMarkedText() { return }
-
-            // The keyAction function will do this AGAIN below which sucks to repeat
-            // but this is super cheap and flagsChanged isn't that common.
-            let mods = Ghostty.ghosttyMods(event.modifierFlags)
-
-            // If the key that pressed this is active, its a press, else release.
-            var action = GHOSTTY_ACTION_RELEASE
-            if (mods.rawValue & mod != 0) {
-                // If the key is pressed, its slightly more complicated, because we
-                // want to check if the pressed modifier is the correct side. If the
-                // correct side is pressed then its a press event otherwise its a release
-                // event with the opposite modifier still held.
-                let sidePressed: Bool
-                switch (event.keyCode) {
-                case 0x3C:
-                    sidePressed = event.modifierFlags.rawValue & UInt(NX_DEVICERSHIFTKEYMASK) != 0;
-                case 0x3E:
-                    sidePressed = event.modifierFlags.rawValue & UInt(NX_DEVICERCTLKEYMASK) != 0;
-                case 0x3D:
-                    sidePressed = event.modifierFlags.rawValue & UInt(NX_DEVICERALTKEYMASK) != 0;
-                case 0x36:
-                    sidePressed = event.modifierFlags.rawValue & UInt(NX_DEVICERCMDKEYMASK) != 0;
-                default:
-                    sidePressed = true
-                }
-
-                if (sidePressed) {
-                    action = GHOSTTY_ACTION_PRESS
-                }
-            }
-
-            _ = keyAction(action, event: event)
+        // Only process events if we're focused. Some key events like C-/ macOS
+        // appears to send to the first view in the hierarchy rather than the
+        // the first responder (I don't know why). This prevents us from handling it.
+        // Besides C-/, its important we don't process key equivalents if unfocused
+        // because there are other event listeners for that (i.e. AppDelegate's
+        // local event handler).
+        if !focused {
+            return false
         }
 
-        @objc private func windowDidChangeScreen(notification: Notification) {
-            guard let window = self.window else { return }
-            guard let screen = window.screen else { return }
-            guard let surface = self.surface else { return }
-            guard let object = notification.object as? NSWindow, window == object else { return }
-
-            surface.setDisplayID(screen.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? UInt32 ?? 0)
-
-            DispatchQueue.main.async {
-                self.viewDidChangeBackingProperties()
+        // If this event as-is would result in a key binding then we send it.
+        if let surface {
+            var ghosttyEvent = ghosttyKeyEvent(event, GHOSTTY_ACTION_PRESS)
+            let match = (event.characters ?? "").withCString { ptr in
+                ghosttyEvent.text = ptr
+                return ghostty_surface_key_is_binding(surface.surface, ghosttyEvent)
+            }
+            if match {
+                self.keyDown(with: event)
+                return true
             }
         }
 
-        override func viewDidChangeBackingProperties() {
-            super.viewDidChangeBackingProperties()
+        let equivalent: String
+        switch event.charactersIgnoringModifiers {
+        case "\r":
+            // Pass C-<return> through verbatim
+            // (prevent the default context menu equivalent)
+            if !event.modifierFlags.contains(.control) {
+                return false
+            }
 
-            // The Core Animation compositing engine uses the layer's contentsScale property
-            // to determine whether to scale its contents during compositing. When the window
-            // moves between a high DPI display and a low DPI display, or the user modifies
-            // the DPI scaling for a display in the system settings, this can result in the
-            // layer being scaled inappropriately. Since we handle the adjustment of scale
-            // and resolution ourselves below, we update the layer's contentsScale property
-            // to match the window's backingScaleFactor, so as to ensure it is not scaled by
-            // the compositor.
+            equivalent = "\r"
+
+        case "/":
+            // Treat C-/ as C-_. We do this because C-/ makes macOS make a beep
+            // sound and we don't like the beep sound.
+            if !event.modifierFlags.contains(.control)
+                || !event.modifierFlags.isDisjoint(with: [.shift, .command, .option])
+            {
+                return false
+            }
+
+            equivalent = "_"
+
+        default:
+            // It looks like some part of AppKit sometimes generates synthetic NSEvents
+            // with a zero timestamp. We never process these at this point. Concretely,
+            // this happens for me when pressing Cmd+period with default bindings. This
+            // binds to "cancel" which goes through AppKit to produce a synthetic "escape".
             //
-            // Ref: High Resolution Guidelines for OS X
-            // https://developer.apple.com/library/archive/documentation/GraphicsAnimation/Conceptual/HighResolutionOSX/CapturingScreenContents/CapturingScreenContents.html#//apple_ref/doc/uid/TP40012302-CH10-SW27
-            if let window = window {
-                CATransaction.begin()
-                // Disable the implicit transition animation that Core Animation applies to
-                // property changes. Otherwise it will apply a scale animation to the layer
-                // contents which looks pretty janky.
-                CATransaction.setDisableActions(true)
-                layer?.contentsScale = window.backingScaleFactor
-                CATransaction.commit()
+            // Question: should we be ignoring all synthetic events? Should we be finding
+            // synthetic escape and ignoring it? I feel like Cmd+period could map to a
+            // escape binding by accident, but it hasn't happened yet...
+            if event.timestamp == 0 {
+                return false
             }
 
-            guard let surface = self.surface else { return }
+            // All of this logic here re: lastCommandEvent is to workaround some
+            // nasty behavior. See the docs for lastCommandEvent for more info.
 
-            // Detect our X/Y scale factor so we can update our surface
-            let fbFrame = self.convertToBacking(self.frame)
-            let xScale = fbFrame.size.width / self.frame.size.width
-            let yScale = fbFrame.size.height / self.frame.size.height
-            surface.setContentScale(xScale, yScale)
+            // Ignore all other non-command events. This lets the event continue
+            // through the AppKit event systems.
+            if !event.modifierFlags.contains(.command) && !event.modifierFlags.contains(.control) {
+                // Reset since we got a non-command event.
+                lastPerformKeyEvent = nil
+                return false
+            }
 
-            // When our scale factor changes, so does our fb size so we send that too
-            surface.setSize(width: UInt32(fbFrame.size.width), height: UInt32(fbFrame.size.height))
+            // If we have a prior command binding and the timestamp matches exactly
+            // then we pass it through to keyDown for encoding.
+            if let lastPerformKeyEvent {
+                self.lastPerformKeyEvent = nil
+                if lastPerformKeyEvent == event.timestamp {
+                    equivalent = event.characters ?? ""
+                    break
+                }
+            }
+
+            lastPerformKeyEvent = event.timestamp
+            return false
         }
+
+        let finalEvent = NSEvent.keyEvent(
+            with: .keyDown,
+            location: event.locationInWindow,
+            modifierFlags: event.modifierFlags,
+            timestamp: event.timestamp,
+            windowNumber: event.windowNumber,
+            context: nil,
+            characters: equivalent,
+            charactersIgnoringModifiers: equivalent,
+            isARepeat: event.isARepeat,
+            keyCode: event.keyCode
+        )
+
+        self.keyDown(with: finalEvent!)
+        return true
+    }
+
+    override func flagsChanged(with event: NSEvent) {
+        let mod: UInt32
+        switch event.keyCode {
+        case 0x39: mod = GHOSTTY_MODS_CAPS.rawValue
+        case 0x38, 0x3C: mod = GHOSTTY_MODS_SHIFT.rawValue
+        case 0x3B, 0x3E: mod = GHOSTTY_MODS_CTRL.rawValue
+        case 0x3A, 0x3D: mod = GHOSTTY_MODS_ALT.rawValue
+        case 0x37, 0x36: mod = GHOSTTY_MODS_SUPER.rawValue
+        default: return
+        }
+
+        // If we're in the middle of a preedit, don't do anything with mods.
+        if hasMarkedText() { return }
+
+        // The keyAction function will do this AGAIN below which sucks to repeat
+        // but this is super cheap and flagsChanged isn't that common.
+        let mods = Ghostty.ghosttyMods(event.modifierFlags)
+
+        // If the key that pressed this is active, its a press, else release.
+        var action = GHOSTTY_ACTION_RELEASE
+        if mods.rawValue & mod != 0 {
+            // If the key is pressed, its slightly more complicated, because we
+            // want to check if the pressed modifier is the correct side. If the
+            // correct side is pressed then its a press event otherwise its a release
+            // event with the opposite modifier still held.
+            let sidePressed: Bool
+            switch event.keyCode {
+            case 0x3C:
+                sidePressed = event.modifierFlags.rawValue & UInt(NX_DEVICERSHIFTKEYMASK) != 0
+            case 0x3E:
+                sidePressed = event.modifierFlags.rawValue & UInt(NX_DEVICERCTLKEYMASK) != 0
+            case 0x3D:
+                sidePressed = event.modifierFlags.rawValue & UInt(NX_DEVICERALTKEYMASK) != 0
+            case 0x36:
+                sidePressed = event.modifierFlags.rawValue & UInt(NX_DEVICERCMDKEYMASK) != 0
+            default:
+                sidePressed = true
+            }
+
+            if sidePressed {
+                action = GHOSTTY_ACTION_PRESS
+            }
+        }
+
+        _ = keyAction(action, event: event)
+    }
+
+    @objc private func windowDidChangeScreen(notification: Notification) {
+        guard let window = self.window else { return }
+        guard let screen = window.screen else { return }
+        guard let surface = self.surface else { return }
+        guard let object = notification.object as? NSWindow, window == object else { return }
+
+        surface.setDisplayID(
+            screen.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? UInt32 ?? 0)
+
+        DispatchQueue.main.async {
+            self.viewDidChangeBackingProperties()
+        }
+    }
+
+    override func viewDidChangeBackingProperties() {
+        super.viewDidChangeBackingProperties()
+
+        // The Core Animation compositing engine uses the layer's contentsScale property
+        // to determine whether to scale its contents during compositing. When the window
+        // moves between a high DPI display and a low DPI display, or the user modifies
+        // the DPI scaling for a display in the system settings, this can result in the
+        // layer being scaled inappropriately. Since we handle the adjustment of scale
+        // and resolution ourselves below, we update the layer's contentsScale property
+        // to match the window's backingScaleFactor, so as to ensure it is not scaled by
+        // the compositor.
+        //
+        // Ref: High Resolution Guidelines for OS X
+        // https://developer.apple.com/library/archive/documentation/GraphicsAnimation/Conceptual/HighResolutionOSX/CapturingScreenContents/CapturingScreenContents.html#//apple_ref/doc/uid/TP40012302-CH10-SW27
+        if let window = window {
+            CATransaction.begin()
+            // Disable the implicit transition animation that Core Animation applies to
+            // property changes. Otherwise it will apply a scale animation to the layer
+            // contents which looks pretty janky.
+            CATransaction.setDisableActions(true)
+            layer?.contentsScale = window.backingScaleFactor
+            CATransaction.commit()
+        }
+
+        guard let surface = self.surface else { return }
+
+        // Detect our X/Y scale factor so we can update our surface
+        let fbFrame = self.convertToBacking(self.frame)
+        let xScale = fbFrame.size.width / self.frame.size.width
+        let yScale = fbFrame.size.height / self.frame.size.height
+        surface.setContentScale(xScale, yScale)
+
+        // When our scale factor changes, so does our fb size so we send that too
+        surface.setSize(width: UInt32(fbFrame.size.width), height: UInt32(fbFrame.size.height))
+    }
 }
 
 class KeyboardLayout {

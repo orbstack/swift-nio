@@ -71,10 +71,11 @@ struct TerminalTheme: Equatable, Hashable {
 extension NSColor {
     var hexString: String {
         let components = self.cgColor.components
-        return String(format: "#%02X%02X%02X", Int(components![0] * 255), Int(components![1] * 255), Int(components![2] * 255))
+        return String(
+            format: "#%02X%02X%02X", Int(components![0] * 255), Int(components![1] * 255),
+            Int(components![2] * 255))
     }
 }
-
 
 extension TerminalTheme {
     static let defaultDark: TerminalTheme = ghosttyAppleSystemColors

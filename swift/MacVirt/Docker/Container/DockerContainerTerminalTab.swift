@@ -17,7 +17,8 @@ struct DockerContainerTerminalTab: View {
                 .onAppear {
                     title = ""
                 }
-                .onReceive(NotificationCenter.default.publisher(for: .ghosttySetTitle)) { notification in
+                .onReceive(NotificationCenter.default.publisher(for: .ghosttySetTitle)) {
+                    notification in
                     if let newTitle = notification.object as? String {
                         title = newTitle
                     }
@@ -26,7 +27,12 @@ struct DockerContainerTerminalTab: View {
 
             Toggle("Debug Shell", isOn: $useDebugShell)
                 .toggleStyle(.checkbox)
-                .font(.system(size: 13, weight: (!container.running && (!useDebugShell || !vmModel.isLicensed)) ? .semibold : .regular))
+                .font(
+                    .system(
+                        size: 13,
+                        weight: (!container.running && (!useDebugShell || !vmModel.isLicensed))
+                            ? .semibold : .regular)
+                )
                 .padding(.vertical, 4)
                 .padding(.horizontal, 6)
         }
@@ -34,17 +40,18 @@ struct DockerContainerTerminalTab: View {
     }
 
     private var terminal: some View {
-             TerminalView(
-                command: (useDebugShell || !vmModel.isLicensed) // if not licensed, use debug shell so we get the ad at top
-                ? AppConfig.ctlExe + " debug -f \(container.id)" 
-                : AppConfig.dockerExe + " exec -it \(container.id) sh -c 'command -v bash > /dev/null && exec bash || exec sh'",
-                env: [
-                    // env is more robust, user can mess with context
-                    "DOCKER_HOST=unix://\(Files.dockerSocket)",
-                    // don't show docker debug ads
-                    "DOCKER_CLI_HINTS=0",
-                ]
-            )
+        TerminalView(
+            command: (useDebugShell || !vmModel.isLicensed)  // if not licensed, use debug shell so we get the ad at top
+                ? AppConfig.ctlExe + " debug -f \(container.id)"
+                : AppConfig.dockerExe
+                    + " exec -it \(container.id) sh -c 'command -v bash > /dev/null && exec bash || exec sh'",
+            env: [
+                // env is more robust, user can mess with context
+                "DOCKER_HOST=unix://\(Files.dockerSocket)",
+                // don't show docker debug ads
+                "DOCKER_CLI_HINTS=0",
+            ]
+        )
     }
 
     private var contentUnavailable: some View {
@@ -92,12 +99,12 @@ struct DockerContainerTerminalTab: View {
         VStack(spacing: 0) {
             if vmModel.isLicensed {
                 if useDebugShell || container.running {
-                    statusBar 
+                    statusBar
                     terminal
                 } else {
                     ZStack(alignment: .top) {
-                       statusBar
-                       contentUnavailable
+                        statusBar
+                        contentUnavailable
                     }
                 }
             } else if container.running {
