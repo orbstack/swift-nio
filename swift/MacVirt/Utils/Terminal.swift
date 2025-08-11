@@ -90,6 +90,11 @@ class TerminalNSView: NSView {
         fatalError("init(coder:) has not been implemented")
     }
 
+    override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        window?.makeFirstResponder(self)
+    }
+
     deinit {
         NotificationCenter.default.removeObserver(self)
     }
@@ -128,6 +133,7 @@ class TerminalNSView: NSView {
         let size = surface?.size ?? CGSize(width: 800, height: 600)
         surface = Ghostty.Surface(
             app: AppDelegate.shared.ghostty.app, view: self, command: command, env: env, size: size)
+        window?.makeFirstResponder(self)
         surface?.setFocus(focused)
     }
 
