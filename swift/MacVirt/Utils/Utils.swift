@@ -211,6 +211,7 @@ extension String {
 
 enum Folders {
     static let home = FileManager.default.homeDirectoryForCurrentUser.path
+    static let homePrefix = "\(home)/"
     static let nfsName = "OrbStack"
     static let nfs = "\(home)/\(nfsName)"
     static let nfsDocker = "\(nfs)/docker"

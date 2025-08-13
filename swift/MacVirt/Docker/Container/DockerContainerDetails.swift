@@ -84,7 +84,7 @@ struct DockerContainerDetails: View {
                     Table(container.mounts, selection: $mountSelection) {
                         TableColumn("Source") { mount in
                             CopyableText(copyAs: mount.getOpenPath()) {
-                                CustomLink(mount.source) {
+                                CustomLink(mount.formattedSource) {
                                     mount.openSourceDirectory()
                                 }
                             }
@@ -111,6 +111,23 @@ struct DockerContainerDetails: View {
                 !labels.isEmpty
             {
                 DetailsLabelsSection(labels: labels)
+            }
+        }
+    }
+}
+
+private extension DKMountPoint {
+    var formattedSource: String {
+        switch type {
+        case .volume:
+            name ?? source
+        default:
+            if source == Folders.home {
+                "~"
+            } else if source.starts(with: Folders.homePrefix) {
+                "~/" + source.trimmingPrefix(Folders.homePrefix)
+            } else {
+                source
             }
         }
     }
