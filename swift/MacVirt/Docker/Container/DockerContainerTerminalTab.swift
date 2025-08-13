@@ -4,37 +4,22 @@ struct DockerContainerTerminalTab: View {
     @EnvironmentObject private var vmModel: VmViewModel
 
     @State private var useDebugShell = true
-    @State private var title = ""
 
     let container: DKContainer
 
     private var statusBar: some View {
         HStack(alignment: .center) {
-            Text(title)
-                .font(.system(size: 13, weight: .semibold))
-                .padding(.vertical, 4)
-                .padding(.horizontal, 6)
-                .onAppear {
-                    title = ""
-                }
-                .onReceive(NotificationCenter.default.publisher(for: .ghosttySetTitle)) {
-                    notification in
-                    if let newTitle = notification.object as? String {
-                        title = newTitle
-                    }
-                }
-            Spacer()
-
             Toggle("Debug Shell", isOn: $useDebugShell)
                 .toggleStyle(.checkbox)
                 .font(
                     .system(
                         size: 13,
-                        weight: (!container.running && (!useDebugShell || !vmModel.isLicensed))
-                            ? .semibold : .regular)
+
+                        weight: .regular)
                 )
                 .padding(.vertical, 4)
                 .padding(.horizontal, 6)
+            Spacer()
         }
         .padding(.all, 4)
     }
