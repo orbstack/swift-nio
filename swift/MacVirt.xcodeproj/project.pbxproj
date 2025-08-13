@@ -50,7 +50,6 @@
 		D88F4EDC299A131B00419B5C /* docker in Copy xbin executables */ = {isa = PBXBuildFile; fileRef = D88F4ED9299A131B00419B5C /* docker */; settings = {ATTRIBUTES = (CodeSignOnCopy, ); }; };
 		D88F4EDD299A131B00419B5C /* docker-compose in Copy xbin executables */ = {isa = PBXBuildFile; fileRef = D88F4EDA299A131B00419B5C /* docker-compose */; settings = {ATTRIBUTES = (CodeSignOnCopy, ); }; };
 		D88F4EDE299A131B00419B5C /* docker-credential-osxkeychain in Copy xbin executables */ = {isa = PBXBuildFile; fileRef = D88F4EDB299A131B00419B5C /* docker-credential-osxkeychain */; settings = {ATTRIBUTES = (CodeSignOnCopy, ); }; };
-		D8AD6AC32E38BFFF007E77A0 /* SwiftTerm in Frameworks */ = {isa = PBXBuildFile; productRef = D8AD6AC22E38BFFF007E77A0 /* SwiftTerm */; };
 		D8E1F6972B624D320043B932 /* completions in Copy assets */ = {isa = PBXBuildFile; fileRef = D8E1F6962B624D320043B932 /* completions */; };
 		D8E7E8B82E1BE45600E24486 /* _NIOFileSystem in Frameworks */ = {isa = PBXBuildFile; productRef = D8E7E8B72E1BE45600E24486 /* _NIOFileSystem */; };
 /* End PBXBuildFile section */
@@ -252,7 +251,6 @@
 			files = (
 				D86614182A38061700EA0995 /* Defaults in Frameworks */,
 				D86637E72AAF4D2B00630A01 /* AsyncHTTPClient in Frameworks */,
-				D8AD6AC32E38BFFF007E77A0 /* SwiftTerm in Frameworks */,
 				D855F1F02998B6A700B62588 /* Sentry in Frameworks */,
 				D8E7E8B82E1BE45600E24486 /* _NIOFileSystem in Frameworks */,
 				D84982A02DF3D77400941950 /* SwiftUIIntrospect in Frameworks */,
@@ -471,7 +469,6 @@
 				D88F08222AC12F5200454098 /* CachedAsyncImage */,
 				D849829F2DF3D77400941950 /* SwiftUIIntrospect */,
 				D8E7E8B72E1BE45600E24486 /* _NIOFileSystem */,
-				D8AD6AC22E38BFFF007E77A0 /* SwiftTerm */,
 				D8469CEB2E3B05C500E0C813 /* GRPCCore */,
 				D8469CEE2E3B060000E0C813 /* GRPCNIOTransportHTTP2 */,
 				D8469CF12E3B061600E0C813 /* GRPCProtobuf */,
@@ -527,7 +524,6 @@
 				D88F08212AC12F5200454098 /* XCRemoteSwiftPackageReference "swiftui-cached-async-image" */,
 				D849829E2DF3D77400941950 /* XCRemoteSwiftPackageReference "swiftui-introspect" */,
 				D8E7E8B62E1BE45600E24486 /* XCRemoteSwiftPackageReference "swift-nio" */,
-				D8AD6AC12E38BFFF007E77A0 /* XCRemoteSwiftPackageReference "SwiftTerm" */,
 				D8469CEA2E3B05C500E0C813 /* XCRemoteSwiftPackageReference "grpc-swift-2" */,
 				D8469CED2E3B060000E0C813 /* XCRemoteSwiftPackageReference "grpc-swift-nio-transport" */,
 				D8469CF02E3B061600E0C813 /* XCRemoteSwiftPackageReference "grpc-swift-protobuf" */,
@@ -1196,14 +1192,6 @@
 				minimumVersion = 2.0.0;
 			};
 		};
-		D8AD6AC12E38BFFF007E77A0 /* XCRemoteSwiftPackageReference "SwiftTerm" */ = {
-			isa = XCRemoteSwiftPackageReference;
-			repositoryURL = "https://github.com/orbstack/SwiftTerm";
-			requirement = {
-				kind = revision;
-				revision = 4bd764eb105433e112886b2b839fd5e105f1c173;
-			};
-		};
 		D8E7E8B62E1BE45600E24486 /* XCRemoteSwiftPackageReference "swift-nio" */ = {
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/apple/swift-nio.git";
@@ -1299,11 +1287,6 @@
 			isa = XCSwiftPackageProductDependency;
 			package = D88F08212AC12F5200454098 /* XCRemoteSwiftPackageReference "swiftui-cached-async-image" */;
 			productName = CachedAsyncImage;
-		};
-		D8AD6AC22E38BFFF007E77A0 /* SwiftTerm */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = D8AD6AC12E38BFFF007E77A0 /* XCRemoteSwiftPackageReference "SwiftTerm" */;
-			productName = SwiftTerm;
 		};
 		D8E7E8B72E1BE45600E24486 /* _NIOFileSystem */ = {
 			isa = XCSwiftPackageProductDependency;

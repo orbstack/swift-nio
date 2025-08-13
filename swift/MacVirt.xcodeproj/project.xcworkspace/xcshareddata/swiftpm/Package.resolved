@@ -1,5 +1,5 @@
 {
-  "originHash" : "aa50cc6f4896d98170f7e8d641a5f07fff42fd196046b168c783426bb3b00137",
+  "originHash" : "f9804a7747e09a94baa7a2363040a255a10b412616c1e6d7fd8bbfdfecad42d1",
   "pins" : [
     {
       "identity" : "async-http-client",
@@ -287,14 +287,6 @@
       "state" : {
         "revision" : "61e4ca4b81b9e09e2ec863b00c340eb13497dac6",
         "version" : "1.5.0"
-      }
-    },
-    {
-      "identity" : "swiftterm",
-      "kind" : "remoteSourceControl",
-      "location" : "https://github.com/orbstack/SwiftTerm",
-      "state" : {
-        "revision" : "4bd764eb105433e112886b2b839fd5e105f1c173"
       }
     },
     {
