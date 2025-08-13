@@ -35,8 +35,6 @@ private let macAddrIpv6NdpMulticastPrefix: [UInt8] = [0x33, 0x33, 0xFF]
 private let macAddrIpv4MulticastMdns: [UInt8] = [0x01, 0x00, 0x5E, 0x00, 0x00, 0xFB]
 private let macAddrIpv6MulticastMdns: [UInt8] = [0x33, 0x33, 0x00, 0x00, 0x00, 0xFB]
 
-// 192.168.139.3
-private let sconHostBridgeIpv4: [UInt8] = [192, 168, 139, 3]
 private let sconHostBridgeIpv6: [UInt8] = [
     0xFD, 0x07, 0xB5, 0x1A, 0xCC, 0x66, 0x00, 0x00, 0xA6, 0x17, 0xDB, 0x5E, 0x0A, 0xB7, 0xE9, 0xF1,
 ]
@@ -150,15 +148,19 @@ class PacketProcessor {
     // guest MAC address for NDP replies
     private var guestMac: [UInt8]?
 
+    // for redirecting mDNS to scon host bridge
+    private let sconHostBridgeIpv4: [UInt8]
+
     init(
         realExternalMtu: Int = 1500, hostOverrideMac: [UInt8], allowMulticast: Bool = false,
-        ndpReplyPrefix: [UInt8]? = nil, guestMac: [UInt8]? = nil
+        ndpReplyPrefix: [UInt8]? = nil, guestMac: [UInt8]? = nil, sconHostBridgeIpv4: [UInt8]
     ) {
         self.realExternalMtu = realExternalMtu
         self.hostOverrideMac = hostOverrideMac
         self.allowMulticast = allowMulticast
         self.ndpReplyPrefix = ndpReplyPrefix
         self.guestMac = guestMac
+        self.sconHostBridgeIpv4 = sconHostBridgeIpv4
     }
 
     /*

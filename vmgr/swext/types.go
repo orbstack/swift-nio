@@ -80,10 +80,11 @@ type BridgeNetworkConfig struct {
 	Ip4Mask    string `json:"ip4Mask"`
 	Ip6Address string `json:"ip6Address,omitempty"`
 
-	HostOverrideMAC []uint16 `json:"hostOverrideMac,omitempty"`
-	GuestMAC        []uint16 `json:"guestMac,omitempty"`
-	NDPReplyPrefix  []uint16 `json:"ndpReplyPrefix,omitempty"`
-	AllowMulticast  bool     `json:"allowMulticast"`
+	HostOverrideMAC    []uint16 `json:"hostOverrideMac,omitempty"`
+	GuestMAC           []uint16 `json:"guestMac,omitempty"`
+	NDPReplyPrefix     []uint16 `json:"ndpReplyPrefix,omitempty"`
+	SconHostBridgeIpv4 []uint16 `json:"sconHostBridgeIpv4,omitempty"`
+	AllowMulticast     bool     `json:"allowMulticast"`
 
 	MaxLinkMTU int `json:"maxLinkMtu"`
 }

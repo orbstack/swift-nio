@@ -26,6 +26,7 @@ var (
 	brMacSconHost           []uint16
 	brMacSconGuest          []uint16
 	brMacVlanRouterTemplate []uint16
+	sconHostBridgeIp4       []uint16
 
 	// 0.0.0.0/8
 	zeroNetIPv4 = netip.PrefixFrom(netip.IPv4Unspecified(), 8)
@@ -36,6 +37,7 @@ func init() {
 	brMacSconHost = mustParseUint16Mac(netconf.HostMACSconBridge)
 	brMacSconGuest = mustParseUint16Mac(netconf.GuestMACSconBridge)
 	brMacVlanRouterTemplate = mustParseUint16Mac(netconf.VlanRouterMACTemplate)
+	sconHostBridgeIp4 = bytesToUint16(netip.MustParseAddr(netconf.SconHostBridgeIP4).AsSlice())
 }
 
 func mustParseUint16Mac(mac string) []uint16 {
@@ -184,8 +186,9 @@ func (n *Network) AddVlanBridge(config sgtypes.DockerBridgeConfig) (int, error) 
 
 		UUID: deriveBridgeConfigUuid(config),
 		// this is a template. updated by VlanRouter when it gets index
-		HostOverrideMAC: brMacVlanRouterTemplate,
-		GuestMAC:        brMacVlanRouterTemplate,
+		HostOverrideMAC:    brMacVlanRouterTemplate,
+		GuestMAC:           brMacVlanRouterTemplate,
+		SconHostBridgeIpv4: sconHostBridgeIp4,
 		// doesn't work well
 		AllowMulticast: false,
 
@@ -352,8 +355,9 @@ func (n *Network) CreateSconMachineHostBridge(recreate bool) error {
 		HostOverrideMAC: brMacSconHost,
 		// scon machine bridge doesn't use ip forward/proxy arp - it bridges machines directly
 		// so this is just the VM's MAC for NDP responder use
-		GuestMAC:       brMacSconGuest,
-		NDPReplyPrefix: slicePrefix6(nat64Subnet),
+		GuestMAC:           brMacSconGuest,
+		NDPReplyPrefix:     slicePrefix6(nat64Subnet),
+		SconHostBridgeIpv4: sconHostBridgeIp4,
 		// allow all multicast, not just mDNs
 		AllowMulticast: true,
 

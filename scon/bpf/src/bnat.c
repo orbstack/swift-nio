@@ -74,8 +74,8 @@ static const __be32 XLAT_PREFIX6[4] =
     IP6(0xfd07, 0xb51a, 0xcc66, 0x0000, 0xa617, 0xdb5e, 0x0000, 0x0000);
 
 // 192.168.138.0/24
-#define DOMAINPROXY_SUBNET4 IP4(192, 168, 138, 0)
-#define DOMAINPROXY_SUBNET4_MASK IP4(255, 255, 255, 0)
+const volatile __be32 config_domainproxy_subnet4;
+const volatile __be32 config_domainproxy_subnet4_mask;
 
 // source ip after translation
 // we use this ip, outside of machine bridge, so that docker machine routes the reply via default
@@ -101,9 +101,6 @@ static const __be32 XLAT_PREFIX6[4] =
 // neutrality fd07:b51a:cc66:0:a617:db5e:0ab7:e9f1
 static const __be32 XLAT_SRC_IP6[4] =
     IP6(0xfd07, 0xb51a, 0xcc66, 0x0000, 0xa617, 0xdb5e, 0x0ab7, 0xe9f1);
-
-// da:9b:d0:54:e0:02 (GuestMACSconBridge)
-static const __u8 BRIDGE_GUEST_MAC[ETH_ALEN] = "\xda\x9b\xd0\x54\xe0\x02";
 
 #define FWMARK_DOCKER_ROUTE 0x1
 
@@ -441,7 +438,7 @@ int sched_cls_ingress6_nat6(struct __sk_buff *skb) {
     // mark and re-inject
     // we exempt traffic destined for the domainproxy subnet because that gets dnat'd and marked in
     // ovm nftables
-    if (!matches_subnet4(ip.daddr, DOMAINPROXY_SUBNET4, DOMAINPROXY_SUBNET4_MASK)) {
+    if (!matches_subnet4(ip.daddr, config_domainproxy_subnet4, config_domainproxy_subnet4_mask)) {
         skb->mark = FWMARK_DOCKER_ROUTE; // route to docker machine (via ip rule)
     }
     return bpf_redirect(skb->ifindex, BPF_F_INGRESS);

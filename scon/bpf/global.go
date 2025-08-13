@@ -4,10 +4,16 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net/netip"
 
 	"github.com/cilium/ebpf/link"
+	"github.com/orbstack/macvirt/vmgr/vnet/netconf"
 	"github.com/vishvananda/netlink"
 	"golang.org/x/sys/unix"
+)
+
+var (
+	domainproxySubnet4 = netip.MustParsePrefix(netconf.DomainproxySubnet4CIDR)
 )
 
 type GlobalBpfManager struct {
@@ -48,6 +54,15 @@ func (b *GlobalBpfManager) Load(ifVmnetMachine string) error {
 	bnatSpec, err := loadBnat()
 	if err != nil {
 		return fmt.Errorf("load bnat: %w", err)
+	}
+
+	err = bnatSpec.Variables["config_domainproxy_subnet4"].Set(ipv4AddrToUint32(domainproxySubnet4.Addr()))
+	if err != nil {
+		return fmt.Errorf("set domainproxy subnet4: %w", err)
+	}
+	err = bnatSpec.Variables["config_domainproxy_subnet4_mask"].Set(ipv4BitsToMaskUint32(domainproxySubnet4.Bits()))
+	if err != nil {
+		return fmt.Errorf("set domainproxy subnet4 mask: %w", err)
 	}
 
 	bnatObjs := &bnatObjects{}

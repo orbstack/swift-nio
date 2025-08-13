@@ -119,9 +119,7 @@ func (b *ContainerBpfManager) AttachLfwd() error {
 	}
 
 	// set netns cookie filter
-	err = spec.RewriteConstants(map[string]any{
-		"config_netns_cookie": b.netnsCookie,
-	})
+	err = spec.Variables["config_netns_cookie"].Set(b.netnsCookie)
 	if err != nil {
 		return fmt.Errorf("configure: %w", err)
 	}

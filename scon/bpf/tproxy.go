@@ -76,19 +76,33 @@ func NewTproxy(subnet4 netip.Prefix, subnet6 netip.Prefix, ports []uint16) (*Tpr
 	subnet6IP := ipv6AddrToUint32Array(subnet6.Addr())
 	subnet6Mask := ipv6BitsToMaskUint32Array(subnet6.Bits())
 
-	err = spec.RewriteConstants(map[string]any{
-		"config_tproxy_subnet4_enabled": subnet4Enabled,
-		"config_tproxy_subnet4_ip":      subnet4IP,
-		"config_tproxy_subnet4_mask":    subnet4Mask,
-
-		"config_tproxy_subnet6_enabled": subnet6Enabled,
-		"config_tproxy_subnet6_ip":      subnet6IP,
-		"config_tproxy_subnet6_mask":    subnet6Mask,
-
-		"config_tproxy_ports": ports,
-	})
+	err = spec.Variables["config_tproxy_subnet4_enabled"].Set(subnet4Enabled)
 	if err != nil {
-		return nil, fmt.Errorf("rewrite constants: %w", err)
+		return nil, fmt.Errorf("set subnet4 enabled: %w", err)
+	}
+	err = spec.Variables["config_tproxy_subnet4_ip"].Set(subnet4IP)
+	if err != nil {
+		return nil, fmt.Errorf("set subnet4 ip: %w", err)
+	}
+	err = spec.Variables["config_tproxy_subnet4_mask"].Set(subnet4Mask)
+	if err != nil {
+		return nil, fmt.Errorf("set subnet4 mask: %w", err)
+	}
+	err = spec.Variables["config_tproxy_subnet6_enabled"].Set(subnet6Enabled)
+	if err != nil {
+		return nil, fmt.Errorf("set subnet6 enabled: %w", err)
+	}
+	err = spec.Variables["config_tproxy_subnet6_ip"].Set(subnet6IP)
+	if err != nil {
+		return nil, fmt.Errorf("set subnet6 ip: %w", err)
+	}
+	err = spec.Variables["config_tproxy_subnet6_mask"].Set(subnet6Mask)
+	if err != nil {
+		return nil, fmt.Errorf("set subnet6 mask: %w", err)
+	}
+	err = spec.Variables["config_tproxy_ports"].Set(ports)
+	if err != nil {
+		return nil, fmt.Errorf("set ports: %w", err)
 	}
 
 	tproxyObjs := &tproxyObjects{}

@@ -151,6 +151,7 @@ struct BridgeNetworkConfig: Codable {
 
     var hostOverrideMac: [UInt8]  // for vlans: template, filled in by addBridge
     var guestMac: [UInt8]  // for vlans: template, filled in by addBridge
+    var sconHostBridgeIpv4: [UInt8]  // for redirecting mDNS to scon host bridge
     let ndpReplyPrefix: [UInt8]?
     let allowMulticast: Bool
 
@@ -174,7 +175,8 @@ class BridgeNetwork: NetCallbacks {
             hostOverrideMac: config.hostOverrideMac,
             allowMulticast: config.allowMulticast,
             ndpReplyPrefix: config.ndpReplyPrefix,
-            guestMac: config.guestMac)
+            guestMac: config.guestMac,
+            sconHostBridgeIpv4: config.sconHostBridgeIpv4)
 
         let ifDesc = xpc_dictionary_create(nil, nil, 0)
         xpc_dictionary_set_uint64(
