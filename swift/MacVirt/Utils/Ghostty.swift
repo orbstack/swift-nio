@@ -156,6 +156,9 @@ extension Ghostty {
 
             config_strings.append("--window-padding-x=4")
             config_strings.append("--window-padding-y=4")
+            
+            config_strings.append("--cursor-style-blink=false")
+            config_strings.append("--font-family=.AppleSystemUIFontMonospaced")
 
             let config_strings_unsafe: UnsafeMutablePointer<UnsafeMutablePointer<CChar>?> =
                 config_strings
