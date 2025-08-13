@@ -7,7 +7,7 @@ struct DockerContainerTerminalTab: View {
 
     let container: DKContainer
 
-    private var statusBar: some View {
+    @ViewBuilder private var statusBar: some View {
         HStack(alignment: .center) {
             Toggle("Debug Shell", isOn: $useDebugShell)
                 .toggleStyle(.checkbox)
@@ -22,6 +22,8 @@ struct DockerContainerTerminalTab: View {
             Spacer()
         }
         .padding(.all, 4)
+
+        Divider()
     }
 
     private var terminal: some View {
