@@ -25,7 +25,7 @@ const (
 )
 
 // host bridge is scon subnet + domainproxy subnet
-// 198.19.248.0/23
+// for the /23 part of 198.19.248.0/23
 const (
 	HostBridgeSubnet4Mask = "255.255.254.0"
 )
@@ -61,8 +61,6 @@ const (
 	NAT64SourceIP6 = NAT64Subnet6 + "0ab7:e9f1"
 )
 
-// 198.19.249.0/24
-// fd07:b5a:cc66:0:cafe::/112
 const (
 	DomainproxySubnet4CIDR = "198.19.248.0/24"
 	DomainproxySubnet6CIDR = "fd07:b51a:cc66:0:cafe::/112"

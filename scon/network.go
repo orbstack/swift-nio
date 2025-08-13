@@ -112,7 +112,7 @@ func (n *Network) Start() error {
 	})
 
 	// add docker table route, used for docker route bit
-	// ip route add default via 198.19.249.2 dev conbr0 table 64
+	// ip route add default via <sconDocker4> dev conbr0 table 64
 	err = netlink.RouteAdd(&netlink.Route{
 		LinkIndex: bridge.Index,
 		Gw:        sconDocker4,
@@ -121,7 +121,7 @@ func (n *Network) Start() error {
 	if err != nil && !errors.Is(err, unix.EEXIST) {
 		return err
 	}
-	// ip route add default via fd07:b51a:cc66:0::2 dev conbr0 table 64
+	// ip route add default via <sconDocker6> dev conbr0 table 64
 	err = netlink.RouteAdd(&netlink.Route{
 		LinkIndex: bridge.Index,
 		Gw:        sconDocker6,

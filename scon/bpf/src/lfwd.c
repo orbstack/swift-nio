@@ -4,7 +4,7 @@
 // lfwd: localhost forwarder for Docker host networking
 // ----------------------------------------------------
 // Redirects connect() calls to localhost (127.0.0.1 or ::1) to host NAT
-// (198.19.248.254) if there's no listener on localhost.
+// (0.250.250.254) if there's no listener on localhost.
 // Also translates getpeername() to return localhost so programs don't get confused,
 // and sendmsg() for UDP.
 //
