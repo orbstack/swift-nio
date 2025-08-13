@@ -176,6 +176,12 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
     }
 
     func applicationDidFinishLaunching(_: Notification) {
+        // ghostty hack 
+        UserDefaults.standard.register(defaults: [
+            // Disable this so that repeated key events make it through to our terminal views.
+            "ApplePressAndHoldEnabled": false,
+        ])
+
         if !AppConfig.debug {
             SentrySDK.start { options in
                 options.dsn =
