@@ -12,6 +12,9 @@ import SwiftUI
 struct TerminalView: View {
     let command: [String]
     let env: [String]
+    
+    @Default(.terminalTheme) var terminalTheme
+    @Environment(\.colorScheme) var colorScheme
 
     init(command: [String], env: [String] = []) {
         self.command = command
@@ -23,6 +26,9 @@ struct TerminalView: View {
             TerminalNSViewRepresentable(
                 command: command, env: env, size: geometry.size)
         }
+        .background(
+            Color(TerminalTheme.forPreference(terminalTheme, colorScheme: colorScheme).background)
+        )
     }
 }
 
