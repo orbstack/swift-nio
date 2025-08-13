@@ -214,7 +214,7 @@ extension Ghostty {
                 width: CGFloat(ghostty_size.width_px), height: CGFloat(ghostty_size.height_px))
         }
 
-        init(app: ghostty_app_t, view: NSView, command: String, env: [String], size: CGSize) {
+        init(app: ghostty_app_t, view: NSView, command: [String], env: [String], size: CGSize) {
             let surface_config = Configuration(command: command, env: env)
 
             self.surface = surface_config.withCValue(view: view) { config in
@@ -225,7 +225,7 @@ extension Ghostty {
             self.ghostty_size = ghostty_surface_size(surface)
         }
 
-        convenience init(app: ghostty_app_t, view: NSView, command: String, env: [String]) {
+        convenience init(app: ghostty_app_t, view: NSView, command: [String], env: [String]) {
             self.init(
                 app: app, view: view, command: command, env: env,
                 size: CGSize(width: 800, height: 600))
@@ -513,7 +513,7 @@ extension Ghostty.Surface {
         var workingDirectory: String? = nil
 
         /// Explicit command to set
-        var command: String? = nil
+        var command: [String] = []
 
         /// Environment variables to set for the terminal
         var environmentVariables: [String: String] = [:]
@@ -521,7 +521,7 @@ extension Ghostty.Surface {
         /// Extra input to send as stdin
         var initialInput: String? = nil
 
-        init(command: String, env: [String]) {
+        init(command: [String], env: [String]) {
             self.command = command
             for envvar in env {
                 let parts = envvar.split(separator: "=")
@@ -550,8 +550,13 @@ extension Ghostty.Surface {
             return try workingDirectory.withCString { cWorkingDir in
                 config.working_directory = cWorkingDir
 
-                return try command.withCString { cCommand in
-                    config.command = cCommand
+                return try command.withCStrings { cCommands in
+                    config.argc = command.count
+                    let argv = UnsafeMutablePointer<UnsafePointer<CChar>?>.allocate(capacity: command.count)
+                    for (i, cCommand) in cCommands.enumerated() {
+                        argv[i] = cCommand
+                    }
+                    config.argv = argv
 
                     return try initialInput.withCString { cInput in
                         config.initial_input = cInput

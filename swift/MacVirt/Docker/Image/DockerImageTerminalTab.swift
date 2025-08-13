@@ -7,7 +7,7 @@ struct DockerImageTerminalTab: View {
 
     var body: some View {
         TerminalView(
-            command: AppConfig.ctlExe + " debug -f \(image.id)",
+            command: [AppConfig.ctlExe, "debug", "-f", image.id],
             // env is more robust, user can mess with context
             env: ["DOCKER_HOST=unix://\(Files.dockerSocket)"]
         )

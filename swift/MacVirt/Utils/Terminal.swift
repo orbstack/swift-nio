@@ -10,10 +10,10 @@ import GhosttyKit
 import SwiftUI
 
 struct TerminalView: View {
-    let command: String
+    let command: [String]
     let env: [String]
 
-    init(command: String, env: [String] = []) {
+    init(command: [String], env: [String] = []) {
         self.command = command
         self.env = env
     }
@@ -27,7 +27,7 @@ struct TerminalView: View {
 }
 
 struct TerminalNSViewRepresentable: NSViewRepresentable {
-    let command: String
+    let command: [String]
     let env: [String]
 
     let size: CGSize
@@ -47,7 +47,7 @@ class TerminalNSView: NSView {
     @Environment(\.colorScheme) var colorScheme
     @Default(.terminalTheme) var terminalTheme
 
-    var command: String
+    var command: [String]
     var env: [String]
 
     override var acceptsFirstResponder: Bool {
@@ -59,7 +59,7 @@ class TerminalNSView: NSView {
     var mouseShape: Ghostty.Surface.MouseShape = .textCursor
     var focused: Bool = false
 
-    init(command: String, env: [String] = []) {
+    init(command: [String], env: [String] = []) {
         self.command = command
         self.env = env
 
@@ -137,7 +137,7 @@ class TerminalNSView: NSView {
         surface?.setFocus(focused)
     }
 
-    func updateConfig(command: String, env: [String]) {
+    func updateConfig(command: [String], env: [String]) {
         if self.command == command && self.env == env {
             return
         }
