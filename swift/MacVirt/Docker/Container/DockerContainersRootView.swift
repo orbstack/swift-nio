@@ -173,7 +173,7 @@ private struct DockerContainersList: View {
                         ContentUnavailableViewCompat("No Containers", systemImage: "shippingbox")
                     }
                     Spacer()
-                }
+                }.padding(16)
 
                 Spacer()
 

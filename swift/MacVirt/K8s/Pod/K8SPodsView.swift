@@ -54,7 +54,7 @@ private struct K8SPodsList: View {
                         ContentUnavailableViewCompat("No Pods", systemImage: "helm")
                     }
                     Spacer()
-                }
+                }.padding(16)
 
                 Spacer()
 

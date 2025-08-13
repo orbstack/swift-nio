@@ -62,7 +62,7 @@ struct DockerVolumesRootView: View {
                             ContentUnavailableViewCompat.search
                         }
                         Spacer()
-                    }
+                    }.padding(16)
 
                     Spacer()
                 }

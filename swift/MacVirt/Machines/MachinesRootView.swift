@@ -39,7 +39,7 @@ struct MachinesRootView: View {
                                 Spacer()
                                 ContentUnavailableViewCompat.search
                                 Spacer()
-                            }
+                            }.padding(16)
                             Spacer()
                         }
                     } else {
@@ -60,7 +60,7 @@ struct MachinesRootView: View {
                                 .keyboardShortcut(.defaultAction)
                             }
                             Spacer()
-                        }
+                        }.padding(16)
                         Spacer()
 
                         HStack {

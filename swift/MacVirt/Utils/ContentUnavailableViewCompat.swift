@@ -34,6 +34,7 @@ struct ContentUnavailableViewCompat: View {
                 Text(desc)
                     .font(.body)
                     .foregroundColor(.secondary)
+                    .multilineTextAlignment(.center)
                     .padding(.top, 16)
             }
         }
