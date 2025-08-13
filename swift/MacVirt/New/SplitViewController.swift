@@ -8,6 +8,11 @@
 
 import AppKit
 
+enum SplitType: String {
+    case doublePane = "Double"
+    case triplePane = "Triple"
+}
+
 class SplitViewController: NSSplitViewController {
     let vcA = SidebarViewController()
     let vcB = PrincipalViewController()
@@ -16,6 +21,19 @@ class SplitViewController: NSSplitViewController {
     lazy var itemA = NSSplitViewItem(sidebarWithViewController: vcA)
     lazy var itemB = NSSplitViewItem(contentListWithViewController: vcB)
     lazy var itemC = NSSplitViewItem(viewController: vcC)
+
+    var tab: NavTabId? = nil
+    var splitType: SplitType? {
+        if let tab {
+            if tab == .activityMonitor || tab == .cli {
+                return .doublePane
+            } else {
+                return .triplePane
+            }
+        } else {
+            return nil
+        }
+    }
 
     init() {
         super.init(nibName: nil, bundle: nil)
@@ -49,19 +67,19 @@ class SplitViewController: NSSplitViewController {
             guard let self else { return }
             onTabChange(tab)
 
-            // these tabs don't have an inspector
-            if tab == .activityMonitor || tab == .cli {
-                itemC.isCollapsed = true
-            } else {
-                itemC.isCollapsed = false
-            }
+            self.tab = tab
+            itemC.isCollapsed = splitType == .doublePane
+            updateAutosaveName()
         }
     }
     
     override func viewWillAppear() {
-        if let windowId = splitView.window?.identifier?.rawValue {
-            // new save ID after changing to master-detail layout
-            splitView.autosaveName = "\(windowId) : SplitViewController2"
+        updateAutosaveName()
+    }
+
+    func updateAutosaveName() {
+        if let windowId = splitView.window?.identifier?.rawValue, let splitType {
+            splitView.autosaveName = "\(windowId) : \(splitType) : SplitViewController3"
         }
     }
 }
