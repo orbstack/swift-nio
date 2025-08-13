@@ -75,7 +75,7 @@ data:
     }
     import /etc/coredns/custom/*.server
   NodeHosts: |
-    198.19.249.2 orbstack
+    192.168.139.2 orbstack
 ---
 apiVersion: apps/v1
 kind: Deployment

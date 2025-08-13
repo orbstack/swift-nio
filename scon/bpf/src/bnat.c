@@ -73,8 +73,8 @@
 static const __be32 XLAT_PREFIX6[4] =
     IP6(0xfd07, 0xb51a, 0xcc66, 0x0000, 0xa617, 0xdb5e, 0x0000, 0x0000);
 
-// 198.19.248.0/24
-#define DOMAINPROXY_SUBNET4 IP4(198, 19, 248, 0)
+// 192.168.138.0/24
+#define DOMAINPROXY_SUBNET4 IP4(192, 168, 138, 0)
 #define DOMAINPROXY_SUBNET4_MASK IP4(255, 255, 255, 0)
 
 // source ip after translation

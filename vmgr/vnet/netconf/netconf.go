@@ -25,15 +25,15 @@ const (
 )
 
 // host bridge is scon subnet + domainproxy subnet
-// for the /23 part of 198.19.248.0/23
+// for the /23 part of 192.168.138.0/23
 const (
 	HostBridgeSubnet4Mask = "255.255.254.0"
 )
 
-// 198.19.249.0/24
+// 192.168.139.0/24
 // fd07:b5a:cc66:0::/64
 const (
-	SconSubnet4       = "198.19.249"
+	SconSubnet4       = "192.168.139"
 	SconSubnet4CIDR   = SconSubnet4 + ".0/24"
 	SconGatewayIP4    = SconSubnet4 + ".1"
 	SconDockerIP4     = SconSubnet4 + ".2"
@@ -62,7 +62,7 @@ const (
 )
 
 const (
-	DomainproxySubnet4CIDR = "198.19.248.0/24"
+	DomainproxySubnet4CIDR = "192.168.138.0/24"
 	DomainproxySubnet6CIDR = "fd07:b51a:cc66:0:cafe::/112"
 )
 
