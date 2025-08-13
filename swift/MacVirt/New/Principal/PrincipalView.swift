@@ -62,10 +62,13 @@ struct PrincipalView: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .onChange(of: selectedTab, initial: true) { _, tab in
-            // clear inspector view when tab changes
-            navModel.inspectorView = nil
-            navModel.inspectorSelection = []
+        .onChange(of: selectedTab, initial: true) { oldTab, tab in
+            if tab != oldTab {
+                // clear inspector view when tab changes,
+                // but don't clear state on setting same value (ie gui re-open)
+                navModel.inspectorView = nil
+                navModel.inspectorSelection = []            
+            }
 
             onTabChange(tab)
         }
