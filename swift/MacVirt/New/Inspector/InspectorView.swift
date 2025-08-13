@@ -74,10 +74,11 @@ extension InspectorSelectionList where Item: Identifiable, ID == Item.ID {
 struct InspectorView: View {
     @EnvironmentObject var model: VmViewModel
     @EnvironmentObject var navModel: MainNavViewModel
+    @Environment(\.scenePhase) private var scenePhase
 
     @Default(.selectedTab) private var selectedTab
 
-    var body: some View {
+    var enabledBody: some View {
         Group {
             switch selectedTab {
             case .dockerContainers:
@@ -208,6 +209,19 @@ struct InspectorView: View {
         // but make sure to expand to fill all space.
         // otherwise, the split view layout will break.
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    var body: some View {
+        Group {
+            if scenePhase == .background {
+                VStack(spacing: 16) {
+                    ContentUnavailableViewCompat(
+                        "App Is In Background", systemImage: "moon.zzz.fill")
+                }.frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else {
+                enabledBody
+            }
+        }
     }
 }
 
