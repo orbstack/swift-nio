@@ -87,11 +87,13 @@ enum Distro: String, CaseIterable {
         case .debian:
             return [
                 v("bullseye", as: "11 (Bullseye)"),
-                v("trixie", as: "13 (Trixie, testing)"), v("bookworm", as: "12 (Bookworm)"),
+                v("bookworm", as: "12 (Bookworm)"),
+                v("forky", as: "14 (Forky, testing)"),
+                v("trixie", as: "13 (Trixie)"),
             ]
         case .devuan:
             return [
-                v("beowulf", as: "Beowulf"), v("chimaera", as: "Chimaera"),
+                v("chimaera", as: "Chimaera"),
                 v("daedalus", as: "Daedalus"),
             ]
         case .fedora: return [v("40"), v("41"), v("42")]

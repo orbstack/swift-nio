@@ -90,7 +90,7 @@ var (
 		//ImageArch:      "current",
 		ImageCentos: "9-Stream",
 		ImageDebian: "bullseye",
-		ImageDevuan: "beowulf",
+		ImageDevuan: "chimaera",
 		ImageFedora: "40",
 		//ImageGentoo:    "current",
 		//ImageKali:      "current",
@@ -131,8 +131,8 @@ var (
 		{ImageDebian, "11"}: "bullseye",
 		{ImageDebian, "12"}: "bookworm",
 		{ImageDebian, "13"}: "trixie",
+		{ImageDebian, "14"}: "forky",
 
-		{ImageDevuan, "3"}: "beowulf",
 		{ImageDevuan, "4"}: "chimaera",
 		{ImageDevuan, "5"}: "daedalus",
 
