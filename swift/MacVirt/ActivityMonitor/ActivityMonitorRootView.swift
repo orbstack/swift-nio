@@ -174,10 +174,29 @@ private struct HistoryGraph: View {
 
     let key: KeyPath<TrackedStatsEntry, [Float?]>
     let name: String
+    let totalName: String?
     let color: Color
     let maxValue: Float
     let alignTo: Float
     let formatter: (Float) -> String
+
+    init(
+        trackedEntries: [StatsID: TrackedStatsEntry], modelItems: [ActivityMonitorItem],
+        selection: Set<ActivityMonitorID>, key: KeyPath<TrackedStatsEntry, [Float?]>,
+        name: String, totalName: String? = nil, color: Color, maxValue: Float,
+        alignTo: Float, formatter: @escaping (Float) -> String
+    ) {
+        self.trackedEntries = trackedEntries
+        self.modelItems = modelItems
+        self.selection = selection
+        self.key = key
+        self.name = name
+        self.totalName = totalName
+        self.color = color
+        self.maxValue = maxValue
+        self.alignTo = alignTo
+        self.formatter = formatter
+    }
 
     var body: some View {
         let (graphItems, isTotal) = calculateItems()
@@ -188,18 +207,24 @@ private struct HistoryGraph: View {
             })?.value ?? 0
         ).alignUp(to: alignTo)
 
-        VStack(alignment: .leading) {
-            let title = isTotal ? "\(name):" : "\(name) (selected):"
+        VStack(alignment: .leading, spacing: 0) {
             HStack(alignment: .center) {
-                Text(title)
+                let title = isTotal ? (totalName ?? name) : name
+                Text("\(title):")
                     .font(.headline)
+                    .lineLimit(1)
                 Spacer()
                 if let lastItem = graphItems.last,
                     let lastValue = lastItem.value
                 {
                     Text(formatter(lastValue))
+                    .lineLimit(1)
                 }
             }
+            .padding(6)
+
+            Divider()
+                .padding(.horizontal, 4)
 
             Chart(graphItems, id: \.self) { item in
                 if let value = item.value {
@@ -212,16 +237,7 @@ private struct HistoryGraph: View {
                     AreaMark(
                         x: .value("Time", item.index), y: .value(name, value)
                     )
-                    .foregroundStyle(
-                        LinearGradient(
-                            gradient: Gradient(colors: [
-                                color.opacity(0.8),
-                                color.opacity(0.1),
-                            ]),
-                            startPoint: .top,
-                            endPoint: .bottom
-                        )
-                    )
+                    .foregroundStyle(color.opacity(0.3))
                 }
             }
             .chartXScale(domain: [0, historySize - 1])
@@ -233,11 +249,9 @@ private struct HistoryGraph: View {
             }
             .chartYAxis {
             }
-            .frame(height: 100)
             .padding(.bottom, 1)  // fix zero line getting clipped
-            .clipShape(RoundedRectangle(cornerRadius: 4))  // if values > max, Swift Charts draws out of bounds
-            .overlay(RoundedRectangle(cornerRadius: 4).stroke(.gray.opacity(0.5), lineWidth: 1))
         }
+        .frame(maxWidth: 200)
     }
 
     private func findK8sNamespace(containerId: String) -> String? {
@@ -405,213 +419,230 @@ struct ActivityMonitorRootView: View {
     @State private var selection: Set<ActivityMonitorID> = []
     @State private var sort = AKSortDescriptor(columnId: Columns.cpuPercent, ascending: false)
 
+    private var listView: some View {
+        AKList(
+            AKSection.single(model.items), selection: $selection, sort: $sort,
+            rowHeight: 24,
+            flat: false, expandByDefault: true,
+            autosaveName: Defaults.Keys.activityMonitor_autosaveOutline,
+            columns: [
+                // takes all remaining space
+                akColumn(id: Columns.name, title: "Name", width: 150, alignment: .left) {
+                    item in
+                    HStack(spacing: 6) {
+                        switch item.entity {
+                        case .machine(let record):
+                            Image("distro/\(record.image.distro)")
+                                .resizable()
+                                .aspectRatio(contentMode: .fit)
+                                .frame(width: 16, height: 16)
+
+                        case .container(let container):
+                            DockerContainerImage(container: container)
+                                .environmentObject(vmModel)
+                                .scaleEffect(16.0 / 28.0)  // 28px -> 16px
+                                .frame(width: 16, height: 16)
+
+                        case .compose(let project):
+                            DockerComposeGroupImage(project: project)
+                                .environmentObject(vmModel)
+                                .scaleEffect(16.0 / 28.0)  // 28px -> 16px
+                                .frame(width: 16, height: 16)
+
+                        case .k8sGroup:
+                            K8sIcon()
+                                .scaleEffect(16.0 / 28.0)  // 28px -> 16px
+                                .frame(width: 16, height: 16)
+
+                        case .dockerGroup:
+                            Image(systemName: "shippingbox.fill")
+                                .resizable()
+                                .aspectRatio(contentMode: .fit)
+                                .frame(width: 16, height: 16)
+
+                        case .machinesGroup:
+                            Image(systemName: "desktopcomputer")
+                                .resizable()
+                                .aspectRatio(contentMode: .fit)
+                                .frame(width: 16, height: 16)
+
+                        case .k8sNamespace:
+                            Group {}
+
+                        case .k8sServices:
+                            Group {}
+
+                        case .dockerEngine:
+                            Group {}
+
+                        default:
+                            Spacer()
+                                .frame(width: 16, height: 16)
+                        }
+
+                        Text(item.entity.description)
+                    }
+                    .padding(.leading, 2)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .lineLimit(1)
+                    .akListContextMenu {
+                        Button {
+                            if selection.contains(item.id) {
+                                stopOne(id: item.id)
+                            } else {
+                                stopAllSelected(stopAction: stopOne)
+                            }
+                        } label: {
+                            Label("Stop", systemImage: "stop")
+                        }
+
+                        Button {
+                            if selection.contains(item.id) {
+                                killOne(id: item.id)
+                            } else {
+                                stopAllSelected(stopAction: killOne)
+                            }
+                        } label: {
+                            Label("Kill", systemImage: "xmark.octagon")
+                        }
+                    }
+                },
+                akColumn(
+                    id: Columns.cpuPercent, title: "CPU %", width: 56, alignment: .right
+                ) {
+                    item in
+                    if let cpuPercent = item.cpuPercent {
+                        Text(formatCpuPercent(cpuPercent))
+                            .frame(maxWidth: .infinity, alignment: .trailing)
+                    }
+                },
+                akColumn(
+                    id: Columns.memoryBytes, title: "Memory", width: 72, alignment: .right
+                ) { item in
+                    Text(formatMemoryBytes(Int64(item.memoryBytes)))
+                        .frame(maxWidth: .infinity, alignment: .trailing)
+                },
+                akColumn(
+                    id: Columns.netRxTxBytes, title: "Network", width: 72, alignment: .right
+                ) { item in
+                    if let netRxTxBytes = item.netRxTxBytes {
+                        Text(formatNetRxTxBytes(Int64(netRxTxBytes)))
+                            .frame(maxWidth: .infinity, alignment: .trailing)
+                    }
+                },
+                akColumn(
+                    id: Columns.diskRwBytes, title: "Disk", width: 72, alignment: .right
+                ) {
+                    item in
+                    if let diskRwBytes = item.diskRwBytes {
+                        Text(formatDiskRwBytes(Int64(diskRwBytes)))
+                            .frame(maxWidth: .infinity, alignment: .trailing)
+                    }
+                },
+            ]
+        )
+        .onAppear {
+            Task { @MainActor in
+                await model.refresh(vmModel: vmModel, desc: sort)
+
+                // populate delta-based stats faster at the beginning
+                do {
+                    try await Task.sleep(
+                        nanoseconds: UInt64(initialRefreshInterval * nsecPerSec))
+                    await model.refresh(vmModel: vmModel, desc: sort)
+                } catch {
+                    // ignore
+                }
+            }
+        }
+        .onChange(of: sort) { _, newSort in
+            model.reSort(desc: newSort)
+        }
+        .onReceive(timer) { _ in
+            Task { @MainActor in
+                await model.refresh(vmModel: vmModel, desc: sort)
+            }
+        }
+    }
+
+    private var statsView: some View {
+        HStack(spacing: 0) {
+            // AttributeGraph doesn't work across NSHostingView boundaries, so we have to pass these as args
+            HistoryGraph(
+                trackedEntries: model.lastStats?.trackedEntries ?? [:],
+                modelItems: model.items,
+
+                selection: selection,
+                key: \.cpuHistory,
+                name: "Selected CPU",
+                totalName: "Total CPU",
+                color: .red,
+                maxValue: 100,
+                alignTo: 100,
+                formatter: { "\(formatCpuPercent($0))%" }
+            )
+
+            Divider()
+
+            let memoryLimit = (vmModel.config?.memoryMib ?? 0) * 1_048_576
+            HistoryGraph(
+                trackedEntries: model.lastStats?.trackedEntries ?? [:],
+                modelItems: model.items,
+
+                selection: selection,
+                key: \.memoryHistory,
+                name: "Memory",
+                color: .blue,
+                maxValue: Float(memoryLimit),
+                alignTo: 512 * 1_048_576,  // 512 MiB
+                formatter: { formatMemoryBytes(Int64($0)) }
+            )
+
+            Divider()
+
+            HistoryGraph(
+                trackedEntries: model.lastStats?.trackedEntries ?? [:],
+                modelItems: model.items,
+
+                selection: selection,
+                key: \.netRxTxBytesHistory,
+                name: "Network",
+                color: .green,
+                maxValue: 32 * 1_048_576,  // 32 MiB
+                alignTo: 32 * 1_048_576,  // 32 MiB
+                formatter: { formatNetRxTxBytes(Int64($0)) }
+            )
+
+            Divider()
+
+            HistoryGraph(
+                trackedEntries: model.lastStats?.trackedEntries ?? [:],
+                modelItems: model.items,
+
+                selection: selection,
+                key: \.diskRwBytesHistory,
+                name: "Disk",
+                color: .purple,
+                maxValue: 32 * 1_048_576,  // 32 MiB
+                alignTo: 32 * 1_048_576,  // 32 MiB
+                formatter: { formatDiskRwBytes(Int64($0)) }
+            )
+        }
+        .background(.background)
+        .clipShape(RoundedRectangle(cornerRadius: 4))  // if values > max, Swift Charts draws out of bounds
+        .overlay(RoundedRectangle(cornerRadius: 4).stroke(.gray.opacity(0.5), lineWidth: 1))
+        .frame(height: 100)
+        .padding(16)
+    }
+
     var body: some View {
         StateWrapperView {
-            AKList(
-                AKSection.single(model.items), selection: $selection, sort: $sort,
-                rowHeight: 24,
-                flat: false, expandByDefault: true,
-                autosaveName: Defaults.Keys.activityMonitor_autosaveOutline,
-                columns: [
-                    // takes all remaining space
-                    akColumn(id: Columns.name, title: "Name", width: 150, alignment: .left) {
-                        item in
-                        HStack(spacing: 6) {
-                            switch item.entity {
-                            case .machine(let record):
-                                Image("distro/\(record.image.distro)")
-                                    .resizable()
-                                    .aspectRatio(contentMode: .fit)
-                                    .frame(width: 16, height: 16)
+            VStack(spacing: 0) {
+                listView
 
-                            case .container(let container):
-                                DockerContainerImage(container: container)
-                                    .environmentObject(vmModel)
-                                    .scaleEffect(16.0 / 28.0)  // 28px -> 16px
-                                    .frame(width: 16, height: 16)
+                Divider()
 
-                            case .compose(let project):
-                                DockerComposeGroupImage(project: project)
-                                    .environmentObject(vmModel)
-                                    .scaleEffect(16.0 / 28.0)  // 28px -> 16px
-                                    .frame(width: 16, height: 16)
-
-                            case .k8sGroup:
-                                K8sIcon()
-                                    .scaleEffect(16.0 / 28.0)  // 28px -> 16px
-                                    .frame(width: 16, height: 16)
-
-                            case .dockerGroup:
-                                Image(systemName: "shippingbox.fill")
-                                    .resizable()
-                                    .aspectRatio(contentMode: .fit)
-                                    .frame(width: 16, height: 16)
-
-                            case .machinesGroup:
-                                Image(systemName: "desktopcomputer")
-                                    .resizable()
-                                    .aspectRatio(contentMode: .fit)
-                                    .frame(width: 16, height: 16)
-
-                            case .k8sNamespace:
-                                Group {}
-
-                            case .k8sServices:
-                                Group {}
-
-                            case .dockerEngine:
-                                Group {}
-
-                            default:
-                                Spacer()
-                                    .frame(width: 16, height: 16)
-                            }
-
-                            Text(item.entity.description)
-                        }
-                        .padding(.leading, 2)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .lineLimit(1)
-                        .akListContextMenu {
-                            Button {
-                                if selection.contains(item.id) {
-                                    stopOne(id: item.id)
-                                } else {
-                                    stopAllSelected(stopAction: stopOne)
-                                }
-                            } label: {
-                                Label("Stop", systemImage: "stop")
-                            }
-
-                            Button {
-                                if selection.contains(item.id) {
-                                    killOne(id: item.id)
-                                } else {
-                                    stopAllSelected(stopAction: killOne)
-                                }
-                            } label: {
-                                Label("Kill", systemImage: "xmark.octagon")
-                            }
-                        }
-                    },
-                    akColumn(
-                        id: Columns.cpuPercent, title: "CPU %", width: 56, alignment: .right
-                    ) {
-                        item in
-                        if let cpuPercent = item.cpuPercent {
-                            Text(formatCpuPercent(cpuPercent))
-                                .frame(maxWidth: .infinity, alignment: .trailing)
-                        }
-                    },
-                    akColumn(
-                        id: Columns.memoryBytes, title: "Memory", width: 72, alignment: .right
-                    ) { item in
-                        Text(formatMemoryBytes(Int64(item.memoryBytes)))
-                            .frame(maxWidth: .infinity, alignment: .trailing)
-                    },
-                    akColumn(
-                        id: Columns.netRxTxBytes, title: "Network", width: 72, alignment: .right
-                    ) { item in
-                        if let netRxTxBytes = item.netRxTxBytes {
-                            Text(formatNetRxTxBytes(Int64(netRxTxBytes)))
-                                .frame(maxWidth: .infinity, alignment: .trailing)
-                        }
-                    },
-                    akColumn(
-                        id: Columns.diskRwBytes, title: "Disk", width: 72, alignment: .right
-                    ) {
-                        item in
-                        if let diskRwBytes = item.diskRwBytes {
-                            Text(formatDiskRwBytes(Int64(diskRwBytes)))
-                                .frame(maxWidth: .infinity, alignment: .trailing)
-                        }
-                    },
-                ]
-            )
-            .onAppear {
-                Task { @MainActor in
-                    await model.refresh(vmModel: vmModel, desc: sort)
-
-                    // populate delta-based stats faster at the beginning
-                    do {
-                        try await Task.sleep(
-                            nanoseconds: UInt64(initialRefreshInterval * nsecPerSec))
-                        await model.refresh(vmModel: vmModel, desc: sort)
-                    } catch {
-                        // ignore
-                    }
-                }
-            }
-            .onChange(of: sort) { _, newSort in
-                model.reSort(desc: newSort)
-            }
-            .onReceive(timer) { _ in
-                Task { @MainActor in
-                    await model.refresh(vmModel: vmModel, desc: sort)
-                }
-            }
-            .inspectorView {
-                ScrollView {
-                    ZStack(alignment: .topLeading) {
-                        VStack(alignment: .leading, spacing: 20) {
-                            // AttributeGraph doesn't work across NSHostingView boundaries, so we have to pass these as args
-                            HistoryGraph(
-                                trackedEntries: model.lastStats?.trackedEntries ?? [:],
-                                modelItems: model.items,
-
-                                selection: selection,
-                                key: \.cpuHistory,
-                                name: "CPU",
-                                color: .red,
-                                maxValue: 100,
-                                alignTo: 100,
-                                formatter: { "\(formatCpuPercent($0))%" }
-                            )
-
-                            let memoryLimit = (vmModel.config?.memoryMib ?? 0) * 1_048_576
-                            HistoryGraph(
-                                trackedEntries: model.lastStats?.trackedEntries ?? [:],
-                                modelItems: model.items,
-
-                                selection: selection,
-                                key: \.memoryHistory,
-                                name: "Memory",
-                                color: .blue,
-                                maxValue: Float(memoryLimit),
-                                alignTo: 512 * 1_048_576,  // 512 MiB
-                                formatter: { formatMemoryBytes(Int64($0)) }
-                            )
-
-                            HistoryGraph(
-                                trackedEntries: model.lastStats?.trackedEntries ?? [:],
-                                modelItems: model.items,
-
-                                selection: selection,
-                                key: \.netRxTxBytesHistory,
-                                name: "Network",
-                                color: .green,
-                                maxValue: 32 * 1_048_576,  // 32 MiB
-                                alignTo: 32 * 1_048_576,  // 32 MiB
-                                formatter: { formatNetRxTxBytes(Int64($0)) }
-                            )
-
-                            HistoryGraph(
-                                trackedEntries: model.lastStats?.trackedEntries ?? [:],
-                                modelItems: model.items,
-
-                                selection: selection,
-                                key: \.diskRwBytesHistory,
-                                name: "Disk",
-                                color: .purple,
-                                maxValue: 32 * 1_048_576,  // 32 MiB
-                                alignTo: 32 * 1_048_576,  // 32 MiB
-                                formatter: { formatDiskRwBytes(Int64($0)) }
-                            )
-                        }
-                        .padding(16)
-                    }
-                }
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                statsView
             }
         }
         .navigationTitle("Activity Monitor")
