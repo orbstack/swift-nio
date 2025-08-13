@@ -43,7 +43,7 @@ extension NavTabId {
         switch self {
         case .dockerContainers:
             return [
-                .contentListTrackingSeparator, .dockerContainersNew, .flexibleSpace, .dockerContainersTabs, .flexibleSpace,
+                .contentListTrackingSeparator, /*.dockerContainersNew,*/ .space, .flexibleSpace, .dockerContainersTabs, .flexibleSpace,
                 .licenseBadge, .dockerContainersOpenWindow,
             ]
         case .dockerVolumes:
