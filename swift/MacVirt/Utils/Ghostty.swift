@@ -151,7 +151,16 @@ extension Ghostty {
             config_strings.append("--window-padding-y=4")
             
             config_strings.append("--cursor-style-blink=false")
+
+            // SF Mono font with a few fixes to match Terminal.app style:
+            // - thicken at minimium strength (still very slightly thicker than Terminal.app? but default thicken strength is way too thick)
+            // - fix tracking being too wide
+            // - fix cell height being too tall (not an issue with public SF Mono TTFs)
             config_strings.append("--font-family=.AppleSystemUIFontMonospaced")
+            config_strings.append("--font-thicken-strength=0")
+            config_strings.append("--font-thicken=true")
+            config_strings.append("--adjust-cell-height=3%")
+            config_strings.append("--adjust-cell-width=-3%")
 
             let config_strings_unsafe: UnsafeMutablePointer<UnsafeMutablePointer<CChar>?> =
                 config_strings
