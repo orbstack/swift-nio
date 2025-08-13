@@ -12,10 +12,7 @@ struct MachineTerminalTab: View {
                     command: [AppConfig.ctlExe, "run", "-m", machine.id]
                 )
             } else {
-                VStack(spacing: 16) {  // match ContentUnavailableViewCompat desc padding
-                    ContentUnavailableViewCompat(
-                        "Machine Not Running", systemImage: "moon.zzz.fill")
-
+                ContentUnavailableViewCompat("Machine Not Running", systemImage: "moon.zzz.fill") {
                     Button {
                         Task {
                             await vmModel.tryStartContainer(machine.record)
@@ -28,7 +25,6 @@ struct MachineTerminalTab: View {
                     .keyboardShortcut(.defaultAction)
                     .controlSize(.large)
                 }
-                .padding(16)
             }
         }
         .onReceive(vmModel.toolbarActionRouter) { action in

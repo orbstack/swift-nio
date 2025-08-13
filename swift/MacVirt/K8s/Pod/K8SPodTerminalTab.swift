@@ -19,7 +19,6 @@ struct K8SPodTerminalTab: View {
             ContentUnavailableViewCompat(
                 "Pod Not Running", systemImage: "moon.zzz.fill"
             )
-            .padding(16)
         }
     }
 }

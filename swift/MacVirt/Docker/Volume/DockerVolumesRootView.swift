@@ -52,19 +52,11 @@ struct DockerVolumesRootView: View {
                     }
                     .inspectorSelection(selection)
                 } else {
-                    Spacer()
-
-                    HStack {
-                        Spacer()
-                        if searchQuery.isEmpty {
-                            ContentUnavailableViewCompat("No Volumes", systemImage: "externaldrive")
-                        } else {
-                            ContentUnavailableViewCompat.search
-                        }
-                        Spacer()
-                    }.padding(16)
-
-                    Spacer()
+                    if searchQuery.isEmpty {
+                        ContentUnavailableViewCompat("No Volumes", systemImage: "externaldrive")
+                    } else {
+                        ContentUnavailableViewCompat.search
+                    }
                 }
             }
             .overlay(alignment: .bottomTrailing) {

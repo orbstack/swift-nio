@@ -29,7 +29,6 @@ struct FileManagerView: View {
         Group {
             if let rootLoadError {
                 ContentUnavailableViewCompat("Failed to Load Files", systemImage: "externaldrive.trianglebadge.exclamationmark", desc: "\(rootLoadError)")
-                .padding()
             } else {
                 FileManagerNSView(delegate: model)
             }

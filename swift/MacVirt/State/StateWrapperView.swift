@@ -23,10 +23,7 @@ struct StateWrapperView<Content: View>: View {
         } else {
             switch vmModel.state {
             case .stopped:
-                VStack(spacing: 16) {  // match ContentUnavailableViewCompat desc padding
-                    ContentUnavailableViewCompat(
-                        "Service Not Running", systemImage: "moon.zzz.fill")
-
+                ContentUnavailableViewCompat("Service Not Running", systemImage: "moon.zzz.fill") {
                     Button {
                         Task {
                             await vmModel.tryStartDaemon()
@@ -39,7 +36,6 @@ struct StateWrapperView<Content: View>: View {
                     .keyboardShortcut(.defaultAction)
                     .controlSize(.large)
                 }
-                .padding(16)
             case .spawning:
                 ProgressView(label: {
                     Text("Updating")

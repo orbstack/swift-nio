@@ -53,7 +53,7 @@ private struct K8SServicesList: View {
                         ContentUnavailableViewCompat("No Services", systemImage: "network")
                     }
                     Spacer()
-                }.padding(16)
+                }
 
                 Spacer()
 

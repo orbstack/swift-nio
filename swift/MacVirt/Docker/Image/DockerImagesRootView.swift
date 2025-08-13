@@ -59,19 +59,11 @@ struct DockerImagesRootView: View {
                     .navigationSubtitle("\(totalSizeFormatted) total")
                     .inspectorSelection(selection)
                 } else {
-                    Spacer()
-
-                    HStack {
-                        Spacer()
-                        if searchQuery.isEmpty {
-                            ContentUnavailableViewCompat("No Images", systemImage: "doc.zipper")
-                        } else {
-                            ContentUnavailableViewCompat.search
-                        }
-                        Spacer()
-                    }.padding(16)
-
-                    Spacer()
+                    if searchQuery.isEmpty {
+                        ContentUnavailableViewCompat("No Images", systemImage: "doc.zipper")
+                    } else {
+                        ContentUnavailableViewCompat.search
+                    }
                 }
             }
         }

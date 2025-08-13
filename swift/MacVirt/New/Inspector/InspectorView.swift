@@ -214,10 +214,8 @@ struct InspectorView: View {
     var body: some View {
         Group {
             if scenePhase == .background {
-                VStack(spacing: 16) {
-                    ContentUnavailableViewCompat(
-                        "App Is In Background", systemImage: "moon.zzz.fill")
-                }.frame(maxWidth: .infinity, maxHeight: .infinity)
+                ContentUnavailableViewCompat("App Is In Background", systemImage: "moon.zzz.fill")
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
                 enabledBody
             }

@@ -34,33 +34,26 @@ struct MachinesRootView: View {
                             }
                             .inspectorSelection(selection)
                         } else {
-                            Spacer()
-                            HStack {
-                                Spacer()
-                                ContentUnavailableViewCompat.search
-                                Spacer()
-                            }.padding(16)
-                            Spacer()
+                            ContentUnavailableViewCompat.search
                         }
                     } else {
                         Spacer()
                         HStack {
                             Spacer()
                             VStack {
-                                ContentUnavailableViewCompat(
-                                    "No Machines", systemImage: "desktopcomputer")
-
-                                Button {
-                                    vmModel.presentCreateMachine = true
-                                } label: {
-                                    Text("New Machine")
-                                        .padding(6)
+                                ContentUnavailableViewCompat("No Machines", systemImage: "desktopcomputer") {
+                                    Button {
+                                        vmModel.presentCreateMachine = true
+                                    } label: {
+                                        Text("New Machine")
+                                            .padding(6)
+                                    }
+                                    .controlSize(.large)
+                                    .keyboardShortcut(.defaultAction)
                                 }
-                                .controlSize(.large)
-                                .keyboardShortcut(.defaultAction)
                             }
                             Spacer()
-                        }.padding(16)
+                        }
                         Spacer()
 
                         HStack {

@@ -39,21 +39,13 @@ struct DockerNetworksRootView: View {
                     .navigationSubtitle("\(filteredNetworks.count) total")
                     .inspectorSelection(selection)
                 } else {
-                    Spacer()
-
-                    HStack {
-                        Spacer()
-                        if searchQuery.isEmpty {
-                            ContentUnavailableViewCompat(
-                                "No Networks",
-                                systemImage: "point.3.filled.connected.trianglepath.dotted")
-                        } else {
-                            ContentUnavailableViewCompat.search
-                        }
-                        Spacer()
-                    }.padding(16)
-
-                    Spacer()
+                    if searchQuery.isEmpty {
+                        ContentUnavailableViewCompat(
+                            "No Networks",
+                            systemImage: "point.3.filled.connected.trianglepath.dotted")
+                    } else {
+                        ContentUnavailableViewCompat.search
+                    }
                 }
             }
         }

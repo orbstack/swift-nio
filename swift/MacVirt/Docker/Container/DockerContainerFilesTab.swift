@@ -16,10 +16,7 @@ struct DockerContainerFilesTab: View {
                     }
                 }
         } else {
-            VStack(spacing: 16) {  // match ContentUnavailableViewCompat desc padding
-                ContentUnavailableViewCompat(
-                    "Container Not Running", systemImage: "moon.zzz.fill")
-
+            ContentUnavailableViewCompat("Container Not Running", systemImage: "moon.zzz.fill") {
                 Button {
                     Task {
                         await vmModel.tryDockerContainerStart(container.id)
@@ -32,7 +29,6 @@ struct DockerContainerFilesTab: View {
                 .keyboardShortcut(.defaultAction)
                 .controlSize(.large)
             }
-            .padding(16)
         }
     }
 }

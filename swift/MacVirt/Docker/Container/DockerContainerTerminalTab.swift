@@ -7,23 +7,24 @@ struct DockerContainerTerminalTab: View {
 
     let container: DKContainer
 
-    @ViewBuilder private var statusBar: some View {
-        HStack(alignment: .center) {
-            Toggle("Debug Shell", isOn: $useDebugShell)
-                .toggleStyle(.checkbox)
-                .font(
-                    .system(
-                        size: 13,
+    private var statusBar: some View {
+        VStack(spacing: 0) {
+            HStack(alignment: .center) {
+                Toggle("Debug Shell", isOn: $useDebugShell)
+                    .toggleStyle(.checkbox)
+                    .font(
+                        .system(
+                            size: 13,
+                            weight: .regular)
+                    )
+                    .padding(.vertical, 4)
+                    .padding(.horizontal, 6)
+                Spacer()
+            }
+            .padding(.all, 4)
 
-                        weight: .regular)
-                )
-                .padding(.vertical, 4)
-                .padding(.horizontal, 6)
-            Spacer()
+            Divider()
         }
-        .padding(.all, 4)
-
-        Divider()
     }
 
     private var terminal: some View {
@@ -42,10 +43,7 @@ struct DockerContainerTerminalTab: View {
 
     private var contentUnavailable: some View {
         ZStack(alignment: .center) {
-            VStack(spacing: 16) {  // match ContentUnavailableViewCompat desc padding
-                ContentUnavailableViewCompat(
-                    "Container Not Running", systemImage: "moon.zzz.fill")
-
+            ContentUnavailableViewCompat("Container Not Running", systemImage: "moon.zzz.fill") {
                 Button {
                     Task {
                         await vmModel.tryDockerContainerStart(container.id)

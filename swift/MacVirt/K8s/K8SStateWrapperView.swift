@@ -21,9 +21,7 @@ struct K8SStateWrapperView<Content: View, Entity: K8SResource>: View {
     }
 
     private var disabledView: some View {
-        VStack(spacing: 16) {  // match ContentUnavailableViewCompat desc padding
-            ContentUnavailableViewCompat("Kubernetes Disabled", systemImage: "helm")
-
+        ContentUnavailableViewCompat("Kubernetes Disabled", systemImage: "helm") {
             Button {
                 Task {
                     await vmModel.tryStartStopK8s(enable: true)
@@ -36,7 +34,6 @@ struct K8SStateWrapperView<Content: View, Entity: K8SResource>: View {
             .keyboardShortcut(.defaultAction)
             .controlSize(.large)
         }
-        .padding(16)
     }
 
     private var isK8sClusterCreating: Bool {

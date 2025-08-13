@@ -66,7 +66,7 @@ struct MacVirtApp: App {
                 .environmentObject(windowTracker)
                 .environmentObject(actionTracker)
                 .frame(
-                    minWidth: 550, maxWidth: .infinity, minHeight: 300,
+                    minWidth: 600, maxWidth: .infinity, minHeight: 400,
                     maxHeight: .infinity
                 )
         }
