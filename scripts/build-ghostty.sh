@@ -9,7 +9,7 @@ echo "Cloning ghostty"
 cd "../vendor"
 pushd .
 if [[ ! -d "ghostty" ]]; then
-  git clone -b $GHOSTTY_BRANCH --depth=1 git@github.com:orbstack/ghostty
+  git clone -b $GHOSTTY_BRANCH git@github.com:orbstack/ghostty
 else
   (cd ghostty; git fetch && git checkout $GHOSTTY_TAG && git pull)
 fi
