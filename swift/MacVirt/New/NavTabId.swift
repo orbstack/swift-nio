@@ -69,7 +69,7 @@ extension NavTabId {
             ]
         case .k8sServices:
             return [
-                .contentListTrackingSeparator, .space, .flexibleSpace, .k8sServicesTabs, .flexibleSpace, .licenseBadge,
+                .contentListTrackingSeparator, /*.space, .flexibleSpace, .k8sServicesTabs,*/ .flexibleSpace, .licenseBadge,
                 .k8sServicesOpenWindow,
             ]
 
