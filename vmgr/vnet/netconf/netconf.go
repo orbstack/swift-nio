@@ -111,7 +111,7 @@ var DockerDefaultAddressPools = []map[string]any{
 	{"base": "192.168.97.0/24", "size": 24},
 	{"base": "192.168.107.0/24", "size": 24},
 	{"base": "192.168.117.0/24", "size": 24},
-	// reserved for k8s
+	// reserved for domains and machines
 	//{"base": "192.168.138.0/24", "size": 24},
 	{"base": "192.168.147.0/24", "size": 24},
 	{"base": "192.168.148.0/24", "size": 24},
