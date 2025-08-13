@@ -6,13 +6,17 @@ struct DockerImageFilesTab: View {
     let image: DKSummaryAndFullImage
 
     var body: some View {
-        FileManagerView(rootPath: image.summary.nfsPath, readOnly: true)
-            // render under toolbar
-            .ignoresSafeArea()
-            .onReceive(vmModel.toolbarActionRouter) { action in
-                if action == .dockerOpenImageInNewWindow {
-                    image.summary.openFolder()
+        if image.summary.hasTag {
+            FileManagerView(rootPath: image.summary.nfsPath, readOnly: true)
+                // render under toolbar
+                .ignoresSafeArea()
+                .onReceive(vmModel.toolbarActionRouter) { action in
+                    if action == .dockerOpenImageInNewWindow {
+                        image.summary.openFolder()
+                    }
                 }
-            }
+        } else {
+            ContentUnavailableViewCompat("Files Not Available", systemImage: "tag.slash", desc: "Only tagged images are supported.")
+        }
     }
 }
