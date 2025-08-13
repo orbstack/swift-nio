@@ -154,7 +154,7 @@ extension Ghostty {
 
             config_strings.append("--window-padding-x=4")
             config_strings.append("--window-padding-y=4")
-            
+
             config_strings.append("--cursor-style-blink=false")
 
             // SF Mono font with a few fixes to match Terminal.app style:
@@ -557,37 +557,41 @@ extension Ghostty.Surface {
 
                 return try command.withCStrings { cCommands in
                     config.argc = command.count
-                    let argv = UnsafeMutablePointer<UnsafePointer<CChar>?>.allocate(capacity: command.count)
-                    for (i, cCommand) in cCommands.enumerated() {
-                        argv[i] = cCommand
+                    var argv = [UnsafePointer<CChar>?]()
+                    argv.reserveCapacity(command.count)
+                    for (_, cCommand) in cCommands.enumerated() {
+                        argv.append(cCommand)
                     }
-                    config.argv = argv
 
-                    return try initialInput.withCString { cInput in
-                        config.initial_input = cInput
+                    return try argv.withUnsafeMutableBufferPointer { buffer in
+                        config.argv = buffer.baseAddress
 
-                        // Convert dictionary to arrays for easier processing
-                        let keys = Array(environmentVariables.keys)
-                        let values = Array(environmentVariables.values)
+                        return try initialInput.withCString { cInput in
+                            config.initial_input = cInput
 
-                        // Create C strings for all keys and values
-                        return try keys.withCStrings { keyCStrings in
-                            return try values.withCStrings { valueCStrings in
-                                // Create array of ghostty_env_var_s
-                                var envVars = [ghostty_env_var_s]()
-                                envVars.reserveCapacity(environmentVariables.count)
-                                for i in 0..<environmentVariables.count {
-                                    envVars.append(
-                                        ghostty_env_var_s(
-                                            key: keyCStrings[i],
-                                            value: valueCStrings[i]
-                                        ))
-                                }
+                            // Convert dictionary to arrays for easier processing
+                            let keys = Array(environmentVariables.keys)
+                            let values = Array(environmentVariables.values)
 
-                                return try envVars.withUnsafeMutableBufferPointer { buffer in
-                                    config.env_vars = buffer.baseAddress
-                                    config.env_var_count = environmentVariables.count
-                                    return try body(&config)
+                            // Create C strings for all keys and values
+                            return try keys.withCStrings { keyCStrings in
+                                return try values.withCStrings { valueCStrings in
+                                    // Create array of ghostty_env_var_s
+                                    var envVars = [ghostty_env_var_s]()
+                                    envVars.reserveCapacity(environmentVariables.count)
+                                    for i in 0..<environmentVariables.count {
+                                        envVars.append(
+                                            ghostty_env_var_s(
+                                                key: keyCStrings[i],
+                                                value: valueCStrings[i]
+                                            ))
+                                    }
+
+                                    return try envVars.withUnsafeMutableBufferPointer { buffer in
+                                        config.env_vars = buffer.baseAddress
+                                        config.env_var_count = environmentVariables.count
+                                        return try body(&config)
+                                    }
                                 }
                             }
                         }
