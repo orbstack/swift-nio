@@ -21,7 +21,8 @@ ENV GOTOOLCHAIN=auto
 # Apple M1 is ARMv8.4 + most v8.5 extensions (SB, SSBS, CCDP, FRINT3264, SPECRESTRICT, ALTERNATIVENZCV)
 # just use v8.4 for simplicity -- we mainly care about specializing for LSE atomics
 ENV GOARM64=v8.4
-COPY vendor /build/vendor
+COPY vendor/glider-ssh-macvirt /build/vendor/glider-ssh-macvirt
+COPY vendor/gvisor /build/vendor/gvisor
 # scon uses relative ../assets path to find BTF
 COPY assets/debug/arm64/kernel.btf /build/assets/debug/arm64/kernel.btf
 COPY assets/debug/amd64/kernel.btf /build/assets/debug/amd64/kernel.btf
