@@ -406,6 +406,11 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
     func showSettingsWindow() {
         settingsWindow.makeKeyAndOrderFront(nil)
     }
+
+    func applicationWillTerminate(_ notification: Notification) {
+        // deinit ghostty to trigger leak detection in debug builds
+        self.ghostty = nil
+    }
 }
 
 // https://stackoverflow.com/a/74733681

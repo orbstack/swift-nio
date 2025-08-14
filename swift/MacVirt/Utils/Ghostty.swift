@@ -43,6 +43,11 @@ class Ghostty {
         self.app = ghostty_app_new(&runtime_cfg, config.ghostty_config)
     }
 
+    deinit {
+        ghostty_app_free(app)
+        ghostty_deinit()
+    }
+
     @MainActor
     static func writeClipboard(
         _ userdata: UnsafeMutableRawPointer?, _ text: UnsafePointer<CChar>?,
