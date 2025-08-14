@@ -17,11 +17,10 @@ struct DockerContainerTerminalTab: View {
                             size: 13,
                             weight: .regular)
                     )
-                    .padding(.vertical, 4)
-                    .padding(.horizontal, 6)
                 Spacer()
             }
-            .padding(.all, 4)
+            .padding(.horizontal, 8)
+            .frame(height: 27) // match list section header height. wtf is this number?
 
             Divider()
         }
