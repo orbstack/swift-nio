@@ -5,7 +5,6 @@
 // Copyright 2024 Orbital Labs, LLC. All rights reserved.
 // Changes to this file are confidential and proprietary, subject to terms in the LICENSE file.
 
-use core::str;
 use std::cell::{RefCell, RefMut};
 use std::ffi::{CStr, CString, OsStr};
 use std::fmt::Debug;
@@ -17,13 +16,14 @@ use std::io;
 use std::marker::PhantomData;
 use std::mem::{self, ManuallyDrop, MaybeUninit};
 use std::num::NonZeroU64;
-use std::os::fd::{AsFd, BorrowedFd, OwnedFd};
+use std::os::fd::{AsFd, BorrowedFd};
 use std::os::unix::ffi::OsStrExt;
 use std::os::unix::fs::PermissionsExt;
 use std::os::unix::io::AsRawFd;
 use std::os::unix::net::UnixDatagram;
 use std::path::Path;
 use std::ptr::{slice_from_raw_parts, NonNull};
+use std::str;
 use std::str::FromStr;
 use std::sync::atomic::{AtomicBool, AtomicI64, AtomicU32, AtomicU64, Ordering};
 use std::sync::{Arc, Weak};
@@ -547,7 +547,7 @@ impl NodeData {
 
     fn with_subpath<T>(&self, name: &str, f: impl FnOnce(&CStr) -> T) -> T {
         if name == ".." || name.contains('/') {
-            panic!("invalid subpath: {}", name);
+            panic!("invalid subpath: {name}");
         }
 
         self.with_raw_path_mut(
@@ -675,8 +675,6 @@ impl DevIno {
 struct DevInfo {
     // local or remote (e.g. nfs)
     local: bool,
-    // fsid for fsgetpath
-    fsid: libc::fsid_t,
 }
 
 /// A file system that simply "passes through" all requests it receives to the underlying file
@@ -828,7 +826,6 @@ impl PassthroughFs {
         let stf = unsafe { mem::transmute::<Statfs, libc::statfs>(stf) };
         let dev_info = DevInfo {
             local: (stf.f_flags & libc::MNT_LOCAL as u32) != 0,
-            fsid: stf.f_fsid,
         };
 
         debug!(?dev, ?file_ref, ?dev_info, "dev_info");
@@ -1251,9 +1248,8 @@ impl PassthroughFs {
     ) -> io::Result<(Option<HandleId>, OpenOptions)> {
         let flags = self.convert_open_flags(flags as i32);
         let node = self.get_node(nodeid)?;
-        let file = node.with_path(|c_path| {
-            nix::fcntl::open(c_path, flags, Mode::empty()).map(|f| unsafe { File::from(f) })
-        })?;
+        let file = node
+            .with_path(|c_path| nix::fcntl::open(c_path, flags, Mode::empty()).map(File::from))?;
         // early stat to avoid broken handle state if it fails
         let st = fstat(&file, false)?;
 
@@ -1282,24 +1278,16 @@ impl PassthroughFs {
         Err(Errno::EBADF.into())
     }
 
-    fn do_getattr(
-        &self,
-        file_ref: FileRef,
-        nodeid: NodeId,
-    ) -> io::Result<(bindings::stat64, Duration)> {
+    fn do_getattr(&self, file_ref: FileRef) -> io::Result<(bindings::stat64, Duration)> {
         let st = match file_ref {
             FileRef::Path(c_path) => lstat(c_path, false)?,
             FileRef::Fd(fd) => fstat(fd, false)?,
         };
 
-        self.finish_getattr(st, nodeid)
+        self.finish_getattr(st)
     }
 
-    fn finish_getattr(
-        &self,
-        mut st: bindings::stat64,
-        nodeid: NodeId,
-    ) -> io::Result<(bindings::stat64, Duration)> {
+    fn finish_getattr(&self, mut st: bindings::stat64) -> io::Result<(bindings::stat64, Duration)> {
         self.filter_stat(&mut st);
         Ok((st, self.cfg.attr_timeout))
     }
@@ -1318,7 +1306,7 @@ impl PassthroughFs {
             // TODO: store sticky bit in xattr. don't allow suid/sgid
             match file_ref.as_ref() {
                 FileRef::Fd(fd) => {
-                    fchmod(&fd, Mode::from_bits_truncate(attr.st_mode))?;
+                    fchmod(fd, Mode::from_bits_truncate(attr.st_mode))?;
                 }
                 FileRef::Path(path) => {
                     set_permissions(
@@ -1386,7 +1374,7 @@ impl PassthroughFs {
             let atime = TimeSpec::from_timespec(atime);
             let mtime = TimeSpec::from_timespec(mtime);
             match file_ref.as_ref() {
-                FileRef::Fd(fd) => futimens(&fd, &atime, &mtime),
+                FileRef::Fd(fd) => futimens(fd, &atime, &mtime),
                 FileRef::Path(path) => utimensat(
                     fcntl::AT_FDCWD,
                     path,
@@ -1397,7 +1385,7 @@ impl PassthroughFs {
             }?;
         }
 
-        self.do_getattr(file_ref.as_ref(), nodeid)
+        self.do_getattr(file_ref.as_ref())
     }
 
     fn do_unlink(
@@ -1514,7 +1502,7 @@ impl FileSystem for PassthroughFs {
         if !deadlocks.is_empty() {
             println!("{} deadlocks detected", deadlocks.len());
             for (i, threads) in deadlocks.iter().enumerate() {
-                println!("Deadlock #{}", i);
+                println!("Deadlock #{i}");
                 for t in threads {
                     println!("Thread Id {:#?}", t.thread_id());
                     println!("{:#?}", t.backtrace());
@@ -1538,7 +1526,7 @@ impl FileSystem for PassthroughFs {
         if !deadlocks.is_empty() {
             println!("{} deadlocks detected", deadlocks.len());
             for (i, threads) in deadlocks.iter().enumerate() {
-                println!("Deadlock #{}", i);
+                println!("Deadlock #{i}");
                 for t in threads {
                     println!("Thread Id {:#?}", t.thread_id());
                     println!("{:#?}", t.backtrace());
@@ -1558,7 +1546,7 @@ impl FileSystem for PassthroughFs {
         if !deadlocks.is_empty() {
             println!("{} deadlocks detected", deadlocks.len());
             for (i, threads) in deadlocks.iter().enumerate() {
-                println!("Deadlock #{}", i);
+                println!("Deadlock #{i}");
                 for t in threads {
                     println!("Thread Id {:#?}", t.thread_id());
                     println!("{:#?}", t.backtrace());
@@ -1917,13 +1905,13 @@ impl FileSystem for PassthroughFs {
         // Safe because this doesn't modify any memory and we check the return value. We don't
         // really check `flags` because if the kernel can't handle poorly specified flags then we
         // have much bigger problems.
-        let fd = parent.with_subpath(name, |c_path| unsafe {
+        let fd = parent.with_subpath(name, |c_path| {
             nix::fcntl::open(
                 c_path,
                 flags | OFlag::O_CREAT,
                 Mode::from_bits_retain(mode as u16),
             )
-            .map(|fd| File::from(fd))
+            .map(File::from)
         })?;
 
         set_xattr_stat(
@@ -1999,7 +1987,7 @@ impl FileSystem for PassthroughFs {
     ) -> io::Result<(bindings::stat64, Duration)> {
         debug!("getattr: nodeid={} handle={:?}", nodeid, handle);
         let file_ref = self.get_file_ref(nodeid, handle)?;
-        self.do_getattr(file_ref.as_ref(), nodeid)
+        self.do_getattr(file_ref.as_ref())
     }
 
     fn setattr(
@@ -2138,7 +2126,7 @@ impl FileSystem for PassthroughFs {
                 0 | libc::S_IFREG => {
                     // on Linux, mknod can be used to create regular files using fmt = S_IFREG or 0
                     open(
-                        c_path.as_ref(),
+                        c_path,
                         // match mknod behavior: EEXIST if already exists
                         OFlag::O_CREAT | OFlag::O_EXCL | OFlag::O_CLOEXEC,
                         // permissions only
