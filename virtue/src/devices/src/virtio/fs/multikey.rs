@@ -109,7 +109,6 @@ where
     }
 
     // dual-remove can be racy, so user must deal with the precise k1/k2 removal semantics
-    // may deadlock if called when holding any sort of reference into main map
     pub fn remove_main<Q>(&self, key: &Q)
     where
         K1: Borrow<Q>,
@@ -118,7 +117,6 @@ where
         self.main.remove(key);
     }
 
-    // may deadlock if called when holding any sort of reference into main or alt map
     pub fn remove_alt(&self, k2: &K2) {
         self.alt.remove(k2);
     }
