@@ -237,7 +237,15 @@ extension Ghostty {
         }
 
         deinit {
-            ghostty_surface_free(surface)
+            // deinit is not guaranteed to happen on the main actor and our API
+            // calls into libghostty must happen there so we capture the surface
+            // value so we don't capture `self` and then we detach it in a task.
+            // We can't wait for the task to succeed so this will happen sometime
+            // but that's okay.
+            let surface = self.surface
+            Task.detached { @MainActor in
+                ghostty_surface_free(surface)
+            }
         }
 
         static func surfaceUserdata(from userdata: UnsafeMutableRawPointer?) -> TerminalNSView {
