@@ -197,6 +197,13 @@ extension Ghostty {
             }
         }
 
+        deinit {
+            let config = self.ghostty_config
+            Task.detached { @MainActor in
+                ghostty_config_free(config)
+            }
+        }
+
         func setAppearance(appearance: NSAppearance) {
             self.effectiveAppearance = appearance
             reload()
