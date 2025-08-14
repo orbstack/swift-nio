@@ -52,7 +52,7 @@ mio = { version = "1.0.4", features = ["os-poll", "os-ext"] }
 bitfield = "0.19.1"
 smallbox = "0.8.6"
 mach2 = "0.4.2"
-parking_lot = "0.12.4"
+parking_lot = { version = "0.12.4", features = ["deadlock_detection"] }
 arc-swap = "1.7.1"
 filemap = { version = "0.1.0", path = "../filemap" }
 sysx = { version = "0.1.0", path = "../sysx" }
