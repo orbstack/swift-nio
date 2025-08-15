@@ -80,6 +80,7 @@ private struct ToastView: View {
         .overlay(RoundedRectangle(cornerRadius: 16)
             .stroke(.secondary.opacity(0.25), lineWidth: 1))
         .frame(width: 375)
+        .compositingGroup()
         .shadow(radius: 2)
         .overlay(alignment: .topLeading) {
             Button {
