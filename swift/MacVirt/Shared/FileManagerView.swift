@@ -382,8 +382,10 @@ private class FileManagerOutlineDelegate: NSObject, NSOutlineViewDelegate,
     private var expandedPaths = Set<String>()
     private var fsEvents: FSEventsListener?
     @objc dynamic var rootItems: [FileItem] = []
+    private var itemsCache: [FileItem.ID: FileItem] = [:]
 
-    private func getDirectoryItems(path: String) async throws -> [FileItem] {
+    @MainActor
+    private func getDirectoryItemsRec(path: String, accessedItems: inout Set<FileItem.ID>) async throws -> [FileItem] {
         var items = [FileItem]()
         try await FileSystem.shared.withDirectoryHandle(atPath: FilePath(path)) { dir in
             for try await file in dir.listContents() {
@@ -401,11 +403,34 @@ private class FileManagerOutlineDelegate: NSObject, NSOutlineViewDelegate,
                     size: info.size, modified: info.lastDataModificationTime.date, icon: icon,
                     children: nil)
                 if file.type == .directory && expandedPaths.contains(path) {
-                    item.children = try await getDirectoryItems(path: path)
+                    item.children = try await getDirectoryItemsRec(path: path, accessedItems: &accessedItems)
                 }
 
-                items.append(item)
+                if let existingItem = itemsCache[item.id] {
+                    items.append(existingItem.adopting(item))
+                } else {
+                    itemsCache[item.id] = item
+                    items.append(item)
+                }
+
+                accessedItems.insert(item.id)
             }
+        }
+
+        return items
+    }
+
+    @MainActor
+    private func getDirectoryItems(path: String) async throws -> [FileItem] {
+        var accessedItems = Set<FileItem.ID>()
+
+        let items = try await getDirectoryItemsRec(path: path, accessedItems: &accessedItems)
+        let unusedItems = itemsCache.filter { key, _ in
+            !accessedItems.contains(key) && key.starts(with: path + "/") && key != path
+        }
+
+        for (key, _) in unusedItems {
+            itemsCache.removeValue(forKey: key)
         }
 
         return items
@@ -416,6 +441,7 @@ private class FileManagerOutlineDelegate: NSObject, NSOutlineViewDelegate,
         // stop old fs events
         fsEvents = nil
         expandedPaths.removeAll()
+        itemsCache.removeAll()
 
         self.rootPath = rootPath
         self.readOnly = readOnly
@@ -703,12 +729,12 @@ private class TextFieldCellView: NSTableCellView, NSTextFieldDelegate {
 }
 
 private class FileItem: NSObject, Identifiable {
-    let path: String
-    @objc dynamic let name: String
-    @objc dynamic let type: FileItemType
-    @objc dynamic let size: Int64
-    @objc dynamic let modified: Date
-    let icon: NSImage
+    var path: String
+    @objc dynamic var name: String
+    @objc dynamic var type: FileItemType
+    @objc dynamic var size: Int64
+    @objc dynamic var modified: Date
+    var icon: NSImage
     @objc dynamic var children: [FileItem]?
 
     init(
@@ -727,6 +753,21 @@ private class FileItem: NSObject, Identifiable {
     static func == (lhs: FileItem, rhs: FileItem) -> Bool {
         lhs.path == rhs.path && lhs.name == rhs.name && lhs.type == rhs.type && lhs.size == rhs.size
             && lhs.modified == rhs.modified && lhs.icon == rhs.icon && lhs.children == rhs.children
+    }
+
+    func adopting(_ other: FileItem) -> Self {
+        if self == other {
+            return self
+        }
+
+        self.path = other.path
+        self.name = other.name
+        self.type = other.type
+        self.size = other.size
+        self.modified = other.modified
+        self.icon = other.icon
+        self.children = other.children
+        return self
     }
 
     var id: String { path }
