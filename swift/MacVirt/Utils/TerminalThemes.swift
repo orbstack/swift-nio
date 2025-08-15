@@ -1,5 +1,4 @@
 import AppKit
-import SwiftTerm
 import SwiftUI
 
 struct TerminalTheme: Equatable, Hashable {
