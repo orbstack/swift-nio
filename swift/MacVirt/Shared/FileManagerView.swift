@@ -491,14 +491,17 @@ private class FileManagerOutlineDelegate: NSObject, NSOutlineViewDelegate,
         switch tableColumn?.identifier.rawValue {
         case Columns.name:
             return TextFieldCellView(value: item.name, editable: !readOnly, image: item.icon, onRename: { newName in
+                let oldName = item.name
                 var newPath = FilePath(item.path)
                 newPath.removeLastComponent()
                 newPath.append(newName)
 
                 do {
                     try await FileSystem.shared.moveItem(at: FilePath(item.path), to: newPath)
+                    return newName
                 } catch {
                     self.toaster.error(title: "Failed to rename \(item.type.lowerDescription)", error: error)
+                    return oldName
                 }
             })
         case Columns.modified:
@@ -601,10 +604,10 @@ private class FileManagerOutlineDelegate: NSObject, NSOutlineViewDelegate,
 }
 
 private class TextFieldCellView: NSTableCellView, NSTextFieldDelegate {
-    var renameCallback: ((String) async throws -> Void)?
+    var renameCallback: ((String) async throws -> String)?
     var toaster: Toaster!
 
-    init(value: String, editable: Bool = false, image: NSImage? = nil, color: NSColor? = nil, tabularNums: Bool = false, onRename renameCallback: ((String) async -> Void)? = nil) {
+    init(value: String, editable: Bool = false, image: NSImage? = nil, color: NSColor? = nil, tabularNums: Bool = false, onRename renameCallback: ((String) async -> String)? = nil) {
         super.init(frame: .zero)
 
         let stack = NSStackView(frame: .zero)
@@ -659,7 +662,10 @@ private class TextFieldCellView: NSTableCellView, NSTextFieldDelegate {
         let newName = fieldEditor.string
         Task {
             do {
-                try await renameCallback?(newName)
+                let res = try await renameCallback?(newName)
+                if let res {
+                    self.textField?.stringValue = res
+                }
             } catch {
                 self.toaster.error(title: "Failed to rename item", error: error)
             }
