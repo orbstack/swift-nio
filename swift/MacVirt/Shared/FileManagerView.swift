@@ -536,6 +536,31 @@ private class FileManagerOutlineDelegate: NSObject, NSOutlineViewDelegate,
         }
     }
 
+    @MainActor
+    private func moveItem(item: FileItem, newPath: FilePath) async throws {
+        let oldPath = item.path
+
+        // optimistically update the cache.
+        // fsevents callback will clean up anything we got wrong later
+        let keysToUpdate = self.itemsCache.filter { key, _ in
+            key.starts(with: oldPath + "/") || key == oldPath
+        }
+        for (key, _) in keysToUpdate {
+            let newKey = key.replacingCharacters(
+                in: oldPath.startIndex..<oldPath.endIndex, with: newPath.string)
+            self.itemsCache[key]?.path = newKey
+            self.itemsCache[newKey] = self.itemsCache[key]
+            self.itemsCache.removeValue(forKey: key)
+
+            if self.expandedPaths.contains(key) {
+                self.expandedPaths.insert(newKey)
+                self.expandedPaths.remove(key)
+            }
+        }
+
+        try await FileSystem.shared.moveItem(at: FilePath(oldPath), to: newPath)
+    }
+
     // MARK: - delegat
     func outlineView(_ outlineView: NSOutlineView, viewFor tableColumn: NSTableColumn?, item: Any)
         -> NSView?
@@ -551,7 +576,7 @@ private class FileManagerOutlineDelegate: NSObject, NSOutlineViewDelegate,
                 newPath.append(newName)
 
                 do {
-                    try await FileSystem.shared.moveItem(at: FilePath(item.path), to: newPath)
+                    try await self.moveItem(item: item, newPath: newPath)
                     return newName
                 } catch {
                     self.toaster.error(title: "Failed to rename \(item.type.lowerDescription)", error: error)
