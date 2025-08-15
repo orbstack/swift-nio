@@ -57,11 +57,11 @@ class NewMainViewController: NSViewController {
         action: #selector(actionDockerContainersOpen)
     )
 
-    lazy var containersOpenWindowButton = makeToolbarItem(
+    lazy var containersOpenWindowButton = makeOpenInNewWindowToolbarItem(
         itemIdentifier: .dockerContainersOpenWindow,
-        icon: "arrow.up.forward.app",
-        title: "Open in New Window",
-        action: #selector(actionDockerContainersOpenWindow)
+        action: #selector(actionDockerContainersOpenWindow),
+        tabState: model.$containerTab,
+        allowedKeys: [.logs, .terminal, .files]
     )
 
     private lazy var containersSortDelegate = EnumMenuDelegate<DockerContainerSortDescriptor>(
@@ -135,11 +135,11 @@ class NewMainViewController: NSViewController {
         return group
     }()
 
-    lazy var volumesOpenWindowButton = makeToolbarItem(
+    lazy var volumesOpenWindowButton = makeOpenInNewWindowToolbarItem(
         itemIdentifier: .dockerVolumesOpenWindow,
-        icon: "arrow.up.forward.app",
-        title: "Open in New Window",
-        action: #selector(actionDockerVolumesOpenWindow)
+        action: #selector(actionDockerVolumesOpenWindow),
+        tabState: model.$volumesTab,
+        allowedKeys: [.files]
     )
 
     private lazy var volumesSortDelegate = EnumMenuDelegate<DockerGenericSortDescriptor>(
@@ -185,11 +185,11 @@ class NewMainViewController: NSViewController {
         return group
     }()
 
-    lazy var imagesOpenWindowButton = makeToolbarItem(
+    lazy var imagesOpenWindowButton = makeOpenInNewWindowToolbarItem(
         itemIdentifier: .dockerImagesOpenWindow,
-        icon: "arrow.up.forward.app",
-        title: "Open in New Window",
-        action: #selector(actionDockerImagesOpenWindow)
+        action: #selector(actionDockerImagesOpenWindow),
+        tabState: model.$imagesTab,
+        allowedKeys: [.terminal, .files]
     )
 
     lazy var networksPlusButton = makeToolbarItem(
@@ -265,11 +265,11 @@ class NewMainViewController: NSViewController {
         return group
     }()
 
-    lazy var k8sPodsOpenWindowButton = makeToolbarItem(
+    lazy var k8sPodsOpenWindowButton = makeOpenInNewWindowToolbarItem(
         itemIdentifier: .k8sPodsOpenWindow,
-        icon: "arrow.up.forward.app",
-        title: "Open in New Window",
-        action: #selector(actionK8sPodsOpenWindow)
+        action: #selector(actionK8sPodsOpenWindow),
+        tabState: model.$podsTab,
+        allowedKeys: [.logs, .terminal]
     )
 
     lazy var servicesFilterMenu = {
@@ -303,11 +303,11 @@ class NewMainViewController: NSViewController {
         return group
     }()
 
-    lazy var k8sServicesOpenWindowButton = makeToolbarItem(
+    lazy var k8sServicesOpenWindowButton = makeOpenInNewWindowToolbarItem(
         itemIdentifier: .k8sServicesOpenWindow,
-        icon: "arrow.up.forward.app",
-        title: "Open in New Window",
-        action: #selector(actionK8sServicesOpenWindow)
+        action: #selector(actionK8sServicesOpenWindow),
+        tabState: model.$servicesTab,
+        allowedKeys: []
     )
 
     lazy var machinesFolderButton = makeToolbarItem(
@@ -340,11 +340,11 @@ class NewMainViewController: NSViewController {
         return group
     }()
 
-    lazy var machinesOpenInNewWindowButton = makeToolbarItem(
+    lazy var machinesOpenInNewWindowButton = makeOpenInNewWindowToolbarItem(
         itemIdentifier: .machinesOpenInNewWindow,
-        icon: "arrow.up.forward.app",
-        title: "Open in New Window",
-        action: #selector(actionMachinesOpenInNewWindow)
+        action: #selector(actionMachinesOpenInNewWindow),
+        tabState: model.$machineTab,
+        allowedKeys: [.terminal, .files]
     )
 
     lazy var commandsHelpButton = makeToolbarItem(
@@ -435,6 +435,39 @@ class NewMainViewController: NSViewController {
 }
 
 extension NewMainViewController {
+    func makeOpenInNewWindowToolbarItem<T: Hashable & Equatable>(
+        itemIdentifier: NSToolbarItem.Identifier,
+        action: Selector?,
+        tabState: Published<T>.Publisher,
+        allowedKeys: Set<T>
+    ) -> NSToolbarItem {
+        let item = makeToolbarItem(
+            itemIdentifier: itemIdentifier,
+            icon: "arrow.up.forward.app",
+            title: "Open in New Window",
+            action: action,
+            requiresVmRunning: false
+        )
+        item.isEnabled = false
+
+        var tabStateValue: T?
+
+        tabState.sink { [weak item, weak self] tab in
+            if let self, let item {
+                tabStateValue = tab
+                item.isEnabled = allowedKeys.contains(tab) && self.navModel.inspectorSelection.count == 1
+            }
+        }.store(in: &cancellables)
+
+        navModel.$inspectorSelection.sink { [weak item] selection in
+            if let tabStateValue, let item {
+                item.isEnabled = allowedKeys.contains(tabStateValue) && selection.count == 1
+            }
+        }.store(in: &cancellables)
+
+        return item
+    }
+
     func makeToolbarItem(
         itemIdentifier: NSToolbarItem.Identifier,
         icon: String,
