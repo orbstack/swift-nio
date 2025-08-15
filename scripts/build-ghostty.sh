@@ -11,7 +11,7 @@ pushd .
 if [[ ! -d "ghostty" ]]; then
   git clone -b $GHOSTTY_BRANCH git@github.com:orbstack/ghostty
 else
-  (cd ghostty; git fetch && git checkout $GHOSTTY_TAG && git pull)
+  (cd ghostty; git fetch && git checkout $GHOSTTY_BRANCH && git pull)
 fi
 popd
 
