@@ -149,6 +149,16 @@ private class FileManagerOutlineView: NSOutlineView, QLPreviewPanelDataSource, Q
             } else {
                 QLPreviewPanel.shared()?.makeKeyAndOrderFront(nil)
             }
+        } else if event.specialKey == .carriageReturn || event.specialKey == .enter {
+            if !filesDelegate.readOnly,
+               selectedRowIndexes.count == 1,
+               let row = selectedRowIndexes.first,
+               let cellView = self.view(atColumn: 0, row: row, makeIfNecessary: false) as? TextFieldCellView
+            {
+                cellView.textField?.becomeFirstResponder()
+            } else {
+                super.keyDown(with: event)
+            }
         } else {
             // Pass other key events to the outline view for navigation, selection, etc.
             super.keyDown(with: event)
