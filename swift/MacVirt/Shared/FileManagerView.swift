@@ -279,18 +279,28 @@ private class FileManagerOutlineView: NSOutlineView, QLPreviewPanelDataSource, Q
                 RIMenuItem.separator()
 
                 if !filesDelegate.readOnly {
-                    RIMenuItem("Rename") {
-                        // TODO
+                    if actionIndexes.count == 1 {
+                        RIMenuItem("Rename") {
+                            if let cellView = self.view(atColumn: 0, row: actionIndexes.first!, makeIfNecessary: false) as? TextFieldCellView {
+                                cellView.textField?.becomeFirstResponder()
+                            }
+                        }
                     }
 
                     RIMenuItem("Delete") {
-                        // TODO
+                        self.filesDelegate.deleteAction(actionIndexes: actionIndexes)
                     }
 
                     RIMenuItem.separator()
 
                     RIMenuItem("Copy") {
                         self.filesDelegate.copyAction(actionIndexes: actionIndexes)
+                    }
+
+                    if actionIndexes.count <= 1 {
+                        RIMenuItem("Paste") {
+                            self.filesDelegate.pasteAction(actionIndexes: actionIndexes)
+                        }
                     }
                 }
             }
@@ -318,17 +328,9 @@ private class FileManagerOutlineView: NSOutlineView, QLPreviewPanelDataSource, Q
 
             RIMenuItem.separator()
 
-            if !filesDelegate.readOnly {
-                if actionIndexes.count == 0 {
-                    RIMenuItem("New Folder") {
-                        // TODO
-                    }
-                }
-
-                if actionIndexes.count <= 1 {
-                    RIMenuItem("Paste") {
-                        self.filesDelegate.pasteAction(actionIndexes: actionIndexes)
-                    }
+            if false && !filesDelegate.readOnly && actionIndexes.count <= 1 { // TODO
+                RIMenuItem("New Folder") {
+                    // TODO
                 }
             }
 
@@ -479,6 +481,22 @@ private class FileManagerOutlineDelegate: NSObject, NSOutlineViewDelegate,
                     toaster.error(title: "Failed to copy item", message: error.localizedDescription)
                 }
             }
+        }
+    }
+
+    func deleteAction(actionIndexes: IndexSet) {
+        Task {
+            for index in actionIndexes {
+            if let node = await view.item(atRow: index) as? NSTreeNode,
+                let item = node.representedObject as? FileItem
+            {
+                do {
+                    try await FileSystem.shared.removeItem(at: FilePath(item.path))
+                } catch {
+                    toaster.error(title: "Failed to delete item", message: error.localizedDescription)
+                }
+            }
+        }
         }
     }
 
