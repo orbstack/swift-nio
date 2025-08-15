@@ -18,4 +18,4 @@ popd
 echo "Building ghostty"
 
 cd ghostty
-zig build -Dversion-string=0.0.0-orbstack -Demit-macos-app=false -Dstrip=false -Dsentry=false --release=fast
+zig build -Dversion-string=0.0.0-orbstack -Demit-macos-app=false -Dstrip=false -Dsentry=false -Di18n=false --release=fast
