@@ -52,10 +52,6 @@ class SplitViewController: NSSplitViewController {
         addSplitViewItem(itemA)
         addSplitViewItem(itemB)
         addSplitViewItem(itemC)
-
-        // initial positions
-        splitView.setPosition(160, ofDividerAt: 0)
-        splitView.setPosition(160+300, ofDividerAt: 1)
     }
 
     required init?(coder: NSCoder) {
@@ -74,6 +70,9 @@ class SplitViewController: NSSplitViewController {
     }
     
     override func viewWillAppear() {
+        // initial positions
+        splitView.setPosition(160, ofDividerAt: 0)
+        splitView.setPosition(160+300, ofDividerAt: 1)
         updateAutosaveName()
     }
 
