@@ -1,7 +1,7 @@
 import SwiftUI
 
 private let maxToasts = 4
-private let defaultDuration: TimeInterval = 5
+private let defaultDuration: TimeInterval = 8
 
 enum ToastType {
     case success
