@@ -101,6 +101,18 @@ class TerminalNSView: NSView {
         window?.makeFirstResponder(self)
     }
 
+    @objc func copy(_ sender: Any?) {
+        surface?.copy()
+    }
+
+    @objc func paste(_ sender: Any?) {
+        surface?.paste()
+    }
+
+    @objc override func selectAll(_ sender: Any?) {
+        surface?.selectAll()
+    }
+
     deinit {
         NotificationCenter.default.removeObserver(self)
     }

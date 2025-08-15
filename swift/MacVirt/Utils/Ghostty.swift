@@ -347,6 +347,21 @@ extension Ghostty {
         func setContentScale(_ xScale: Double, _ yScale: Double) {
             ghostty_surface_set_content_scale(surface, xScale, yScale)
         }
+
+        func selectAll() {
+            let action = "select_all"
+            ghostty_surface_binding_action(surface, action, UInt(action.count))
+        }
+
+        func copy() {
+            let action = "copy_to_clipboard"
+            ghostty_surface_binding_action(surface, action, UInt(action.count))
+        }
+
+        func paste() {
+            let action = "paste_from_clipboard"
+            ghostty_surface_binding_action(surface, action, UInt(action.count))
+        }
     }
 }
 
