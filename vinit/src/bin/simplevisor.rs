@@ -1,8 +1,7 @@
 use std::{
     collections::HashMap,
-    fs::File,
-    fs::{self, remove_file},
-    os::unix::{fs::symlink, net::UnixDatagram},
+    fs::{self, remove_file, File},
+    os::unix::{fs::symlink, net::UnixDatagram, process::CommandExt},
     process::Command,
     sync::{Arc, Mutex},
 };
@@ -14,7 +13,7 @@ use nix::{
         signal::{kill, Signal},
         wait::{waitid, Id, WaitPidFlag, WaitStatus},
     },
-    unistd::Pid,
+    unistd::{setsid, Pid},
 };
 use serde::{Deserialize, Serialize};
 use signal_hook::iterator::Signals;
@@ -69,10 +68,9 @@ impl Supervisor {
                     // now start dependent services
                     for (svc, child_args) in config.dep_services.iter() {
                         println!(" [*] starting dependent service");
-                        let process = Command::new(&child_args[0])
-                            .args(&child_args[1..])
-                            .spawn()
-                            .unwrap();
+                        let process =
+                            spawn_command(Command::new(&child_args[0]).args(&child_args[1..]))
+                                .unwrap();
 
                         let child = MonitoredChild {
                             process,
@@ -91,10 +89,11 @@ impl Supervisor {
     fn spawn_init_services(&mut self) -> anyhow::Result<()> {
         // spawn init services, with sd-notify socket
         for (svc, child_args) in &self.config.init_services {
-            let process = Command::new(&child_args[0])
-                .args(&child_args[1..])
-                .env("NOTIFY_SOCKET", "/run/sd.sock")
-                .spawn()?;
+            let process = spawn_command(
+                Command::new(&child_args[0])
+                    .args(&child_args[1..])
+                    .env("NOTIFY_SOCKET", "/run/sd.sock"),
+            )?;
 
             let child = MonitoredChild {
                 process,
@@ -222,9 +221,7 @@ impl Supervisor {
             let status = child.process.wait()?;
             println!(" [*] restart service {}: exited with {}", svc, status);
 
-            child.process = Command::new(&child.args[0])
-                .args(&child.args[1..])
-                .spawn()?;
+            child.process = spawn_command(Command::new(&child.args[0]).args(&child.args[1..]))?;
         }
 
         Ok(())
@@ -244,6 +241,11 @@ impl Supervisor {
 
         Ok(())
     }
+}
+
+fn spawn_command(cmd: &mut Command) -> anyhow::Result<std::process::Child> {
+    let child = cmd.process_group(0).spawn()?;
+    Ok(child)
 }
 
 fn init_system(config: &SimplevisorConfig) -> anyhow::Result<()> {
