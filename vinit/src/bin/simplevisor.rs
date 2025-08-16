@@ -249,6 +249,25 @@ fn spawn_command(cmd: &mut Command) -> anyhow::Result<std::process::Child> {
 }
 
 fn init_system(config: &SimplevisorConfig) -> anyhow::Result<()> {
+    // if /dev/console is bind-mounted into the container (specifically, if machine's /dev/pts/0 or machine's /dev/console is bind-mounted to /dev/console in the container) and -t is passed to docker run, runc fails with "ioctl(setctty): operation not permitted" because:
+    // 1. runc calls setsid(), removing its controlling terminal and creating a new session
+    // 2. runc applies our /dev/console bind mount: mount("<host>/dev/console", "/dev/console", MS_BIND)
+    // 3. runc opens container's /dev/ptmx to create a pty at container's /dev/pts/0
+    // 4. runc calls open("/dev/console", O_CREAT) and fchmod() to create a dummy file (in order to bind-mount over the file later)
+    //    * according to credentials(7) man page, since we are in a new session without a controlling terminal, the process automatically acquires a controlling terminal because this is the first tty fd it has opened while it has no ctty.
+    //    * TODO: PR to runc to open with O_NOCTTY and/or O_EXCL and/or check if already exists and skip creation if so
+    // 5. runs replaces fds 0,1,2 with the /dev/pts/0 fd
+    // 6. runc calls ioctl(0, TIOCSCTTY, 0) to use the new pty as the ctty
+    //    * this fails because the process already has a ctty, implicitly acquired by the open call earlier!
+    // workaround: make sure that *some* process already has /dev/console as a ctty, so that the implicit ctty acquisition doesn't happen. this doesn't happen in other machines, presumably because systemd or some other process happens to open /dev/console and thus acquires it as a ctty.
+    let ret = unsafe { libc::ioctl(1, libc::TIOCSCTTY, 0) };
+    if ret == -1 {
+        eprintln!(
+            " [!] failed to set ctty: {}",
+            std::io::Error::last_os_error()
+        );
+    }
+
     // create /init.scope cgroup to remove "(containerized)" from `docker system info`
     fs::create_dir_all("/sys/fs/cgroup/init.scope")?;
 

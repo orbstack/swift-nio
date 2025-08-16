@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(orb -m docker sh -c:*)",
+      "Bash(orb:*)"
+    ],
+    "deny": []
+  }
+}
