@@ -32,11 +32,12 @@ const (
 
 func getPacketTTL(pkt *stack.PacketBuffer) uint8 {
 	hdr := pkt.Network()
-	if pkt.NetworkProtocolNumber == ipv4.ProtocolNumber {
+	switch pkt.NetworkProtocolNumber {
+	case ipv4.ProtocolNumber:
 		return hdr.(header.IPv4).TTL()
-	} else if pkt.NetworkProtocolNumber == header.IPv6ProtocolNumber {
+	case header.IPv6ProtocolNumber:
 		return hdr.(header.IPv6).HopLimit()
-	} else {
+	default:
 		return 64
 	}
 }
