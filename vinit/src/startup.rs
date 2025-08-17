@@ -1,12 +1,16 @@
 use std::{
     cmp::Ordering,
     env,
-    fs::{self, DirBuilder, OpenOptions, Permissions},
+    fs::{self, DirBuilder, File, OpenOptions, Permissions},
     io::Write,
+    mem::MaybeUninit,
     net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr, UdpSocket},
-    os::unix::{
-        fs::{chown, chroot, DirBuilderExt, MetadataExt},
-        prelude::{FileExt, PermissionsExt},
+    os::{
+        fd::AsRawFd,
+        unix::{
+            fs::{chown, chroot, DirBuilderExt, MetadataExt},
+            prelude::{FileExt, PermissionsExt},
+        },
     },
     process::{Command, Stdio},
     sync::{Arc, Mutex},
@@ -27,6 +31,7 @@ use netlink_packet_route::{
     RouteNetlinkMessage,
 };
 use nix::{
+    errno::Errno,
     libc::{self, RLIM_INFINITY},
     mount::MsFlags,
     sys::{
@@ -728,7 +733,7 @@ async fn setup_network() -> anyhow::Result<()> {
     Ok(())
 }
 
-pub async fn sync_clock(allow_backward: bool) -> anyhow::Result<()> {
+async fn sync_clock_ntp(allow_backward: bool) -> anyhow::Result<()> {
     // sync clock immediately at boot (if RTC is wrong) or on wake (until chrony kicks in)
     // RTC can supposedly be wrong at boot: https://news.ycombinator.com/item?id=36185786
     let socket = UdpSocket::bind("0.0.0.0:0")?;
@@ -752,8 +757,43 @@ pub async fn sync_clock(allow_backward: bool) -> anyhow::Result<()> {
     }
 
     clock_settime(ClockId::CLOCK_REALTIME, new_time)?;
-
     Ok(())
+}
+
+fn sync_clock_ptp(allow_backward: bool) -> anyhow::Result<()> {
+    let fd = File::open("/dev/ptp0")?;
+    let mut offset = MaybeUninit::<libc::ptp_sys_offset_precise>::uninit();
+    let ret = unsafe {
+        libc::ioctl(
+            fd.as_raw_fd() as _,
+            libc::PTP_SYS_OFFSET_PRECISE as _,
+            offset.as_mut_ptr(),
+        )
+    };
+    if ret == -1 {
+        return Err(InitError::PtpGetTime(Errno::last()).into());
+    }
+
+    let offset = unsafe { offset.assume_init() };
+    let new_time = TimeSpec::new(offset.device.sec, offset.device.nsec as i64);
+    let current_time = clock_gettime(ClockId::CLOCK_REALTIME)?;
+    // never go back in time after boot
+    if !allow_backward && new_time < current_time {
+        debug!("Skipping clock step: would go back in time");
+        return Ok(());
+    }
+
+    clock_settime(ClockId::CLOCK_REALTIME, new_time)?;
+    Ok(())
+}
+
+pub async fn sync_clock(allow_backward: bool) -> anyhow::Result<()> {
+    // PTP is only supported on aarch64
+    if cfg!(target_arch = "aarch64") {
+        sync_clock_ptp(allow_backward)
+    } else {
+        sync_clock_ntp(allow_backward).await
+    }
 }
 
 fn resize_data(sys_info: &SystemInfo) -> anyhow::Result<()> {
