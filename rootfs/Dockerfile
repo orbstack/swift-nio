@@ -489,9 +489,9 @@ COPY \
     /etc/
 COPY rootfs/config/ssh_host_keys /etc/ssh
 # NTP
-COPY rootfs/config/chrony.conf /etc/chrony/chrony.conf
-# kernel modules
 ARG ARCH=arm64
+COPY rootfs/config/chrony.conf.${ARCH} /etc/chrony/chrony.conf
+# kernel modules
 # 0.0.0 = temp name for depmod
 COPY assets/debug/${ARCH}/kernel_modules.builtin /opt/orbstack-guest/lib/modules/0.0.0/modules.builtin
 

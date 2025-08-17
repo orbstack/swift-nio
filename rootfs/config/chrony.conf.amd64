@@ -1,0 +1,5 @@
+# sync every 128 sec
+server 0.250.250.200 iburst minpoll 7
+# always step clock if needed
+makestep 3.0 -1
+cmdport 0
