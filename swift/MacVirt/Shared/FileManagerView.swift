@@ -807,6 +807,11 @@ private class FileItem: NSObject, Identifiable {
         return self
     }
 
+    // hack: isEqual compares pointers to appease NSOutlineView
+    @objc override func isEqual(_ object: Any?) -> Bool {
+        return self === (object as? FileItem)
+    }
+
     var id: String { path }
     @objc dynamic var isLeaf: Bool { type != .directory }
 }
