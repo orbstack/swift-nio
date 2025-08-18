@@ -167,21 +167,23 @@ extension Ghostty {
             config_strings.append("--adjust-cell-height=3%")
             config_strings.append("--adjust-cell-width=-3%")
 
-            let config_strings_unsafe: UnsafeMutablePointer<UnsafeMutablePointer<CChar>?> =
-                config_strings
-                .map { strdup($0) }
+            let config = ghostty_config_new()!
+            config_strings
                 .withUnsafeBufferPointer { buffer in
                     let ptr = UnsafeMutablePointer<UnsafeMutablePointer<CChar>?>.allocate(
                         capacity: buffer.count + 1)
                     for (i, cstr) in buffer.enumerated() {
-                        ptr[i] = cstr
+                        ptr[i] = strdup(cstr)
                     }
                     ptr[buffer.count] = nil  // Add terminating nullptr
-                    return ptr
-                }
 
-            let config = ghostty_config_new()!
-            ghostty_config_load_strings(config, config_strings_unsafe, config_strings.count)
+                    ghostty_config_load_strings(config, ptr, buffer.count)
+
+                    for i in 0..<buffer.count {
+                        free(ptr[i])
+                    }
+                    free(ptr)
+                }
             ghostty_config_finalize(config)
 
             return config
