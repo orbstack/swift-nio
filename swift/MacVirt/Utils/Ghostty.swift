@@ -44,8 +44,12 @@ class Ghostty {
     }
 
     deinit {
+        // running ghostty_app_free() is too risky for now to call in release-
+        // there's a chance we might run a surface action / etc, which could segfault
+        #if DEBUG
         ghostty_app_free(app)
         ghostty_deinit()
+        #endif
     }
 
     @MainActor
@@ -257,6 +261,7 @@ extension Ghostty {
             // but that's okay.
             let surface = self.surface
             Task.detached { @MainActor in
+                guard AppDelegate.shared.ghostty != nil else { return }
                 ghostty_surface_free(surface)
             }
         }
