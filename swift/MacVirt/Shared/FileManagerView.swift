@@ -489,6 +489,17 @@ private class FileManagerOutlineDelegate: NSObject, NSOutlineViewDelegate,
         }
     }
 
+    func getUniquePath(destinationPath: URL, lastPathComponent: String) async throws -> URL? {
+        let newPath = destinationPath.appendingPathComponent(lastPathComponent)
+        for n in 0..<1000 {
+            let newPathSuffixed = if n == 0 { newPath.path } else { newPath.path + " (\(n))" }
+            if try await FileSystem.shared.info(forFileAt: FilePath(newPathSuffixed), infoAboutSymbolicLink: true) == nil {
+                return URL(filePath: newPathSuffixed)
+            }
+        }
+        return nil
+    }
+
     func pasteAction(actionIndexes: IndexSet) {
         var destinationPath: URL
         if let index = actionIndexes.first {
@@ -511,19 +522,31 @@ private class FileManagerOutlineDelegate: NSObject, NSOutlineViewDelegate,
             for item in items {
                 do {
                     if let path = item.path, let lastPathComponent = item.lastPathComponent {
-                        var newPath = destinationPath.appendingPathComponent(lastPathComponent).path
-                        for n in 0...100 {
-                            if n == 100 {
-                                toaster.error(title: "Failed to copy item", message: "Failed to find a unique name for the copied item.")
+                        let newPath = try await getUniquePath(destinationPath: destinationPath, lastPathComponent: lastPathComponent)
+                        guard let newPath else {
+                            toaster.error(title: "Failed to copy item", message: "Failed to find a unique name for the copied item.")
+                            return
+                        }
+
+                        // if we copy a directory into a child/grandchild, we'll infinitely recurse
+                        // (while copying, swift-nio will traverse folders it's copied as if they were from the source)
+                        // to fix: copy to temp dir, then mv to dest
+                        if destinationPath.path.starts(with: path + "/") {
+                            let tempDir = URL(filePath: NSTemporaryDirectory()).appendingPathComponent("orbstack")
+                            let tempPath = try await getUniquePath(destinationPath: tempDir, lastPathComponent: lastPathComponent)
+                            guard let tempPath else {
+                                toaster.error(title: "Failed to copy item", message: "Failed to find a unique name for the temporary directory.")
                                 return
                             }
-                            let newPathSuffixed = if n == 0 { newPath } else { newPath + " (\(n))" }
-                            if try await FileSystem.shared.info(forFileAt: FilePath(newPathSuffixed), infoAboutSymbolicLink: true) == nil {
-                                newPath = newPathSuffixed
-                                break
-                            }
+
+                            // we don't care if this fails- most likely because EEXIST
+                            try? await FileSystem.shared.createDirectory(at: tempDir.filePath, withIntermediateDirectories: true)
+
+                            try await FileSystem.shared.copyItem(at: FilePath(path), to: tempPath.filePath)
+                            try await FileSystem.shared.moveItem(at: tempPath.filePath, to: FilePath(newPath.path))
+                        } else {
+                            try await FileSystem.shared.copyItem(at: FilePath(path), to: FilePath(newPath.path))
                         }
-                        try await FileSystem.shared.copyItem(at: FilePath(path), to: FilePath(newPath))
                     }
                 } catch {
                     toaster.error(title: "Failed to copy item", message: error.localizedDescription)
