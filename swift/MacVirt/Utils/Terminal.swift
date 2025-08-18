@@ -148,7 +148,7 @@ class TerminalNSView: NSView {
         menu.addItem(withTitle: "Paste", action: #selector(paste(_:)), keyEquivalent: "")
 
         menu.addItem(.separator())
-        menu.addItem(withTitle: "Reset Terminal", action: #selector(resetTerminal(_:)), keyEquivalent: "")
+        menu.addItem(withTitle: "Reset", action: #selector(resetTerminal(_:)), keyEquivalent: "")
 
         return menu
     }
