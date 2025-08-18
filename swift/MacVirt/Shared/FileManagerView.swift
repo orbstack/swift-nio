@@ -511,7 +511,19 @@ private class FileManagerOutlineDelegate: NSObject, NSOutlineViewDelegate,
             for item in items {
                 do {
                     if let path = item.path, let lastPathComponent = item.lastPathComponent {
-                        try await FileSystem.shared.copyItem(at: FilePath(path), to: FilePath(destinationPath.appendingPathComponent(lastPathComponent).path))
+                        var newPath = destinationPath.appendingPathComponent(lastPathComponent).path
+                        for n in 0...100 {
+                            if n == 100 {
+                                toaster.error(title: "Failed to copy item", message: "Failed to find a unique name for the copied item.")
+                                return
+                            }
+                            let newPathSuffixed = if n == 0 { newPath } else { newPath + " (\(n))" }
+                            if try await FileSystem.shared.info(forFileAt: FilePath(newPathSuffixed), infoAboutSymbolicLink: true) == nil {
+                                newPath = newPathSuffixed
+                                break
+                            }
+                        }
+                        try await FileSystem.shared.copyItem(at: FilePath(path), to: FilePath(newPath))
                     }
                 } catch {
                     toaster.error(title: "Failed to copy item", message: error.localizedDescription)
