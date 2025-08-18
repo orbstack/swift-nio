@@ -306,12 +306,12 @@ private class FileManagerOutlineView: NSOutlineView, QLPreviewPanelDataSource, Q
                     RIMenuItem("Copy") {
                         self.filesDelegate.copyAction(actionIndexes: actionIndexes)
                     }
+                }
+            }
 
-                    if actionIndexes.count <= 1 {
-                        RIMenuItem("Paste") {
-                            self.filesDelegate.pasteAction(actionIndexes: actionIndexes)
-                        }
-                    }
+            if actionIndexes.count <= 1 {
+                RIMenuItem("Paste") {
+                    self.filesDelegate.pasteAction(actionIndexes: actionIndexes)
                 }
             }
 
