@@ -27,13 +27,15 @@ class Toaster: ObservableObject {
             return
         }
 
-        withAnimation {
-            if toasts.count >= maxToasts {
-                toasts.removeFirst()
-            }
+        DispatchQueue.main.async {
+            withAnimation {
+                if self.toasts.count >= maxToasts {
+                    self.toasts.removeFirst()
+                }
 
-            toasts.append(toast)
-            self.toasts = toasts
+                self.toasts.append(toast)
+                self.toasts = self.toasts
+            }
         }
 
         DispatchQueue.main.asyncAfter(deadline: .now() + toast.duration) {
