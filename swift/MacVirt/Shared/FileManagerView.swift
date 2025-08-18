@@ -531,7 +531,7 @@ private class FileManagerOutlineDelegate: NSObject, NSOutlineViewDelegate,
                         // if we copy a directory into a child/grandchild, we'll infinitely recurse
                         // (while copying, swift-nio will traverse folders it's copied as if they were from the source)
                         // to fix: copy to temp dir, then mv to dest
-                        if destinationPath.path.starts(with: path + "/") {
+                        if newPath.path.starts(with: path + "/") {
                             let tempDir = URL(filePath: NSTemporaryDirectory()).appendingPathComponent("orbstack")
                             let tempPath = try await getUniquePath(destinationPath: tempDir, lastPathComponent: lastPathComponent)
                             guard let tempPath else {
