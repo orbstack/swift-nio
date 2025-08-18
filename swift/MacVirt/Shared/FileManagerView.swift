@@ -676,10 +676,10 @@ private class FileManagerOutlineDelegate: NSObject, NSOutlineViewDelegate,
         let node = sender.item(atRow: row) as? NSTreeNode
         guard let item = node?.representedObject as? FileItem else { return }
         if item.type == .directory {
-            if sender.isItemExpanded(item) {
-                sender.animator().collapseItem(item)
+            if sender.isItemExpanded(node) {
+                sender.animator().collapseItem(node)
             } else {
-                sender.animator().expandItem(item)
+                sender.animator().expandItem(node)
             }
         } else {
             let actionIndexes = sender.selectedRowIndexes.contains(row) ? sender.selectedRowIndexes : IndexSet(integer: row)
