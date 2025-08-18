@@ -96,6 +96,10 @@ class TerminalNSView: NSView {
         fatalError("init(coder:) has not been implemented")
     }
 
+    deinit {
+        NotificationCenter.default.removeObserver(self)
+    }
+
     override func viewDidMoveToWindow() {
         super.viewDidMoveToWindow()
         window?.makeFirstResponder(self)
@@ -113,8 +117,44 @@ class TerminalNSView: NSView {
         surface?.selectAll()
     }
 
-    deinit {
-        NotificationCenter.default.removeObserver(self)
+    override func menu(for event: NSEvent) -> NSMenu? {
+        // we support right click & ctrl-left-click as an alternative
+        switch event.type {
+        case .leftMouseDown:
+            if !event.modifierFlags.contains(.control) {
+                return nil
+            }
+
+            // if capturing the mouse, let capturing handle, ignore, and don't return menu
+            guard let surface = surface else { return nil }
+            if surface.mouseCaptured {
+                return nil
+            }
+
+            // make sure ctrl-click is propogated as a right click. won't be sent to ghostty otherwise,
+            // because we were forwarded this event from our keyDown handler already as a left click.
+            _ = surface.sendMouseButton(.right, .pressed, .init(nsFlags: event.modifierFlags))
+        case .rightMouseDown:
+            break
+        default:
+            return nil
+        }
+
+        let menu = NSMenu()
+
+        if self.selectedRange().length > 0 {
+            menu.addItem(withTitle: "Copy", action: #selector(copy(_:)), keyEquivalent: "")
+        }
+        menu.addItem(withTitle: "Paste", action: #selector(paste(_:)), keyEquivalent: "")
+
+        menu.addItem(.separator())
+        menu.addItem(withTitle: "Reset Terminal", action: #selector(resetTerminal(_:)), keyEquivalent: "")
+
+        return menu
+    }
+
+    @objc func resetTerminal(_ sender: Any?) {
+        surface?.reset()
     }
 
     override func becomeFirstResponder() -> Bool {
@@ -453,28 +493,32 @@ class TerminalNSView: NSView {
         guard let surface else { return }
 
         let mods = Ghostty.Surface.InputMods(nsFlags: event.modifierFlags)
-        surface.sendMouseButton(.left, .pressed, mods)
+        _ = surface.sendMouseButton(.left, .pressed, mods)
     }
 
     override func mouseUp(with event: NSEvent) {
         guard let surface else { return }
 
         let mods = Ghostty.Surface.InputMods(nsFlags: event.modifierFlags)
-        surface.sendMouseButton(.left, .released, mods)
+        _ = surface.sendMouseButton(.left, .released, mods)
     }
 
     override func rightMouseDown(with event: NSEvent) {
         guard let surface else { return }
 
         let mods = Ghostty.Surface.InputMods(nsFlags: event.modifierFlags)
-        surface.sendMouseButton(.right, .pressed, mods)
+        if !surface.sendMouseButton(.right, .pressed, mods) {
+            super.rightMouseDown(with: event)
+        }
     }
 
     override func rightMouseUp(with event: NSEvent) {
         guard let surface else { return }
 
         let mods = Ghostty.Surface.InputMods(nsFlags: event.modifierFlags)
-        surface.sendMouseButton(.right, .released, mods)
+        if !surface.sendMouseButton(.right, .released, mods) {
+            super.rightMouseUp(with: event)
+        }
     }
 
     override func otherMouseDown(with event: NSEvent) {
@@ -482,7 +526,7 @@ class TerminalNSView: NSView {
         guard event.buttonNumber == 2 else { return }
 
         let mods = Ghostty.Surface.InputMods(nsFlags: event.modifierFlags)
-        surface.sendMouseButton(.middle, .pressed, mods)
+        _ = surface.sendMouseButton(.middle, .pressed, mods)
     }
 
     override func otherMouseUp(with event: NSEvent) {
@@ -490,7 +534,7 @@ class TerminalNSView: NSView {
         guard event.buttonNumber == 2 else { return }
 
         let mods = Ghostty.Surface.InputMods(nsFlags: event.modifierFlags)
-        surface.sendMouseButton(.middle, .released, mods)
+        _ = surface.sendMouseButton(.middle, .released, mods)
     }
 
     override func mouseEntered(with event: NSEvent) {

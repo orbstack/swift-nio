@@ -225,6 +225,10 @@ extension Ghostty {
             return CGSize(
                 width: CGFloat(ghostty_size.width_px), height: CGFloat(ghostty_size.height_px))
         }
+        
+        var mouseCaptured: Bool {
+            ghostty_surface_mouse_captured(surface)
+        }
 
         init(app: ghostty_app_t, view: NSView, command: [String], env: [String], size: CGSize) {
             let surface_config = Configuration(command: command, env: env)
@@ -324,16 +328,16 @@ extension Ghostty {
             ghostty_surface_mouse_pos(surface, posEvent.x, posEvent.y, posEvent.mods.cMods)
         }
 
-        func sendMouseButton(_ buttonEvent: MouseButtonEvent) {
-            ghostty_surface_mouse_button(
+        func sendMouseButton(_ buttonEvent: MouseButtonEvent) -> Bool {
+            return ghostty_surface_mouse_button(
                 surface,
                 ghostty_input_mouse_state_e(buttonEvent.action.rawValue),
                 ghostty_input_mouse_button_e(buttonEvent.button.rawValue),
                 buttonEvent.mods.cMods)
         }
 
-        func sendMouseButton(_ button: MouseButton, _ action: MouseAction, _ mods: InputMods) {
-            sendMouseButton(MouseButtonEvent(action: action, button: button, mods: mods))
+        func sendMouseButton(_ button: MouseButton, _ action: MouseAction, _ mods: InputMods) -> Bool {
+            return sendMouseButton(MouseButtonEvent(action: action, button: button, mods: mods))
         }
 
         func setFocus(_ focused: Bool) {
@@ -360,6 +364,11 @@ extension Ghostty {
 
         func paste() {
             let action = "paste_from_clipboard"
+            ghostty_surface_binding_action(surface, action, UInt(action.count))
+        }
+
+        func reset() {
+            let action = "reset"
             ghostty_surface_binding_action(surface, action, UInt(action.count))
         }
     }
