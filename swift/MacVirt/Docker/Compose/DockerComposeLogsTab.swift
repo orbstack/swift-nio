@@ -1,6 +1,9 @@
 import SwiftUI
 
 struct DockerComposeLogsTab: View {
+    @EnvironmentObject private var vmModel: VmViewModel
+    @EnvironmentObject private var windowTracker: WindowTracker
+
     let project: String
 
     @StateObject private var commandModel = CommandViewModel()
@@ -13,5 +16,10 @@ struct DockerComposeLogsTab: View {
         // render under toolbar
         .ignoresSafeArea()
         .environmentObject(commandModel)
+        .onReceive(vmModel.toolbarActionRouter) { action in
+            if action == .dockerOpenContainerInNewWindow {
+                ComposeGroup(project: project).showLogs(windowTracker: windowTracker)
+            }
+        }
     }
 }
