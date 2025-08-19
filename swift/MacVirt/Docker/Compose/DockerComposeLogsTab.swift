@@ -6,19 +6,18 @@ struct DockerComposeLogsTab: View {
 
     let project: String
 
-    @StateObject private var commandModel = CommandViewModel()
-
     var body: some View {
-        DockerLogsContentView(
-            cid: .compose(project: project), standalone: true, extraComposeArgs: [],
-            allDisabled: false
-        )
-        // render under toolbar
-        .ignoresSafeArea()
-        .environmentObject(commandModel)
-        .onReceive(vmModel.toolbarActionRouter) { action in
-            if action == .dockerOpenContainerInNewWindow {
-                ComposeGroup(project: project).showLogs(windowTracker: windowTracker)
+        LogsTabToolbarWrapper {
+            DockerLogsContentView(
+                cid: .compose(project: project), standalone: true, extraComposeArgs: [],
+                allDisabled: false
+            )
+            // render under toolbar
+            .ignoresSafeArea()
+            .onReceive(vmModel.toolbarActionRouter) { action in
+                if action == .dockerOpenContainerInNewWindow {
+                    ComposeGroup(project: project).showLogs(windowTracker: windowTracker)
+                }
             }
         }
     }

@@ -20,7 +20,7 @@ struct DockerContainerTerminalTab: View {
                 .disabled(!vmModel.isLicensed)
                 Spacer()
             }
-            .padding(.horizontal, 8)
+            .padding(.horizontal, 16)
             .frame(height: 27) // match list section header height. wtf is this number?
 
             Divider()
