@@ -17,6 +17,7 @@ struct DockerContainerTerminalTab: View {
                             size: 13,
                             weight: .regular)
                     )
+                .disabled(!vmModel.isLicensed)
                 Spacer()
             }
             .padding(.horizontal, 8)
@@ -80,20 +81,14 @@ struct DockerContainerTerminalTab: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            if vmModel.isLicensed {
-                if useDebugShell || container.running {
-                    statusBar
-                    terminal
-                } else {
-                    ZStack(alignment: .top) {
-                        statusBar
-                        contentUnavailable
-                    }
-                }
-            } else if container.running {
+            if useDebugShell || container.running {
+                statusBar
                 terminal
             } else {
-                contentUnavailable
+                ZStack(alignment: .top) {
+                    statusBar
+                    contentUnavailable
+                }
             }
         }
         .onReceive(vmModel.toolbarActionRouter) { action in
