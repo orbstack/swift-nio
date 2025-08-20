@@ -188,7 +188,7 @@ class LogsViewModel: ObservableObject {
     private var cancellables: Set<AnyCancellable> = []
     @Published var lastContainerName: String?  // saved once we get id
 
-    @Published var selectedText = ""
+    @Published var selectedLineText = ""
     var selectedSeqs = Set<UInt64>()
 
     @MainActor
@@ -579,16 +579,21 @@ private struct LogsTextView: NSViewRepresentable {
 
         func tableViewSelectionIsChanging(_ notification: Notification) {
             let tableView = notification.object as! NSTableView
+            var selectedLineText = ""
             let selectedSeqs = tableView.selectedRowIndexes.compactMap { row in
                 model.contents.withLock { contents in
                     // in case mutated during reload
                     if row >= contents.lines.count {
                         return UInt64?(nil)
                     }
-                    return contents.lines[offset: row].seq
+
+                    let line = contents.lines[offset: row]
+                    selectedLineText = line.text.string
+                    return line.seq
                 }
             }
             model.selectedSeqs = Set(selectedSeqs)
+            model.selectedLineText = selectedLineText
         }
     }
 
@@ -634,14 +639,6 @@ private struct LogsTextView: NSViewRepresentable {
             }
         }.store(in: &context.coordinator.cancellables)
 
-        // commandModel.searchCommand.sink { [weak textView] _ in
-        //     guard let textView else { return }
-        //     // need .tag holder
-        //     let button = NSButton()
-        //     button.tag = NSTextFinder.Action.showFindInterface.rawValue
-        //     textView.performFindPanelAction(button)
-        // }.store(in: &context.coordinator.cancellables)
-
         DispatchQueue.main.async {
             tableView.window?.makeFirstResponder(tableView)
         }
@@ -665,7 +662,7 @@ struct LogsView: View {
     let args: [String]
     let extraArgs: [String]
     let extraState: [String]
-    let model: LogsViewModel
+    @ObservedObject var model: LogsViewModel
 
     var body: some View {
         LogsTextView(model: model, commandModel: commandModel, topInset: logsTopInset)
@@ -676,7 +673,7 @@ struct LogsView: View {
                 Divider()
 
                 VStack {
-                    TextEditor(text: .constant(model.selectedText))
+                    TextEditor(text: .constant(model.selectedLineText))
                         .font(.body.monospaced())
                 }
                 .frame(height: inspectorHeight)
