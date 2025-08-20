@@ -164,11 +164,17 @@ class CommandViewModel: ObservableObject {
 }
 
 private struct LogLine {
+    let seq: UInt64
     let text: NSAttributedString
 }
 
+private struct LogContents {
+    var lines = CircularBuffer<LogLine>()
+    var seq: UInt64 = 0
+}
+
 class LogsViewModel: ObservableObject {
-    fileprivate var contents = OSAllocatedUnfairLock(initialState: CircularBuffer<LogLine>())
+    fileprivate var contents = OSAllocatedUnfairLock(initialState: LogContents())
     fileprivate let updateEvent = PassthroughSubject<Void, Never>()
 
     var process: Process?
@@ -183,6 +189,7 @@ class LogsViewModel: ObservableObject {
     @Published var lastContainerName: String?  // saved once we get id
 
     @Published var selectedText = ""
+    var selectedSeqs = Set<UInt64>()
 
     @MainActor
     func monitorContainers(vmModel: VmViewModel, cid: DockerContainerId) {
@@ -446,12 +453,14 @@ class LogsViewModel: ObservableObject {
     }
 
     private func add(attributedString: NSMutableAttributedString) {
-        let line = LogLine(text: attributedString)
         contents.withLock { contents in
-            if contents.count >= logsMaxLines {
-                contents.removeFirst()
+            if contents.lines.count >= logsMaxLines {
+                contents.lines.removeFirst()
             }
-            contents.append(line)
+
+            let line = LogLine(seq: contents.seq, text: attributedString)
+            contents.seq += 1
+            contents.lines.append(line)
         }
         updateEvent.send()
     }
@@ -483,7 +492,7 @@ class LogsViewModel: ObservableObject {
 
     func clear() {
         contents.withLock { contents in
-            contents.removeAll()
+            contents.lines.removeAll()
         }
         updateEvent.send()
     }
@@ -491,7 +500,7 @@ class LogsViewModel: ObservableObject {
     func copyAll() {
         let str = contents.withLock { contents in
             var str = String()
-            for line in contents {
+            for line in contents.lines {
                 if !str.isEmpty {
                     str.append("\n")
                 }
@@ -534,7 +543,7 @@ private struct LogsTextView: NSViewRepresentable {
 
         func numberOfRows(in tableView: NSTableView) -> Int {
             model.contents.withLock { contents in
-                contents.count
+                contents.lines.count
             }
         }
 
@@ -542,10 +551,10 @@ private struct LogsTextView: NSViewRepresentable {
             -> NSView?
         {
             guard let line = model.contents.withLock({ contents in
-                if row >= contents.count {
+                if row >= contents.lines.count {
                     return LogLine?(nil)
                 }
-                return contents[offset: row]
+                return contents.lines[offset: row]
             }) else {
                 return nil
             }
@@ -566,6 +575,20 @@ private struct LogsTextView: NSViewRepresentable {
             ])
 
             return cellView
+        }
+
+        func tableViewSelectionIsChanging(_ notification: Notification) {
+            let tableView = notification.object as! NSTableView
+            let selectedSeqs = tableView.selectedRowIndexes.compactMap { row in
+                model.contents.withLock { contents in
+                    // in case mutated during reload
+                    if row >= contents.lines.count {
+                        return UInt64?(nil)
+                    }
+                    return contents.lines[offset: row].seq
+                }
+            }
+            model.selectedSeqs = Set(selectedSeqs)
         }
     }
 
@@ -593,6 +616,18 @@ private struct LogsTextView: NSViewRepresentable {
             let shouldScroll = (scrollView.contentView.bounds.maxY >= tableView.bounds.maxY - 50)
 
             tableView.reloadData()
+
+            // restore selected sequences
+            // seq-based is more reliable because it works across searches, where we can't easily just track added+removed rows
+            var newSelectedIndexes = IndexSet()
+            model.contents.withLock { contents in
+                for (i, line) in contents.lines.enumerated() {
+                    if model.selectedSeqs.contains(line.seq) {
+                        newSelectedIndexes.insert(i)
+                    }
+                }
+            }
+            tableView.selectRowIndexes(newSelectedIndexes, byExtendingSelection: false)
 
             if shouldScroll {
                 tableView.scrollRowToVisible(tableView.numberOfRows - 1)
@@ -638,7 +673,6 @@ struct LogsView: View {
         .ignoresSafeArea()
         .safeAreaInset(edge: .bottom) {
             VStack(spacing: 0) {
-
                 Divider()
 
                 VStack {
