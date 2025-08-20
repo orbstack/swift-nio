@@ -20,7 +20,6 @@ private let fontSize = 12.5
 
 private let terminalFont = NSFont.monospacedSystemFont(ofSize: fontSize, weight: .regular)
 private let terminalFontBold = NSFont.monospacedSystemFont(ofSize: fontSize, weight: .bold)
-private let terminalColor = NSColor.textColor
 
 private let urlRegex = try! NSRegularExpression(
     pattern:
@@ -369,13 +368,6 @@ class LogsViewModel: ObservableObject {
 
     private func add(terminalLine: String) {
         let attributedStr = NSMutableAttributedString(string: terminalLine)
-        // font
-        attributedStr.addAttribute(
-            .font, value: terminalFont, range: NSRange(location: 0, length: attributedStr.length))
-        // color
-        attributedStr.addAttribute(
-            .foregroundColor, value: terminalColor,
-            range: NSRange(location: 0, length: attributedStr.length))
 
         // parse links first, before indexes change
         var matches = urlRegex.matches(
@@ -632,6 +624,7 @@ private struct LogsTextView: NSViewRepresentable {
             textView.translatesAutoresizingMaskIntoConstraints = false
             textView.usesSingleLineMode = true
             textView.lineBreakMode = .byTruncatingTail
+            textView.font = terminalFont
 
             let cellView = LogsTableCellView(seq: line.seq)
             cellView.textField = textView
