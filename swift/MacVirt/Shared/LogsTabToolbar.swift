@@ -43,11 +43,11 @@ import SwiftUI
                     .buttonStyle(.accessoryBar)
                 }
                 .padding(.horizontal, 12)
-                .background(.regularMaterial)
                 .frame(height: 27) // match list section header height. wtf is this number?
 
                 Divider()
             }
+            .background(Color(NSColor.secondarySystemFill))
 
             content()
             .environmentObject(commandModel)

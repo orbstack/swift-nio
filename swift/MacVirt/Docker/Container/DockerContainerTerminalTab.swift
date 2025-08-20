@@ -28,6 +28,7 @@ struct DockerContainerTerminalTab: View {
 
             Divider()
         }
+        .background(Color(NSColor.secondarySystemFill))
     }
 
     private var terminal: some View {
