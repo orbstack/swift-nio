@@ -2,6 +2,13 @@
 
 package iokit
 
+import (
+	"errors"
+	"time"
+
+	"github.com/orbstack/macvirt/vmgr/drm/timex"
+)
+
 var LastWakeTime *timex.MonoSleepTime
 
 type SleepWakeMonitor struct {

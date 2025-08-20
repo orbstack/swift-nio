@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"errors"
+	"net/netip"
 	"os"
 	"runtime"
 	"strconv"
@@ -74,6 +75,17 @@ Some options will only take effect after restarting OrbStack.
 			val, err := strconv.ParseBool(value)
 			checkCLI(err)
 			config.Network_Bridge = val
+		case "network.subnet4":
+			prefix, err := netip.ParsePrefix(value)
+			checkCLI(err)
+			if !prefix.Addr().Is4() {
+				checkCLI(errors.New("network.subnet4 must be an IPv4 prefix"))
+			}
+			if prefix.Bits() != 23 {
+				checkCLI(errors.New("network.subnet4 must be a /23 prefix"))
+			}
+			config.Network_Subnet4 = prefix.Masked()
+			rebootRequired = true
 		case "data_dir":
 			config.DataDir = value
 			rebootRequired = true

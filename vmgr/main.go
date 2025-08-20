@@ -807,6 +807,11 @@ func runVmManager() {
 		kernelPath = os.Getenv("ORB_KERNEL")
 	}
 
+	netConfig, err := netconf.ConfigFromVmconfigSubnet(vmconfig.Get().Network_Subnet4)
+	if err != nil {
+		errorx.Fatalf("failed to parse network config: %w", err)
+	}
+
 	logrus.Debug("configuring VM")
 	healthCheckCh := make(chan struct{}, 1)
 	shutdownWg := &sync.WaitGroup{}
@@ -836,7 +841,7 @@ func runVmManager() {
 
 		StopCh:        stopCh,
 		HealthCheckCh: healthCheckCh,
-	}, shutdownWg)
+	}, shutdownWg, netConfig)
 	check(err)
 	defer vnetwork.Close()
 	if monitor != rsvm.Monitor {

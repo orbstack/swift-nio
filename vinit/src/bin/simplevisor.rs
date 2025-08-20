@@ -13,7 +13,7 @@ use nix::{
         signal::{kill, Signal},
         wait::{waitid, Id, WaitPidFlag, WaitStatus},
     },
-    unistd::{setsid, Pid},
+    unistd::Pid,
 };
 use serde::{Deserialize, Serialize};
 use signal_hook::iterator::Signals;

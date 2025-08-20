@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/netip"
 	"net/url"
 	"os"
 	"runtime"
@@ -15,6 +16,7 @@ import (
 	"github.com/orbstack/macvirt/vmgr/syncx"
 	"github.com/orbstack/macvirt/vmgr/util/errorx"
 	"github.com/orbstack/macvirt/vmgr/vmclient/vmtypes"
+	"github.com/orbstack/macvirt/vmgr/vnet/netconf"
 )
 
 const (
@@ -29,7 +31,8 @@ var (
 	globalConfig   *vmtypes.VmConfig
 	globalConfigMu syncx.Mutex
 
-	diffBroadcaster = syncx.NewBroadcaster[VmConfigChange]()
+	diffBroadcaster    = syncx.NewBroadcaster[VmConfigChange]()
+	defaultSconSubnet4 = netip.MustParsePrefix(netconf.DefaultSconSubnet4CIDR)
 )
 
 type VmConfigChange struct {
@@ -260,6 +263,7 @@ func BaseDefaults() *vmtypes.VmConfig {
 		Network_Proxy:      ProxyAuto,
 		Network_Bridge:     true,
 		Network_Https:      true,
+		Network_Subnet4:    defaultSconSubnet4,
 		MountHideShared:    false,
 		DataDir:            "",
 		DataAllowBackup:    false,

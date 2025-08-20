@@ -134,7 +134,7 @@ func NewConManager(dataDir string, hc *hclient.Client, vinitClient *vinit.Client
 		return nil, err
 	}
 
-	bpfMgr, err := bpf.NewGlobalBpfManager()
+	bpfMgr, err := bpf.NewGlobalBpfManager(initConfig.Netconf)
 	if err != nil {
 		return nil, err
 	}
@@ -184,7 +184,7 @@ func NewConManager(dataDir string, hc *hclient.Client, vinitClient *vinit.Client
 		vmConfig: initConfig.VmConfig,
 	}
 	mgr.wormhole = NewWormholeManager(mgr)
-	mgr.net, err = NewNetwork(mgr.subdir("network"), mgr.host, mgr.db, mgr)
+	mgr.net, err = NewNetwork(mgr.subdir("network"), mgr.host, mgr.db, mgr, initConfig.Netconf)
 	if err != nil {
 		return nil, fmt.Errorf("new network: %w", err)
 	}

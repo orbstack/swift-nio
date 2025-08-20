@@ -4,8 +4,8 @@ import (
 	"github.com/orbstack/macvirt/vmgr/conf/ports"
 	"github.com/orbstack/macvirt/vmgr/drm"
 	"github.com/orbstack/macvirt/vmgr/vnet"
+	"github.com/orbstack/macvirt/vmgr/vnet/gvnetutil"
 	"github.com/orbstack/macvirt/vmgr/vnet/netconf"
-	"github.com/orbstack/macvirt/vmgr/vnet/netutil"
 	dnssrv "github.com/orbstack/macvirt/vmgr/vnet/services/dns"
 	hcsrv "github.com/orbstack/macvirt/vmgr/vnet/services/hcontrol"
 	sshsrv "github.com/orbstack/macvirt/vmgr/vnet/services/hostssh"
@@ -19,25 +19,6 @@ import (
 )
 
 var (
-	staticDnsHosts = map[string]dnssrv.StaticHost{
-		"vm.orb.internal":   {IP4: netconf.VnetGuestIP4, IP6: netconf.VnetGuestIP6},
-		"host.internal":     {IP4: netconf.VnetHostNatIP4, IP6: netconf.VnetHostNatIP6},
-		"host.orb.internal": {IP4: netconf.VnetHostNatIP4, IP6: netconf.VnetHostNatIP6},
-		// compat: some apps have trouble with v6 (e.g. envoy: https://mail.google.com/mail/u/1/#inbox/FMfcgzGtxKQRRSpLCKZDxmZSBLCjFHXq)
-		// docker can't run in v6-only anyway, and v6 rarely helps with anything (even for ::1 because we have fallback dial)
-		// keep it for machines, but docker ecosystem is *bad* with v6
-		"host.docker.internal":    {IP4: netconf.VnetHostNatIP4},
-		"host.lima.internal":      {IP4: netconf.VnetHostNatIP4, IP6: netconf.VnetHostNatIP6},
-		"docker.orb.internal":     {IP4: netconf.SconDockerIP4, IP6: netconf.SconDockerIP6},
-		"services.orb.internal":   {IP4: netconf.VnetServicesIP4},
-		"gateway.orb.internal":    {IP4: netconf.VnetGatewayIP4, IP6: netconf.VnetGatewayIP6},
-		"gateway.docker.internal": {IP4: netconf.VnetGatewayIP4, IP6: netconf.VnetGatewayIP6},
-
-		// compat with old docker
-		"docker.for.mac.localhost":     {IP4: netconf.VnetHostNatIP4, IP6: netconf.VnetHostNatIP6},
-		"docker.for.mac.host.internal": {IP4: netconf.VnetHostNatIP4, IP6: netconf.VnetHostNatIP6},
-	}
-
 	// e.g. for ping/traceroute
 	reverseDnsHosts = map[string]dnssrv.ReverseHost{
 		netconf.VnetGuestIP4:     {Name: "vm.orb.internal"},
@@ -57,7 +38,7 @@ type NetServices struct {
 }
 
 func StartNetServicesEarly(n *vnet.Network) error {
-	secureAddr := netutil.ParseTcpipAddress(netconf.VnetSecureSvcIP4)
+	secureAddr := gvnetutil.ParseTcpipAddress(netconf.VnetSecureSvcIP4)
 
 	// Ready events service (8302)
 	readyEvents, err := readyevents.ListenReadyEventsService(n.Stack, secureAddr)
@@ -71,8 +52,27 @@ func StartNetServicesEarly(n *vnet.Network) error {
 }
 
 func StartNetServices(n *vnet.Network, drmClient *drm.DrmClient) (*NetServices, error) {
-	addr := netutil.ParseTcpipAddress(netconf.VnetServicesIP4)
-	secureAddr := netutil.ParseTcpipAddress(netconf.VnetSecureSvcIP4)
+	addr := gvnetutil.ParseTcpipAddress(netconf.VnetServicesIP4)
+	secureAddr := gvnetutil.ParseTcpipAddress(netconf.VnetSecureSvcIP4)
+
+	staticDnsHosts := map[string]dnssrv.StaticHost{
+		"vm.orb.internal":   {IP4: netconf.VnetGuestIP4, IP6: netconf.VnetGuestIP6},
+		"host.internal":     {IP4: netconf.VnetHostNatIP4, IP6: netconf.VnetHostNatIP6},
+		"host.orb.internal": {IP4: netconf.VnetHostNatIP4, IP6: netconf.VnetHostNatIP6},
+		// compat: some apps have trouble with v6 (e.g. envoy: https://mail.google.com/mail/u/1/#inbox/FMfcgzGtxKQRRSpLCKZDxmZSBLCjFHXq)
+		// docker can't run in v6-only anyway, and v6 rarely helps with anything (even for ::1 because we have fallback dial)
+		// keep it for machines, but docker ecosystem is *bad* with v6
+		"host.docker.internal":    {IP4: netconf.VnetHostNatIP4},
+		"host.lima.internal":      {IP4: netconf.VnetHostNatIP4, IP6: netconf.VnetHostNatIP6},
+		"docker.orb.internal":     {IP4: n.Netconf.SconDockerIP4.String(), IP6: n.Netconf.SconDockerIP6.String()},
+		"services.orb.internal":   {IP4: netconf.VnetServicesIP4},
+		"gateway.orb.internal":    {IP4: netconf.VnetGatewayIP4, IP6: netconf.VnetGatewayIP6},
+		"gateway.docker.internal": {IP4: netconf.VnetGatewayIP4, IP6: netconf.VnetGatewayIP6},
+
+		// compat with old docker
+		"docker.for.mac.localhost":     {IP4: netconf.VnetHostNatIP4, IP6: netconf.VnetHostNatIP6},
+		"docker.for.mac.host.internal": {IP4: netconf.VnetHostNatIP4, IP6: netconf.VnetHostNatIP6},
+	}
 
 	// DNS (53): using system resolver
 	dnsServer, err := dnssrv.ListenDNS(n.Stack, addr, staticDnsHosts, reverseDnsHosts)

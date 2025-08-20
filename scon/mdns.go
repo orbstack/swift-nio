@@ -57,9 +57,6 @@ const (
 
 var (
 	nat64Prefix = netip.MustParsePrefix(netconf.NAT64Subnet6CIDR)
-
-	sconHostBridgeIP4 = net.ParseIP(netconf.SconHostBridgeIP4)
-	sconHostBridgeIP6 = net.ParseIP(netconf.SconHostBridgeIP6)
 )
 
 func mustParseCIDR(s string) *net.IPNet {
@@ -144,7 +141,7 @@ type mdnsRegistry struct {
 	httpServer *http.Server
 }
 
-func newMdnsRegistry(host *hclient.Client, db *Database, manager *ConManager) (*mdnsRegistry, error) {
+func newMdnsRegistry(host *hclient.Client, db *Database, netconf *netconf.Config, manager *ConManager) (*mdnsRegistry, error) {
 	r := &mdnsRegistry{
 		tree:           radix.New(),
 		pendingFlushes: make(map[string]struct{}),
@@ -155,11 +152,11 @@ func newMdnsRegistry(host *hclient.Client, db *Database, manager *ConManager) (*
 
 	var err error
 	r.domainproxy, err = newDomainproxyRegistry(r,
-		domainproxySubnet4Prefix,
+		netconf.DomainproxySubnet4,
 		// reserve an ip for the index page
-		domainproxySubnet4Prefix.Masked().Addr().Next().Next(),
-		domainproxySubnet6Prefix,
-		domainproxySubnet6Prefix.Masked().Addr().Next().Next(),
+		netconf.DomainproxySubnet4.Addr().Next().Next(),
+		netconf.DomainproxySubnet6,
+		netconf.DomainproxySubnet6.Addr().Next().Next(),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("new domainproxy registry: %w", err)
@@ -188,8 +185,8 @@ func newMdnsRegistry(host *hclient.Client, db *Database, manager *ConManager) (*
 		Type:       MdnsEntryStatic,
 		IsWildcard: false,
 		IsHidden:   true, // don't show itself
-		ip4:        net.ParseIP(netconf.SconWebIndexIP4),
-		ip6:        net.ParseIP(netconf.SconWebIndexIP6),
+		ip4:        netconf.SconWebIndexIP4.AsSlice(),
+		ip6:        netconf.SconWebIndexIP6.AsSlice(),
 	})
 
 	return r, nil
@@ -225,7 +222,7 @@ func (r *mdnsRegistry) StartServer(config *mdns.Config) error {
 		TLSNextProto: make(map[string]func(*http.Server, *tls.Conn, http.Handler)),
 	}
 	go runOne("dns index server (http, v4)", func() error {
-		l, err := netx.Listen("tcp4", net.JoinHostPort(netconf.SconWebIndexIP4, "80"))
+		l, err := netx.Listen("tcp4", netip.AddrPortFrom(r.manager.net.netconf.SconWebIndexIP4, 80).String())
 		if err != nil {
 			return err
 		}
@@ -233,14 +230,14 @@ func (r *mdnsRegistry) StartServer(config *mdns.Config) error {
 	})
 	go runOne("dns index server (http, v6)", func() error {
 		// breaks with DAD on bridge interface
-		l, err := netx.Listen("tcp6", net.JoinHostPort(netconf.SconWebIndexIP6, "80"))
+		l, err := netx.Listen("tcp6", netip.AddrPortFrom(r.manager.net.netconf.SconWebIndexIP6, 80).String())
 		if err != nil {
 			return err
 		}
 		return r.httpServer.Serve(l)
 	})
 	go runOne("dns index server (https, v4)", func() error {
-		l, err := netx.Listen("tcp4", net.JoinHostPort(netconf.SconWebIndexIP4, "443"))
+		l, err := netx.Listen("tcp4", netip.AddrPortFrom(r.manager.net.netconf.SconWebIndexIP4, 443).String())
 		if err != nil {
 			return err
 		}
@@ -248,7 +245,7 @@ func (r *mdnsRegistry) StartServer(config *mdns.Config) error {
 	})
 	go runOne("dns index server (https, v6)", func() error {
 		// breaks with DAD on bridge interface
-		l, err := netx.Listen("tcp6", net.JoinHostPort(netconf.SconWebIndexIP6, "443"))
+		l, err := netx.Listen("tcp6", netip.AddrPortFrom(r.manager.net.netconf.SconWebIndexIP6, 443).String())
 		if err != nil {
 			return err
 		}
@@ -854,7 +851,12 @@ func (r *mdnsRegistry) Records(q dns.Question, from net.Addr) []dns.RR {
 	//     translates source IPs to known v6, not link local
 	// - from a machine: handle as reflector
 	fromAddr := from.(*net.UDPAddr)
-	if fromAddr.IP.Equal(sconHostBridgeIP4) || fromAddr.IP.Equal(sconHostBridgeIP6) {
+	fromNetip, ok := netip.AddrFromSlice(fromAddr.IP)
+	if !ok {
+		return nil
+	}
+	fromNetip = fromNetip.Unmap()
+	if fromNetip == r.manager.net.netconf.SconHostBridgeIP4 || fromNetip == r.manager.net.netconf.SconHostBridgeIP6 {
 		return r.handleQuery(q)
 	} else {
 		return r.proxyToHost(q)
@@ -1134,7 +1136,7 @@ func (r *mdnsRegistry) dockerPostStart() error {
 				Host: domainproxytypes.Host{Type: domainproxytypes.HostTypeK8s, ID: ContainerIDK8s},
 
 				Names: []string{k8sName},
-				IP:    net.ParseIP(netconf.SconK8sIP4),
+				IP:    r.manager.net.netconf.SconK8sIP4.AsSlice(),
 			},
 		)
 		if err != nil {
@@ -1146,7 +1148,7 @@ func (r *mdnsRegistry) dockerPostStart() error {
 			Host: domainproxytypes.Host{Type: domainproxytypes.HostTypeK8s, ID: ContainerIDK8s},
 
 			Names: []string{k8sName},
-			IP:    net.ParseIP(netconf.SconK8sIP6),
+			IP:    r.manager.net.netconf.SconK8sIP6.AsSlice(),
 		})
 		if err != nil {
 			return fmt.Errorf("unable to create k8s domainproxy ip: %w", err)

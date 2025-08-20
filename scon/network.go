@@ -21,6 +21,7 @@ import (
 	"github.com/orbstack/macvirt/scon/util/sysnet"
 	"github.com/orbstack/macvirt/vmgr/conf/ports"
 	"github.com/orbstack/macvirt/vmgr/syncx"
+	"github.com/orbstack/macvirt/vmgr/util/netutil"
 	"github.com/orbstack/macvirt/vmgr/vnet/netconf"
 	"github.com/sirupsen/logrus"
 	"github.com/vishvananda/netlink"
@@ -35,10 +36,7 @@ const (
 
 	txQueueLen = 5000
 
-	dhcpLeaseTime4 = "48h"
-	// leave room for static assignments like docker
-	dhcpLeaseStart = 10
-	dhcpLeaseEnd   = 247
+	dhcpLeaseTime4 = "24h"
 	raInterval     = 8 * time.Hour
 	raLifetime     = 30 * 24 * time.Hour
 
@@ -49,6 +47,8 @@ var vnetGuestIP4 = net.ParseIP(netconf.VnetGuestIP4)
 var vnetGuestIP6 = net.ParseIP(netconf.VnetGuestIP6)
 
 type Network struct {
+	netconf *netconf.Config
+
 	bridge         *netlink.Bridge
 	mtu            int
 	dnsmasqProcess *os.Process
@@ -70,13 +70,14 @@ type nftablesForwardMeta struct {
 	toMachineIP  netip.Addr
 }
 
-func NewNetwork(dataDir string, host *hclient.Client, db *Database, manager *ConManager) (*Network, error) {
-	mdnsRegistry, err := newMdnsRegistry(host, db, manager)
+func NewNetwork(dataDir string, host *hclient.Client, db *Database, manager *ConManager, netconf *netconf.Config) (*Network, error) {
+	mdnsRegistry, err := newMdnsRegistry(host, db, netconf, manager)
 	if err != nil {
 		return nil, fmt.Errorf("new mdns registry: %w", err)
 	}
 
 	return &Network{
+		netconf:      netconf,
 		dataDir:      dataDir,
 		mdnsRegistry: mdnsRegistry,
 		nftForwards:  make(map[sysnet.ListenerKey]nftablesForwardMeta),
@@ -93,13 +94,13 @@ func (n *Network) Start() error {
 	n.mtu = mtu
 
 	logrus.Debug("creating bridge")
-	bridge, err := newBridge(mtu)
+	bridge, err := newBridge(n.netconf, mtu)
 	if err != nil {
 		return err
 	}
 	n.bridge = bridge
 
-	err = setupDomainProxyInterface()
+	err = setupDomainProxyInterface(n.netconf)
 	if err != nil {
 		return err
 	}
@@ -115,7 +116,7 @@ func (n *Network) Start() error {
 	// ip route add default via <sconDocker4> dev conbr0 table 64
 	err = netlink.RouteAdd(&netlink.Route{
 		LinkIndex: bridge.Index,
-		Gw:        sconDocker4,
+		Gw:        n.netconf.SconDockerIP4.AsSlice(),
 		Table:     netconf.VmRouteTableDocker,
 	})
 	if err != nil && !errors.Is(err, unix.EEXIST) {
@@ -124,7 +125,7 @@ func (n *Network) Start() error {
 	// ip route add default via <sconDocker6> dev conbr0 table 64
 	err = netlink.RouteAdd(&netlink.Route{
 		LinkIndex: bridge.Index,
-		Gw:        sconDocker6,
+		Gw:        n.netconf.SconDockerIP6.AsSlice(),
 		Table:     netconf.VmRouteTableDocker,
 	})
 	if err != nil && !errors.Is(err, unix.EEXIST) {
@@ -144,18 +145,18 @@ func (n *Network) Start() error {
 		"IF_VNET":              ifVnet,
 		"IF_VMNET_MACHINE":     ifVmnetMachine,
 		"IF_BRIDGE":            ifBridge,
-		"SCON_WEB_INDEX_IP4":   netconf.SconWebIndexIP4,
-		"SCON_WEB_INDEX_IP6":   netconf.SconWebIndexIP6,
-		"SCON_HOST_BRIDGE_IP4": netconf.SconHostBridgeIP4,
-		"SCON_HOST_BRIDGE_IP6": netconf.SconHostBridgeIP6,
+		"SCON_WEB_INDEX_IP4":   n.netconf.SconWebIndexIP4.String(),
+		"SCON_WEB_INDEX_IP6":   n.netconf.SconWebIndexIP6.String(),
+		"SCON_HOST_BRIDGE_IP4": n.netconf.SconHostBridgeIP4.String(),
+		"SCON_HOST_BRIDGE_IP6": n.netconf.SconHostBridgeIP6.String(),
 		"MAC_DOCKER":           MACAddrDocker,
 		"VNET_SECURE_SVC_IP4":  netconf.VnetSecureSvcIP4,
-		"SCON_SUBNET4":         netconf.SconSubnet4CIDR,
-		"SCON_SUBNET6":         netconf.SconSubnet6CIDR,
+		"SCON_SUBNET4":         n.netconf.SconSubnet4.String(),
+		"SCON_SUBNET6":         n.netconf.SconSubnet6.String(),
 		"VNET_SUBNET4":         netconf.VnetSubnet4CIDR,
 		"VNET_SUBNET6":         netconf.VnetSubnet6CIDR,
-		"DOMAINPROXY_SUBNET4":  netconf.DomainproxySubnet4CIDR,
-		"DOMAINPROXY_SUBNET6":  netconf.DomainproxySubnet6CIDR,
+		"DOMAINPROXY_SUBNET4":  n.netconf.DomainproxySubnet4.String(),
+		"DOMAINPROXY_SUBNET6":  n.netconf.DomainproxySubnet6.String(),
 
 		"IFGROUP_ISOLATED": strconv.Itoa(netconf.VmIfGroupIsolated),
 
@@ -184,7 +185,7 @@ func (n *Network) Start() error {
 		Proto:    sysnet.ProtoTCP,
 	}, nftablesForwardMeta{
 		internalPort: ports.GuestK8s,
-		toMachineIP:  sconDocker4Addr,
+		toMachineIP:  n.netconf.SconDockerIP4,
 	})
 	if err != nil {
 		return fmt.Errorf("add k8s forward: %w", err)
@@ -224,8 +225,8 @@ func (n *Network) spawnDnsmasq() (*os.Process, error) {
 		"--pid-file=",              // disable pid file
 		"--log-facility=/dev/null", // suppress logs
 
-		"--listen-address=" + netconf.SconGatewayIP4,
-		"--listen-address=" + netconf.SconGatewayIP6,
+		"--listen-address=" + n.netconf.SconGatewayIP4.String(),
+		"--listen-address=" + n.netconf.SconGatewayIP6.String(),
 		"--interface=" + ifBridge,
 		"--no-ping", // LXD: prevent delays in lease file updates
 
@@ -236,7 +237,7 @@ func (n *Network) spawnDnsmasq() (*os.Process, error) {
 		"--dhcp-authoritative",
 		"--dhcp-no-override",
 		"--dhcp-leasefile=" + path.Join(n.dataDir, "dnsmasq.leases"),
-		fmt.Sprintf("--dhcp-range=%s.%d,%s.%d,%s", netconf.SconSubnet4, dhcpLeaseStart, netconf.SconSubnet4, dhcpLeaseEnd, dhcpLeaseTime4),
+		fmt.Sprintf("--dhcp-range=%s,%s,%s", n.netconf.SconDHCPStartIP4, n.netconf.SconDHCPEndIP4, dhcpLeaseTime4),
 		"--dhcp-option=option:dns-server," + conf.C().DNSServer, // DNS
 		"--dhcp-option-force=26," + strconv.Itoa(n.mtu),         // MTU
 
@@ -372,7 +373,7 @@ func (n *Network) Close() error {
 	return nil
 }
 
-func newBridge(mtu int) (*netlink.Bridge, error) {
+func newBridge(netconf *netconf.Config, mtu int) (*netlink.Bridge, error) {
 	la := netlink.NewLinkAttrs()
 	la.Name = ifBridge
 	la.MTU = mtu
@@ -392,21 +393,13 @@ func newBridge(mtu int) (*netlink.Bridge, error) {
 	}
 
 	// add gateway,web IP
-	addr, err := netlink.ParseAddr(netconf.SconGatewayIP4 + "/24")
-	if err != nil {
-		return nil, err
-	}
-	err = netlink.AddrAdd(bridge, addr)
+	err = netlink.AddrAdd(bridge, &netlink.Addr{IPNet: netutil.AddrToIPNet(netconf.SconGatewayIP4, netconf.SconSubnet4)})
 	if err != nil {
 		return nil, err
 	}
 
 	// add gateway,web IPv6
-	addr, err = netlink.ParseAddr(netconf.SconGatewayIP6 + "/64")
-	if err != nil {
-		return nil, err
-	}
-	err = netlink.AddrAdd(bridge, addr)
+	err = netlink.AddrAdd(bridge, &netlink.Addr{IPNet: netutil.AddrToIPNet(netconf.SconGatewayIP6, netconf.SconSubnet6)})
 	if err != nil {
 		return nil, err
 	}

@@ -355,7 +355,7 @@ func (m *ConManager) removeForward(c *Container, rt *ContainerRuntimeState, key 
 	return nil
 }
 
-func readOneIptablesListeners(ipVer int, listeners []sysnet.ListenerInfo, forceRestrictLocalhost bool) ([]sysnet.ListenerInfo, error) {
+func readOneIptablesListeners(ipVer int, listeners []sysnet.ListenerInfo, forceRestrictLocalhost bool, netconf *netconf.Config) ([]sysnet.ListenerInfo, error) {
 	cmd := "iptables"
 	if ipVer == 6 {
 		cmd = "ip6tables"
@@ -384,7 +384,7 @@ func readOneIptablesListeners(ipVer int, listeners []sysnet.ListenerInfo, forceR
 		destIndex := slices.Index(parts, "-d")
 		if destIndex != -1 && destIndex+1 < len(parts) {
 			destCIDR := parts[destIndex+1]
-			if destCIDR != netconf.SconDockerIP4+"/32" && destCIDR != netconf.SconDockerIP6+"/128" {
+			if destCIDR != netip.PrefixFrom(netconf.SconDockerIP4, 32).String() && destCIDR != netip.PrefixFrom(netconf.SconDockerIP6, 128).String() {
 				continue
 			}
 		}
@@ -443,12 +443,12 @@ func readOneIptablesListeners(ipVer int, listeners []sysnet.ListenerInfo, forceR
 func (c *Container) readIptablesListeners(listeners []sysnet.ListenerInfo, forceRestrictLocalhost bool) ([]sysnet.ListenerInfo, error) {
 	return withContainerNetns(c, func() ([]sysnet.ListenerInfo, error) {
 		// v4 and v6
-		listeners, err := readOneIptablesListeners(4, listeners, forceRestrictLocalhost)
+		listeners, err := readOneIptablesListeners(4, listeners, forceRestrictLocalhost, c.manager.net.netconf)
 		if err != nil {
 			return nil, err
 		}
 
-		listeners, err = readOneIptablesListeners(6, listeners, forceRestrictLocalhost)
+		listeners, err = readOneIptablesListeners(6, listeners, forceRestrictLocalhost, c.manager.net.netconf)
 		if err != nil {
 			return nil, err
 		}

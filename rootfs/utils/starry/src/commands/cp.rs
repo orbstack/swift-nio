@@ -21,7 +21,7 @@ use std::{
     collections::{btree_map::Entry, BTreeMap},
     ffi::{CStr, CString},
     os::{
-        fd::{AsFd, AsRawFd, OwnedFd},
+        fd::{AsRawFd, OwnedFd},
         unix::{fs::fchown, net::UnixListener},
     },
     path::Path,

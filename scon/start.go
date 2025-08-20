@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"math/rand"
@@ -878,22 +879,19 @@ func (c *Container) startAgentLocked() (*agent.Client, error) {
 
 	// add some more fds
 	exeFd := int(c.manager.agentExe.Fd())
-	args := []string{padAgentCmd("/proc/self/fd/" + strconv.Itoa(exeFd)), "fork"}
-	if c.ID == ContainerIDDocker {
-		args = append(args, "-docker")
+	config := &agent.AgentConfig{
+		IsDocker: c.ID == ContainerIDDocker,
 		// TODO: fix race if TLS setting changed between container start (initCommands) and agent start
-		if c.manager.vmConfig.Network_Https {
-			args = append(args, "-tls")
-		}
+		EnableTLS: c.manager.vmConfig.Network_Https,
+		EnableK8s: c.ID == ContainerIDK8s && c.manager.k8sEnabled,
+		Colors:    c.manager.enableColorLogging,
+		Netconf:   c.manager.net.netconf,
 	}
-	if c.ID == ContainerIDK8s && c.manager.k8sEnabled {
-		args = append(args, "-k8s")
+	configJson, err := json.Marshal(config)
+	if err != nil {
+		return nil, err
 	}
-
-	// logging to a file is more likely than not, so only add an arg if we want color
-	if c.manager.enableColorLogging {
-		args = append(args, "-color")
-	}
+	args := []string{padAgentCmd("/proc/self/fd/" + strconv.Itoa(exeFd)), "fork", string(configJson)}
 
 	cmd := &LxcCommand{
 		CombinedArgs: args,

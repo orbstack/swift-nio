@@ -1,6 +1,7 @@
 package agent
 
 import (
+	"encoding/json"
 	"log"
 	"net"
 	"net/rpc"
@@ -8,7 +9,6 @@ import (
 	"os/exec"
 	"os/signal"
 	"runtime"
-	"slices"
 	"strconv"
 	"strings"
 	"syscall"
@@ -22,6 +22,7 @@ import (
 	"github.com/orbstack/macvirt/scon/util/debugutil"
 	"github.com/orbstack/macvirt/vmgr/conf/appid"
 	"github.com/orbstack/macvirt/vmgr/logutil"
+	"github.com/orbstack/macvirt/vmgr/vnet/netconf"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/sys/unix"
 )
@@ -33,6 +34,8 @@ const (
 )
 
 type AgentServer struct {
+	netconf *netconf.Config
+
 	fdx          *Fdx
 	tcpProxies   map[ProxySpec]*tcpfwd.TCPProxy
 	udpProxies   map[ProxySpec]*udpfwd.UDPProxy
@@ -81,6 +84,15 @@ func setProcessCmdline(name string) error {
 	return nil
 }
 
+type AgentConfig struct {
+	IsDocker  bool
+	EnableK8s bool
+	EnableTLS bool
+	Colors    bool
+
+	Netconf *netconf.Config
+}
+
 func runAgent(rpcFile *os.File, fdxFile *os.File) error {
 	// double fork so we get reparented to pidns init, away from scon
 	if len(os.Args) >= 2 && os.Args[1] == "fork" {
@@ -109,10 +121,11 @@ func runAgent(rpcFile *os.File, fdxFile *os.File) error {
 	unix.Close(exeFd)
 
 	// read args before we zero it out
-	isDocker := slices.Contains(os.Args, "-docker")
-	isK8s := slices.Contains(os.Args, "-k8s")
-	isTls := slices.Contains(os.Args, "-tls")
-	enableColors := slices.Contains(os.Args, "-color")
+	config := &AgentConfig{}
+	err = json.Unmarshal([]byte(os.Args[1]), config)
+	if err != nil {
+		return err
+	}
 
 	hostname, err := os.Hostname()
 	if err != nil {
@@ -156,7 +169,7 @@ func runAgent(rpcFile *os.File, fdxFile *os.File) error {
 	runtime.KeepAlive(fdxFile)
 
 	// make docker client if we're the docker container
-	if isDocker {
+	if config.IsDocker {
 		// remove vanity name
 		hostname = "docker"
 	}
@@ -169,9 +182,9 @@ func runAgent(rpcFile *os.File, fdxFile *os.File) error {
 	logrus.SetFormatter(logutil.NewPrefixFormatter(&logrus.TextFormatter{
 		FullTimestamp:   true,
 		TimestampFormat: "01-02 15:04:05",
-		DisableColors:   !enableColors,
+		DisableColors:   !config.Colors,
 		// required since we output to vport, so logrus disables formatting as it thinks output isn't going to a tty
-		ForceColors: enableColors,
+		ForceColors: config.Colors,
 	}, logPrefix))
 	// set prefix for default logger (used by httputil) as well
 	log.Default().SetPrefix(logPrefix)
@@ -190,8 +203,8 @@ func runAgent(rpcFile *os.File, fdxFile *os.File) error {
 		return err
 	}
 
-	if isDocker {
-		server.docker, err = NewDockerAgent(isK8s, isTls)
+	if config.IsDocker {
+		server.docker, err = NewDockerAgent(config.EnableK8s, config.EnableTLS, config.Netconf)
 		if err != nil {
 			return err
 		}
@@ -226,7 +239,7 @@ func runAgent(rpcFile *os.File, fdxFile *os.File) error {
 	}()
 
 	// in NixOS, we need to wait for systemd before we do anything else (including running /bin/sh)
-	if !isDocker {
+	if !config.IsDocker {
 		// ...except in docker machine, because /etc is symlinked to macOS, and this can be triggered by host nix-darwin
 		waitForNixBoot()
 	}

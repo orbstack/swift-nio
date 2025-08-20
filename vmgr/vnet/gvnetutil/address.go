@@ -1,4 +1,4 @@
-package netutil
+package gvnetutil
 
 import (
 	"net"

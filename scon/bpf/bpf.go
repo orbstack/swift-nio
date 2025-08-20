@@ -4,12 +4,10 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/fs"
 
 	"github.com/cilium/ebpf"
 	"github.com/cilium/ebpf/link"
 	"github.com/orbstack/macvirt/vmgr/syncx"
-	"golang.org/x/sys/unix"
 )
 
 //go:generate ./build-bpf.sh
@@ -161,16 +159,4 @@ func (b *ContainerBpfManager) AttachLfwd() error {
 
 	b.lfwdBlockedPorts = objs.lfwdMaps.BlockedPorts
 	return nil
-}
-
-func checkIsNsfs(entry fs.DirEntry) bool {
-	// check if it's a namespace. docker leaves non-bind-mounted files behind until GC
-	fd, err := unix.Open("/run/docker/netns/"+entry.Name(), unix.O_RDONLY|unix.O_CLOEXEC, 0)
-	if err != nil {
-		return false
-	}
-	defer unix.Close(fd)
-
-	_, err = unix.IoctlGetInt(fd, unix.NS_GET_NSTYPE)
-	return err == nil
 }

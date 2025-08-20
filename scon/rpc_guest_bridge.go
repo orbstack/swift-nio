@@ -16,10 +16,7 @@ import (
 
 var (
 	vnetPrefix4 = netip.MustParsePrefix(netconf.VnetSubnet4CIDR)
-	sconPrefix4 = netip.MustParsePrefix(netconf.SconSubnet4CIDR)
-
 	vnetPrefix6 = netip.MustParsePrefix(netconf.VnetSubnet6CIDR)
-	sconPrefix6 = netip.MustParsePrefix(netconf.SconSubnet6CIDR)
 )
 
 func prefixIntersects(a, b netip.Prefix) bool {
@@ -71,10 +68,10 @@ func enableProxyNdp(intf string) error {
 //   - docker container MACs are static for the same IP, so not a big issue in practice
 func (s *SconGuestServer) DockerAddBridge(config sgtypes.DockerBridgeConfig, _ *None) (retErr error) {
 	// network must not conflict with internal
-	if config.IP4Subnet.IsValid() && (prefixIntersects(config.IP4Subnet, vnetPrefix4) || prefixIntersects(config.IP4Subnet, sconPrefix4)) {
+	if config.IP4Subnet.IsValid() && (prefixIntersects(config.IP4Subnet, vnetPrefix4) || prefixIntersects(config.IP4Subnet, s.m.net.netconf.SconSubnet4)) {
 		return fmt.Errorf("subnet %s conflicts with internal OrbStack IPs", config.IP4Subnet)
 	}
-	if config.IP6Subnet.IsValid() && (prefixIntersects(config.IP6Subnet, vnetPrefix6) || prefixIntersects(config.IP6Subnet, sconPrefix6)) {
+	if config.IP6Subnet.IsValid() && (prefixIntersects(config.IP6Subnet, vnetPrefix6) || prefixIntersects(config.IP6Subnet, s.m.net.netconf.SconSubnet6)) {
 		return fmt.Errorf("subnet %s conflicts with internal OrbStack IPs", config.IP6Subnet)
 	}
 

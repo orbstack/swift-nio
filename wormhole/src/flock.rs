@@ -4,7 +4,7 @@ use anyhow::anyhow;
 use libc::{F_RDLCK, F_UNLCK, F_WRLCK, SEEK_SET};
 use nix::{
     errno::Errno,
-    fcntl::{fcntl, flock, FcntlArg, FlockArg},
+    fcntl::{fcntl, FcntlArg},
 };
 
 // works by dropping file
@@ -39,7 +39,8 @@ pub struct Flock {
 
 impl Flock {
     pub fn new_nonblock_legacy_excl(file: File) -> anyhow::Result<Self> {
-        match flock(file.as_raw_fd(), FlockArg::LockExclusiveNonblock) {
+        let ret = unsafe { libc::flock(file.as_raw_fd(), libc::LOCK_EX | libc::LOCK_NB) };
+        match Errno::result(ret) {
             Ok(_) => Ok(Flock { _file: file }),
             Err(Errno::EAGAIN) => Err(anyhow!("another instance of dctl is running")),
             Err(e) => Err(anyhow!("lock failed: {}", e)),

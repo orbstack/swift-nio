@@ -20,6 +20,7 @@ import (
 	"github.com/orbstack/macvirt/scon/util/sysnet"
 	"github.com/orbstack/macvirt/vmgr/dockertypes"
 	"github.com/orbstack/macvirt/vmgr/syncx"
+	"github.com/orbstack/macvirt/vmgr/util/netutil"
 	"github.com/orbstack/macvirt/vmgr/vnet/netconf"
 	"github.com/sirupsen/logrus"
 	"github.com/vishvananda/netlink"
@@ -32,9 +33,6 @@ const (
 
 var (
 	errNoMoreIPs = errors.New("no more ips")
-
-	domainproxySubnet4Prefix = netip.MustParsePrefix(netconf.DomainproxySubnet4CIDR)
-	domainproxySubnet6Prefix = netip.MustParsePrefix(netconf.DomainproxySubnet6CIDR)
 )
 
 type domainproxyAllocator struct {
@@ -95,7 +93,7 @@ type domainproxyRegistry struct {
 }
 
 func newDomainproxyRegistry(mdnsRegistry *mdnsRegistry, subnet4 netip.Prefix, lowest4 netip.Addr, subnet6 netip.Prefix, lowest6 netip.Addr) (*domainproxyRegistry, error) {
-	tproxy, err := bpf.NewTproxy(domainproxySubnet4Prefix, domainproxySubnet6Prefix, []uint16{443, 22})
+	tproxy, err := bpf.NewTproxy(subnet4, subnet6, []uint16{443, 22})
 	if err != nil {
 		return nil, fmt.Errorf("new tproxy: %w", err)
 	}
@@ -130,7 +128,7 @@ func newDomainproxyRegistry(mdnsRegistry *mdnsRegistry, subnet4 netip.Prefix, lo
 }
 
 func (d *domainproxyRegistry) StartTLSProxy() error {
-	return d.domainTLSProxy.Start(netconf.VnetTproxyIP4, netconf.VnetTproxyIP6, domainproxySubnet4Prefix, domainproxySubnet6Prefix, netconf.QueueDomainproxyHttpProbe, d.tproxy)
+	return d.domainTLSProxy.Start(netconf.VnetTproxyIP4, netconf.VnetTproxyIP6, d.manager.net.netconf.DomainproxySubnet4, d.manager.net.netconf.DomainproxySubnet6, netconf.QueueDomainproxyHttpProbe, d.tproxy)
 }
 
 func (d *domainproxyRegistry) StartSSHProxy(handler domainproxy.SSHHandler) error {
@@ -816,24 +814,14 @@ func (d *domainproxyRegistry) updateTLSProxyNftables(enabled bool) error {
 	return nil
 }
 
-func setupDomainProxyInterface() error {
-	_, domainproxySubnet4, err := net.ParseCIDR(netconf.DomainproxySubnet4CIDR)
-	if err != nil {
-		return err
-	}
-
-	_, domainproxySubnet6, err := net.ParseCIDR(netconf.DomainproxySubnet6CIDR)
-	if err != nil {
-		return err
-	}
-
+func setupDomainProxyInterface(netconf *netconf.Config) error {
 	lo, err := netlink.LinkByName("lo")
 	if err != nil {
 		return err
 	}
 
 	// this is an anyip route, which causes linux to treat the entire domainproxy subnet as its own ips
-	route4 := netlink.Route{LinkIndex: lo.Attrs().Index, Dst: domainproxySubnet4, Type: unix.RTN_LOCAL, Scope: unix.RT_SCOPE_HOST, Table: 255}
+	route4 := netlink.Route{LinkIndex: lo.Attrs().Index, Dst: netutil.PrefixToIPNet(netconf.DomainproxySubnet4), Type: unix.RTN_LOCAL, Scope: unix.RT_SCOPE_HOST, Table: 255}
 	err = netlink.RouteAdd(&route4)
 	if err != nil && errors.Is(err, unix.EEXIST) {
 		logrus.Debug("route4 already exists, readding it")
@@ -850,7 +838,7 @@ func setupDomainProxyInterface() error {
 	}
 
 	// also an anyip route
-	route6 := netlink.Route{LinkIndex: lo.Attrs().Index, Dst: domainproxySubnet6, Type: unix.RTN_LOCAL, Scope: unix.RT_SCOPE_HOST, Table: 255}
+	route6 := netlink.Route{LinkIndex: lo.Attrs().Index, Dst: netutil.PrefixToIPNet(netconf.DomainproxySubnet6), Type: unix.RTN_LOCAL, Scope: unix.RT_SCOPE_HOST, Table: 255}
 	err = netlink.RouteAdd(&route6)
 	if err != nil && errors.Is(err, unix.EEXIST) {
 		logrus.Debug("route6 already exists, readding it")

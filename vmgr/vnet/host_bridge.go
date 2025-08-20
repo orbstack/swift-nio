@@ -9,6 +9,7 @@ import (
 
 	"github.com/orbstack/macvirt/scon/sgclient/sgtypes"
 	"github.com/orbstack/macvirt/vmgr/swext"
+	"github.com/orbstack/macvirt/vmgr/util/netutil"
 	"github.com/orbstack/macvirt/vmgr/vmconfig"
 	"github.com/orbstack/macvirt/vmgr/vnet/bridge"
 	"github.com/orbstack/macvirt/vmgr/vnet/netconf"
@@ -26,7 +27,6 @@ var (
 	brMacSconHost           []uint16
 	brMacSconGuest          []uint16
 	brMacVlanRouterTemplate []uint16
-	sconHostBridgeIp4       []uint16
 
 	// 0.0.0.0/8
 	zeroNetIPv4 = netip.PrefixFrom(netip.IPv4Unspecified(), 8)
@@ -37,7 +37,6 @@ func init() {
 	brMacSconHost = mustParseUint16Mac(netconf.HostMACSconBridge)
 	brMacSconGuest = mustParseUint16Mac(netconf.GuestMACSconBridge)
 	brMacVlanRouterTemplate = mustParseUint16Mac(netconf.VlanRouterMACTemplate)
-	sconHostBridgeIp4 = bytesToUint16(netip.MustParseAddr(netconf.SconHostBridgeIP4).AsSlice())
 }
 
 func mustParseUint16Mac(mac string) []uint16 {
@@ -188,7 +187,7 @@ func (n *Network) AddVlanBridge(config sgtypes.DockerBridgeConfig) (int, error) 
 		// this is a template. updated by VlanRouter when it gets index
 		HostOverrideMAC:    brMacVlanRouterTemplate,
 		GuestMAC:           brMacVlanRouterTemplate,
-		SconHostBridgeIpv4: sconHostBridgeIp4,
+		SconHostBridgeIpv4: bytesToUint16(n.Netconf.SconHostBridgeIP4.AsSlice()),
 		// doesn't work well
 		AllowMulticast: false,
 
@@ -310,21 +309,19 @@ func (n *Network) CreateSconMachineHostBridge(recreate bool) error {
 
 		// first time, so add to route monitor - either after adding (if OK), or after error (if not OK)
 		// if sucessful, then we don't want to add it until creation done, to avoid feedback loop
-		prefix4 := netip.MustParsePrefix(netconf.SconSubnet4CIDR)
-		prefix6 := netip.MustParsePrefix(netconf.SconSubnet6CIDR)
-		defer n.bridgeRouteMon.SetSubnet(bridge.IndexSconMachine, prefix4, prefix6, func() error {
+		defer n.bridgeRouteMon.SetSubnet(bridge.IndexSconMachine, n.Netconf.MergedSubnet4, n.Netconf.SconSubnet6, func() error {
 			return n.CreateSconMachineHostBridge(true)
 		})
 
 		// if this is the first time, check if there's an existing VPN or LAN route.
 		// if so, let's not fight with it, just effectively disable our bridge
-		hasRoutes, err := bridge.HasAnyValidRoutes(nil, prefix4, prefix6)
+		hasRoutes, err := bridge.HasAnyValidRoutes(nil, n.Netconf.MergedSubnet4, n.Netconf.SconSubnet6)
 		if err != nil {
 			return fmt.Errorf("check routes: %w", err)
 		}
 		if hasRoutes {
 			// there's a conflict. can we get away with v6 only?
-			hasRoutes, err := bridge.HasAnyValidRoutes(nil, netip.Prefix{}, prefix6)
+			hasRoutes, err := bridge.HasAnyValidRoutes(nil, netip.Prefix{}, n.Netconf.SconSubnet6)
 			if err != nil {
 				return fmt.Errorf("check routes (v6): %w", err)
 			}
@@ -348,16 +345,16 @@ func (n *Network) CreateSconMachineHostBridge(recreate bool) error {
 		OwnsGuestReader: true,
 
 		UUID:       brUuidSconMachine,
-		Ip4Address: netconf.SconHostBridgeIP4,
-		Ip4Mask:    netconf.HostBridgeSubnet4Mask,
-		Ip6Address: netconf.SconHostBridgeIP6,
+		Ip4Address: n.Netconf.SconHostBridgeIP4.String(),
+		Ip4Mask:    netutil.PrefixToNetmaskIP(n.Netconf.MergedSubnet4).String(),
+		Ip6Address: n.Netconf.SconHostBridgeIP6.String(),
 
 		HostOverrideMAC: brMacSconHost,
 		// scon machine bridge doesn't use ip forward/proxy arp - it bridges machines directly
 		// so this is just the VM's MAC for NDP responder use
 		GuestMAC:           brMacSconGuest,
 		NDPReplyPrefix:     slicePrefix6(nat64Subnet),
-		SconHostBridgeIpv4: sconHostBridgeIp4,
+		SconHostBridgeIpv4: bytesToUint16(n.Netconf.SconHostBridgeIP4.AsSlice()),
 		// allow all multicast, not just mDNs
 		AllowMulticast: true,
 

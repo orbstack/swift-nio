@@ -9,7 +9,7 @@ import (
 
 	"github.com/orbstack/macvirt/scon/util/netx"
 	"github.com/orbstack/macvirt/vmgr/vnet/gonet"
-	"github.com/orbstack/macvirt/vmgr/vnet/netutil"
+	"github.com/orbstack/macvirt/vmgr/vnet/gvnetutil"
 	"github.com/sirupsen/logrus"
 	"gvisor.dev/gvisor/pkg/tcpip"
 	"gvisor.dev/gvisor/pkg/tcpip/network/ipv4"
@@ -83,16 +83,16 @@ func StartTcpHostForward(s *stack.Stack, nicId tcpip.NICID, hostAddr4, hostAddr6
 		requireLoopback: requireLoopback,
 		connectAddr4: tcpip.FullAddress{
 			NIC:  nicId,
-			Addr: netutil.AddrFromNetip(connectAddrPort4.Addr()),
+			Addr: gvnetutil.AddrFromNetip(connectAddrPort4.Addr()),
 			Port: uint16(connectAddrPort4.Port()),
 		},
 		connectAddr6: tcpip.FullAddress{
 			NIC:  nicId,
-			Addr: netutil.AddrFromNetip(connectAddrPort6.Addr()),
+			Addr: gvnetutil.AddrFromNetip(connectAddrPort6.Addr()),
 			Port: uint16(connectAddrPort6.Port()),
 		},
-		hostAddr4:  netutil.ParseTcpipAddress(hostAddr4),
-		hostAddr6:  netutil.ParseTcpipAddress(hostAddr6),
+		hostAddr4:  gvnetutil.ParseTcpipAddress(hostAddr4),
+		hostAddr6:  gvnetutil.ParseTcpipAddress(hostAddr6),
 		stack:      s,
 		nicId:      nicId,
 		isInternal: isInternal,

@@ -10,8 +10,8 @@ import (
 	"sync"
 
 	"github.com/orbstack/macvirt/vmgr/syncx"
+	"github.com/orbstack/macvirt/vmgr/vnet/gvnetutil"
 	"github.com/orbstack/macvirt/vmgr/vnet/netconf"
-	"github.com/orbstack/macvirt/vmgr/vnet/netutil"
 	"github.com/orbstack/macvirt/vmgr/vnet/udpfwd"
 	"github.com/sirupsen/logrus"
 	goipv4 "golang.org/x/net/ipv4"
@@ -38,8 +38,8 @@ const (
 func init() {
 	// set host addrs for gvisor to reply to ICMP echo
 	// TODO better API
-	ipv4.KAddrHost4 = netutil.AddrFromNetip(netip.MustParseAddr(netconf.VnetHostNatIP4))
-	ipv6.KAddrHost6 = netutil.AddrFromNetip(netip.MustParseAddr(netconf.VnetHostNatIP6))
+	ipv4.KAddrHost4 = gvnetutil.AddrFromNetip(netip.MustParseAddr(netconf.VnetHostNatIP4))
+	ipv6.KAddrHost6 = gvnetutil.AddrFromNetip(netip.MustParseAddr(netconf.VnetHostNatIP6))
 }
 
 type IcmpFwd struct {
@@ -217,7 +217,7 @@ func (i *IcmpFwd) sendPacket(pkt *stack.PacketBuffer) bool {
 		return false
 	}
 
-	if !netutil.ShouldForward(dstAddrGv) {
+	if !gvnetutil.ShouldForward(dstAddrGv) {
 		logrus.Trace("discarding ICMP packet: shouldn't forward")
 		return false
 	}
@@ -230,7 +230,8 @@ func (i *IcmpFwd) sendPacket(pkt *stack.PacketBuffer) bool {
 	// For IPv4, macOS also allows Timestamp and Address Mask Request
 	// For IPv6, macOS also allows Node Information Query
 	// But no one uses them, so don't bother
-	if pkt.NetworkProtocolNumber == ipv4.ProtocolNumber {
+	switch pkt.NetworkProtocolNumber {
+	case ipv4.ProtocolNumber:
 		if len(icmpMsg) < header.ICMPv4MinimumSize {
 			logrus.Trace("discarding ICMPv4 packet: too short")
 			return false
@@ -279,7 +280,8 @@ func (i *IcmpFwd) sendPacket(pkt *stack.PacketBuffer) bool {
 			return false
 		}
 		return true
-	} else if pkt.NetworkProtocolNumber == ipv6.ProtocolNumber {
+
+	case ipv6.ProtocolNumber:
 		if len(icmpMsg) < header.ICMPv6MinimumSize {
 			logrus.Trace("discarding ICMPv6 packet: too short")
 			return false

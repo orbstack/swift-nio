@@ -9,8 +9,8 @@ import (
 
 	"github.com/orbstack/macvirt/vmgr/vnet/bridge"
 	"github.com/orbstack/macvirt/vmgr/vnet/gonet"
+	"github.com/orbstack/macvirt/vmgr/vnet/gvnetutil"
 	"github.com/orbstack/macvirt/vmgr/vnet/icmpfwd"
-	"github.com/orbstack/macvirt/vmgr/vnet/netutil"
 	"github.com/orbstack/macvirt/vmgr/vnet/tcpfwd/tcppump"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/sys/unix"
@@ -56,7 +56,7 @@ func NewTcpForwarder(s *stack.Stack, icmpMgr *icmpfwd.IcmpFwd, hostNatIP4 tcpip.
 		targetAddr := r.ID().LocalAddress
 		// exclude blacklisted IPs
 		// anti-looping is done on VM side instead, to prevent races
-		if !netutil.ShouldForward(targetAddr) {
+		if !gvnetutil.ShouldForward(targetAddr) {
 			r.Complete(false)
 			return
 		}

@@ -8,7 +8,7 @@ import (
 
 	"github.com/orbstack/macvirt/scon/util/netx"
 	"github.com/orbstack/macvirt/vmgr/vnet/gonet"
-	"github.com/orbstack/macvirt/vmgr/vnet/netutil"
+	"github.com/orbstack/macvirt/vmgr/vnet/gvnetutil"
 	"github.com/sirupsen/logrus"
 	"gvisor.dev/gvisor/pkg/tcpip"
 	"gvisor.dev/gvisor/pkg/tcpip/network/ipv4"
@@ -38,7 +38,7 @@ func StartUnixTcpHostForward(s *stack.Stack, nicID tcpip.NICID, listenAddr, conn
 		listener: listener,
 		connectAddr: tcpip.FullAddress{
 			NIC:  nicID,
-			Addr: netutil.AddrFromNetip(connectAddrPort.Addr()),
+			Addr: gvnetutil.AddrFromNetip(connectAddrPort.Addr()),
 			Port: uint16(connectAddrPort.Port()),
 		},
 		stack: s,

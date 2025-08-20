@@ -22,6 +22,7 @@ import (
 	"github.com/orbstack/macvirt/vmgr/vmconfig"
 	"github.com/orbstack/macvirt/vmgr/vmm"
 	"github.com/orbstack/macvirt/vmgr/vnet"
+	"github.com/orbstack/macvirt/vmgr/vnet/netconf"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/sys/unix"
 	"golang.org/x/term"
@@ -242,7 +243,7 @@ func buildCmdline(monitor vmm.Monitor, params *VmParams) string {
 	return strings.Join(cmdline, " ")
 }
 
-func CreateVm(monitor vmm.Monitor, params *VmParams, shutdownWg *sync.WaitGroup) (retNet *vnet.Network, retMachine vmm.Machine, retErr error) {
+func CreateVm(monitor vmm.Monitor, params *VmParams, shutdownWg *sync.WaitGroup, netconf *netconf.Config) (retNet *vnet.Network, retMachine vmm.Machine, retErr error) {
 	cmdline := buildCmdline(monitor, params)
 	logrus.Debug("cmdline", cmdline)
 
@@ -354,6 +355,7 @@ func CreateVm(monitor vmm.Monitor, params *VmParams, shutdownWg *sync.WaitGroup)
 		opts := vnet.NetOptions{
 			LinkMTU:      uint32(mtu),
 			WantsVnetHdr: monitor.NetworkWantsVnetHdrV1(),
+			Netconf:      netconf,
 		}
 
 		if monitor == rsvm.Monitor {

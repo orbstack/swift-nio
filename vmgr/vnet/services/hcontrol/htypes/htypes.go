@@ -3,6 +3,7 @@ package htypes
 import (
 	"github.com/orbstack/macvirt/vmgr/uitypes"
 	"github.com/orbstack/macvirt/vmgr/vmclient/vmtypes"
+	"github.com/orbstack/macvirt/vmgr/vnet/netconf"
 )
 
 type SSHAgentSockets struct {
@@ -28,6 +29,7 @@ type DockerMachineConfig struct {
 
 type InitConfig struct {
 	VmConfig *vmtypes.VmConfig
+	Netconf  *netconf.Config
 }
 
 type DockerExitInfo struct {

@@ -14,8 +14,8 @@ import (
 	"github.com/orbstack/macvirt/vmgr/conf"
 	"github.com/orbstack/macvirt/vmgr/conf/ports"
 	"github.com/orbstack/macvirt/vmgr/vnet/gonet"
+	"github.com/orbstack/macvirt/vmgr/vnet/gvnetutil"
 	"github.com/orbstack/macvirt/vmgr/vnet/netconf"
-	"github.com/orbstack/macvirt/vmgr/vnet/netutil"
 	"github.com/orbstack/macvirt/vmgr/vnet/services/dns/dnssd"
 	"github.com/sirupsen/logrus"
 	"gvisor.dev/gvisor/pkg/tcpip"
@@ -152,7 +152,7 @@ func (h *DnsServer) handleDnsReq(w dns.ResponseWriter, req *dns.Msg, isUdp bool)
 
 			// No network? macOS returns "no such record"
 			// translate it to SERVFAIL
-			if isNxdomain && netutil.GetDefaultAddress4() == nil && netutil.GetDefaultAddress6() == nil {
+			if isNxdomain && gvnetutil.GetDefaultAddress4() == nil && gvnetutil.GetDefaultAddress6() == nil {
 				if verboseTrace {
 					logrus.WithFields(logrus.Fields{
 						"name": q.Name,

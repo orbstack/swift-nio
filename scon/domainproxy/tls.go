@@ -25,7 +25,6 @@ import (
 	"github.com/orbstack/macvirt/scon/util/portprober"
 	"github.com/orbstack/macvirt/scon/util/sysnet"
 	"github.com/orbstack/macvirt/vmgr/syncx"
-	"github.com/orbstack/macvirt/vmgr/vnet/netconf"
 	"github.com/sirupsen/logrus"
 	"github.com/vishvananda/netlink"
 	"golang.org/x/sys/unix"
@@ -41,18 +40,6 @@ const (
 	MdnsContextKeyDownstream MdnsContextKey = iota
 	MdnsContextKeyConnData
 )
-
-var (
-	sconHostBridgeIP4 net.IP
-	sconHostBridgeIP6 net.IP
-	nat64SourceIp4    net.IP
-)
-
-func init() {
-	sconHostBridgeIP4 = net.ParseIP(netconf.SconHostBridgeIP4)
-	sconHostBridgeIP6 = net.ParseIP(netconf.SconHostBridgeIP6)
-	nat64SourceIp4 = net.ParseIP(netconf.NAT64SourceIP4)
-}
 
 type ProxyCallbacks interface {
 	// takes name or IP string

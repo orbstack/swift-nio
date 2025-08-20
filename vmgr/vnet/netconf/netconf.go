@@ -30,26 +30,13 @@ const (
 	HostBridgeSubnet4Mask = "255.255.254.0"
 )
 
-// 192.168.139.0/24
-// fd07:b5a:cc66:0::/64
 const (
-	SconSubnet4       = "192.168.139"
-	SconSubnet4CIDR   = SconSubnet4 + ".0/24"
-	SconGatewayIP4    = SconSubnet4 + ".1"
-	SconDockerIP4     = SconSubnet4 + ".2"
-	SconK8sIP4        = SconDockerIP4
-	SconHostBridgeIP4 = SconSubnet4 + ".3"
-	SconWebIndexIP4   = SconGatewayIP4
+	DefaultSconSubnet4CIDR        = "192.168.138.0/23"
+	DefaultSconSubnet6CIDR        = "fd07:b51a:cc66::/64"
+	DefaultDomainproxySubnet6CIDR = "fd07:b51a:cc66:0:cafe::/112"
 
-	// :0 is canonical format, not :0000
-	SconSubnet6       = "fd07:b51a:cc66:0:"
-	SconSubnet6CIDR   = SconSubnet6 + ":/64"
-	SconGatewayIP6    = SconSubnet6 + ":1"
-	SconDockerIP6     = SconSubnet6 + ":2"
-	SconDockerIP6CIDR = SconDockerIP6 + "/64"
-	SconK8sIP6        = SconDockerIP6
-	SconHostBridgeIP6 = NAT64SourceIP6 // to make NAT64 easier
-	SconWebIndexIP6   = SconGatewayIP6
+	DHCPLeaseStart = 10
+	DHCPLeaseEnd   = 247
 
 	// must be under SconSubnet6/64 due to macOS vmnet routing (neighbors)
 	// chosen to be checksum-neutral for stateless NAT64 w/o L4 (TCP/UDP) checksum update: this prefix adds up to 0 in big-endian 16-bit internet checksum
@@ -59,11 +46,6 @@ const (
 	NAT64SourceIP4   = "10.183.233.241"
 	// /96 prefix + /32 suffix = IPv4 10.183.233.241, mapped
 	NAT64SourceIP6 = NAT64Subnet6 + "0ab7:e9f1"
-)
-
-const (
-	DomainproxySubnet4CIDR = "192.168.138.0/24"
-	DomainproxySubnet6CIDR = "fd07:b51a:cc66:0:cafe::/112"
 )
 
 // static ARP/neighbors to save CPU

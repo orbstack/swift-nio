@@ -50,21 +50,18 @@ func (cb *DockerProxyCallbacks) GetHostOpenPorts(host domainproxytypes.Host) (ma
 }
 
 func (d *DockerAgent) startDomainTLSProxy() error {
-	domainproxySubnet4Prefix := netip.MustParsePrefix(netconf.DomainproxySubnet4CIDR)
-	domainproxySubnet6Prefix := netip.MustParsePrefix(netconf.DomainproxySubnet6CIDR)
-
 	proxy, err := domainproxy.NewDomainTLSProxy(d.host, &DockerProxyCallbacks{d: d})
 	if err != nil {
 		return fmt.Errorf("create tls domainproxy: %w", err)
 	}
 	d.domainTLSProxy = proxy
 
-	tproxy, err := bpf.NewTproxy(domainproxySubnet4Prefix, domainproxySubnet6Prefix, []uint16{443})
+	tproxy, err := bpf.NewTproxy(d.netconf.DomainproxySubnet4, d.netconf.DomainproxySubnet6, []uint16{443})
 	if err != nil {
 		return fmt.Errorf("tls domainproxy: create tproxy bpf: %w", err)
 	}
 
-	err = proxy.Start(netconf.VnetTproxyIP4, netconf.VnetTproxyIP6, domainproxySubnet4Prefix, domainproxySubnet6Prefix, netconf.QueueDomainproxyHttpProbe, tproxy)
+	err = proxy.Start(netconf.VnetTproxyIP4, netconf.VnetTproxyIP6, d.netconf.DomainproxySubnet4, d.netconf.DomainproxySubnet6, netconf.QueueDomainproxyHttpProbe, tproxy)
 	if err != nil {
 		return err
 	}

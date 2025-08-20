@@ -3,24 +3,10 @@ package main
 import (
 	"errors"
 	"fmt"
-	"net"
 	"net/netip"
-
-	"github.com/orbstack/macvirt/vmgr/vnet/netconf"
 )
 
-var (
-	sconSubnet4 = netip.MustParsePrefix(netconf.SconSubnet4CIDR)
-	sconSubnet6 = netip.MustParsePrefix(netconf.SconSubnet6CIDR)
-
-	sconDocker4 = net.ParseIP(netconf.SconDockerIP4)
-	sconDocker6 = net.ParseIP(netconf.SconDockerIP6)
-
-	sconDocker4Addr = netip.MustParseAddr(netconf.SconDockerIP4)
-	sconDocker6Addr = netip.MustParseAddr(netconf.SconDockerIP6)
-
-	ErrNoIPAddress = errors.New("no IP address found")
-)
+var ErrNoIPAddress = errors.New("no IP address found")
 
 func (c *Container) GetIPAddrs() ([]netip.Addr, error) {
 	rt, err := c.RuntimeState()
@@ -52,7 +38,7 @@ func (rt *ContainerRuntimeState) getIPAddrsLocked(c *Container) ([]netip.Addr, e
 		}
 		// only return the IPs we issued
 		// otherwise all the Docker gateway IPs get returned
-		if sconSubnet4.Contains(ip) || sconSubnet6.Contains(ip) {
+		if c.manager.net.netconf.SconSubnet4.Contains(ip) || c.manager.net.netconf.SconSubnet6.Contains(ip) {
 			newIPs = append(newIPs, ip)
 		}
 	}
@@ -68,7 +54,7 @@ func (rt *ContainerRuntimeState) getIPAddrsLocked(c *Container) ([]netip.Addr, e
 func (c *Container) getIP4() (netip.Addr, error) {
 	// fastpath for static IPs (nftables forward cares about perf)
 	if c.ID == ContainerIDDocker {
-		return sconDocker4Addr, nil
+		return c.manager.net.netconf.SconDockerIP4, nil
 	}
 
 	ips, err := c.GetIPAddrs()
@@ -88,7 +74,7 @@ func (c *Container) getIP4() (netip.Addr, error) {
 func (c *Container) getIP6() (netip.Addr, error) {
 	// fastpath for static IPs (nftables forward cares about perf)
 	if c.ID == ContainerIDDocker {
-		return sconDocker6Addr, nil
+		return c.manager.net.netconf.SconDockerIP6, nil
 	}
 
 	ips, err := c.GetIPAddrs()
@@ -108,7 +94,7 @@ func (c *Container) getIP6() (netip.Addr, error) {
 func (c *Container) getIP46() (netip.Addr, netip.Addr, error) {
 	// fastpath for static IPs (nftables forward cares about perf)
 	if c.ID == ContainerIDDocker {
-		return sconDocker4Addr, sconDocker6Addr, nil
+		return c.manager.net.netconf.SconDockerIP4, c.manager.net.netconf.SconDockerIP6, nil
 	}
 
 	ips, err := c.GetIPAddrs()

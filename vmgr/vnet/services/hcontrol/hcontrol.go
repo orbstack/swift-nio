@@ -612,6 +612,7 @@ func (h *HcontrolServer) K8sReportGuiStarted() {
 func (h *HcontrolServer) GetInitConfig(_ None, reply *htypes.InitConfig) error {
 	*reply = htypes.InitConfig{
 		VmConfig: vmconfig.Get(),
+		Netconf:  h.n.Netconf,
 	}
 	return nil
 }

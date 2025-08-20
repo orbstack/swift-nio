@@ -28,7 +28,7 @@ fn check_version_compatibility() -> anyhow::Result<()> {
 }
 
 fn main() -> anyhow::Result<()> {
-    if let Err(_) = check_version_compatibility() {
+    if check_version_compatibility().is_err() {
         exit(VERSION_MISMATCH_EXIT_CODE);
     }
 

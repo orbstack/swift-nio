@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	_ "embed"
 	"encoding/json"
 	"errors"
@@ -24,6 +25,7 @@ import (
 	"github.com/orbstack/macvirt/vmgr/conf/mounts"
 	"github.com/orbstack/macvirt/vmgr/conf/ports"
 	"github.com/orbstack/macvirt/vmgr/uitypes"
+	"github.com/orbstack/macvirt/vmgr/util/netutil"
 	"github.com/orbstack/macvirt/vmgr/vnet/netconf"
 	"github.com/orbstack/macvirt/vmgr/vnet/services/hcontrol/htypes"
 	"github.com/sirupsen/logrus"
@@ -62,47 +64,6 @@ var (
 		State:   types.ContainerStateRunning,
 	}
 )
-
-// put them here for obfuscation
-var dockerInitCommands = [][]string{
-	{"ip", "addr", "add", netconf.SconDockerIP6CIDR, "dev", "eth0"},
-	{"ip", "-6", "route", "add", "default", "via", netconf.SconGatewayIP6, "dev", "eth0"},
-
-	// match systemd
-	{"mount", "--make-rshared", "/"},
-
-	// compat for kruise expecting containerd OR docker+dockershim: https://github.com/openkruise/kruise/blob/4e80be556726e60f54abaa3e8ba133ce114c4f64/pkg/daemon/criruntime/factory.go#L200
-	{"ln", "-sf", "/var/run/k3s/cri-dockerd/cri-dockerd.sock", "/var/run/dockershim.sock"},
-
-	// tproxy: loopback routing for connection to tproxy
-	// we hijack connections to lo in order to intercept with
-	// busybox only supports table ID < 1024 but kernel can do 32-bit(? or is it just string?)
-	{"ip", "-4", "rule", "add", "fwmark", strconv.Itoa(netconf.DockerFwmarkLocalRoute), "table", "984"},
-	{"ip", "-6", "rule", "add", "fwmark", strconv.Itoa(netconf.DockerFwmarkLocalRoute), "table", "984"},
-	{"ip", "-4", "route", "add", "local", "default", "dev", "lo", "table", "984"},
-	{"ip", "-6", "route", "add", "local", "default", "dev", "lo", "table", "984"},
-
-	{"sysctl", "-q", "net.ipv6.conf.lo.accept_dad=0"},
-
-	{"nft", nft.FormatConfig(nft.ConfigDocker, map[string]string{
-		"IF_SCON":                       "eth0",
-		"DOCKER_FWMARK_LOCAL_ROUTE":     strconv.Itoa(netconf.DockerFwmarkLocalRoute),
-		"DOCKER_FWMARK_TPROXY":          strconv.Itoa(netconf.DockerFwmarkTproxy),
-		"DOCKER_FWMARK_TPROXY_OUTBOUND": strconv.Itoa(netconf.DockerFwmarkTproxyOutbound),
-		"DOCKER_FWMARK_NFQUEUE_SKIP":    strconv.Itoa(netconf.DockerFwmarkNfqueueSkip),
-		"DOCKER_FWMARK_DNAT":            strconv.Itoa(netconf.DockerFwmarkDnat),
-		"QUEUE_DOMAINPROXY_HTTP_PROBE":  strconv.Itoa(netconf.QueueDomainproxyHttpProbe),
-		"QUEUE_DOMAINPROXY_SSH_PROBE":   strconv.Itoa(netconf.QueueDomainproxySshProbe),
-		"VNET_GATEWAY_IP4":              netconf.VnetGatewayIP4,
-		"VNET_GATEWAY_IP6":              netconf.VnetGatewayIP6,
-		"SCON_HOST_BRIDGE_IP4":          netconf.SconHostBridgeIP4,
-		"SCON_HOST_BRIDGE_IP6":          netconf.SconHostBridgeIP6,
-		"SCON_SUBNET6_CIDR":             netconf.SconSubnet6CIDR,
-		"NAT64_SOURCE_IP4":              netconf.NAT64SourceIP4,
-		"K8S_MERGED_CIDR4":              netconf.K8sMergedCIDR4,
-		"K8S_MERGED_CIDR6":              netconf.K8sMergedCIDR6,
-	})},
-}
 
 // changes here:
 //   - removed "health" from config (can't be overridden in custom config map)
@@ -191,7 +152,8 @@ func (h *DockerHooks) createDataDirs() error {
 	if err != nil {
 		return err
 	}
-	err = kfs.WriteFile("/k3s/server/manifests/orb-coredns.yaml", []byte(k8sCorednsYaml), 0644)
+	k8sCorednsYamlFormatted := bytes.Replace(k8sCorednsYaml, []byte("%SCONK8SIP4%"), []byte(h.manager.net.netconf.SconK8sIP4.String()), 1)
+	err = kfs.WriteFile("/k3s/server/manifests/orb-coredns.yaml", k8sCorednsYamlFormatted, 0644)
 	if err != nil {
 		return err
 	}
@@ -300,8 +262,8 @@ func (h *DockerHooks) Config(c *Container, cm containerConfigMethods) error {
 
 	// configure network statically
 	cm.set("lxc.net.0.flags", "up")
-	cm.set("lxc.net.0.ipv4.address", netconf.SconDockerIP4+"/24")
-	cm.set("lxc.net.0.ipv4.gateway", netconf.SconGatewayIP4)
+	cm.set("lxc.net.0.ipv4.address", netutil.AddrToPrefix(c.manager.net.netconf.SconDockerIP4, c.manager.net.netconf.SconSubnet4).String())
+	cm.set("lxc.net.0.ipv4.gateway", c.manager.net.netconf.SconGatewayIP4.String())
 	// we put this in simplevisor init commands to bypass dad (sysctls are applied after ip addrs)
 	/*
 		cm.set("lxc.net.0.ipv6.address", netconf.SconDockerIP6+"/64")
@@ -608,6 +570,46 @@ func (h *DockerHooks) PreStart(c *Container) error {
 	err = h.rootfs.Symlink("/usr/share/zoneinfo/"+hostTimezone, "/etc/localtime")
 	if err != nil {
 		logrus.WithError(err).Error("failed to symlink localtime")
+	}
+
+	dockerInitCommands := [][]string{
+		{"ip", "addr", "add", netutil.AddrToPrefix(c.manager.net.netconf.SconDockerIP6, c.manager.net.netconf.SconSubnet6).String(), "dev", "eth0"},
+		{"ip", "-6", "route", "add", "default", "via", c.manager.net.netconf.SconGatewayIP6.String(), "dev", "eth0"},
+
+		// match systemd
+		{"mount", "--make-rshared", "/"},
+
+		// compat for kruise expecting containerd OR docker+dockershim: https://github.com/openkruise/kruise/blob/4e80be556726e60f54abaa3e8ba133ce114c4f64/pkg/daemon/criruntime/factory.go#L200
+		{"ln", "-sf", "/var/run/k3s/cri-dockerd/cri-dockerd.sock", "/var/run/dockershim.sock"},
+
+		// tproxy: loopback routing for connection to tproxy
+		// we hijack connections to lo in order to intercept with
+		// busybox only supports table ID < 1024 but kernel can do 32-bit(? or is it just string?)
+		{"ip", "-4", "rule", "add", "fwmark", strconv.Itoa(netconf.DockerFwmarkLocalRoute), "table", "984"},
+		{"ip", "-6", "rule", "add", "fwmark", strconv.Itoa(netconf.DockerFwmarkLocalRoute), "table", "984"},
+		{"ip", "-4", "route", "add", "local", "default", "dev", "lo", "table", "984"},
+		{"ip", "-6", "route", "add", "local", "default", "dev", "lo", "table", "984"},
+
+		{"sysctl", "-q", "net.ipv6.conf.lo.accept_dad=0"},
+
+		{"nft", nft.FormatConfig(nft.ConfigDocker, map[string]string{
+			"IF_SCON":                       "eth0",
+			"DOCKER_FWMARK_LOCAL_ROUTE":     strconv.Itoa(netconf.DockerFwmarkLocalRoute),
+			"DOCKER_FWMARK_TPROXY":          strconv.Itoa(netconf.DockerFwmarkTproxy),
+			"DOCKER_FWMARK_TPROXY_OUTBOUND": strconv.Itoa(netconf.DockerFwmarkTproxyOutbound),
+			"DOCKER_FWMARK_NFQUEUE_SKIP":    strconv.Itoa(netconf.DockerFwmarkNfqueueSkip),
+			"DOCKER_FWMARK_DNAT":            strconv.Itoa(netconf.DockerFwmarkDnat),
+			"QUEUE_DOMAINPROXY_HTTP_PROBE":  strconv.Itoa(netconf.QueueDomainproxyHttpProbe),
+			"QUEUE_DOMAINPROXY_SSH_PROBE":   strconv.Itoa(netconf.QueueDomainproxySshProbe),
+			"VNET_GATEWAY_IP4":              netconf.VnetGatewayIP4,
+			"VNET_GATEWAY_IP6":              netconf.VnetGatewayIP6,
+			"SCON_HOST_BRIDGE_IP4":          c.manager.net.netconf.SconHostBridgeIP4.String(),
+			"SCON_HOST_BRIDGE_IP6":          c.manager.net.netconf.SconHostBridgeIP6.String(),
+			"SCON_SUBNET6_CIDR":             c.manager.net.netconf.SconSubnet6.String(),
+			"NAT64_SOURCE_IP4":              netconf.NAT64SourceIP4,
+			"K8S_MERGED_CIDR4":              netconf.K8sMergedCIDR4,
+			"K8S_MERGED_CIDR6":              netconf.K8sMergedCIDR6,
+		})},
 	}
 
 	svConfig := SimplevisorConfig{

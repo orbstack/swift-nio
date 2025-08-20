@@ -17,9 +17,9 @@ import (
 	"github.com/orbstack/macvirt/vmgr/vnet/cblink"
 	"github.com/orbstack/macvirt/vmgr/vnet/dglink"
 	"github.com/orbstack/macvirt/vmgr/vnet/gonet"
+	"github.com/orbstack/macvirt/vmgr/vnet/gvnetutil"
 	"github.com/orbstack/macvirt/vmgr/vnet/icmpfwd"
 	"github.com/orbstack/macvirt/vmgr/vnet/netconf"
-	"github.com/orbstack/macvirt/vmgr/vnet/netutil"
 	"github.com/orbstack/macvirt/vmgr/vnet/services/readyevents"
 	"github.com/orbstack/macvirt/vmgr/vnet/tcpfwd"
 	"github.com/orbstack/macvirt/vmgr/vnet/udpfwd"
@@ -49,6 +49,8 @@ type HostBridge interface {
 }
 
 type Network struct {
+	Netconf *netconf.Config
+
 	Stack   *stack.Stack
 	NIC     tcpip.NICID
 	LinkMTU uint32
@@ -84,6 +86,8 @@ type Network struct {
 }
 
 type NetOptions struct {
+	Netconf *netconf.Config
+
 	LinkMTU      uint32
 	WantsVnetHdr bool
 }
@@ -249,13 +253,13 @@ func startNet(opts NetOptions, nicEp stack.LinkEndpoint) (*Network, error) {
 
 	if err := s.AddProtocolAddress(nicID, tcpip.ProtocolAddress{
 		Protocol:          ipv4.ProtocolNumber,
-		AddressWithPrefix: netutil.ParseTcpipAddress(netconf.VnetGatewayIP4).WithPrefix(),
+		AddressWithPrefix: gvnetutil.ParseTcpipAddress(netconf.VnetGatewayIP4).WithPrefix(),
 	}, stack.AddressProperties{}); err != nil {
 		return nil, errors.New(err.String())
 	}
 	if err := s.AddProtocolAddress(nicID, tcpip.ProtocolAddress{
 		Protocol:          ipv6.ProtocolNumber,
-		AddressWithPrefix: netutil.ParseTcpipAddress(netconf.VnetGatewayIP6).WithPrefix(),
+		AddressWithPrefix: gvnetutil.ParseTcpipAddress(netconf.VnetGatewayIP6).WithPrefix(),
 	}, stack.AddressProperties{}); err != nil {
 		return nil, errors.New(err.String())
 	}
@@ -351,10 +355,10 @@ func startNet(opts NetOptions, nicEp stack.LinkEndpoint) (*Network, error) {
 	// }
 
 	// ICMP, used by forwarders
-	guestAddr4 := netutil.ParseTcpipAddress(netconf.VnetGuestIP4)
-	guestAddr6 := netutil.ParseTcpipAddress(netconf.VnetGuestIP6)
-	gatewayAddr4 := netutil.ParseTcpipAddress(netconf.VnetGatewayIP4)
-	gatewayAddr6 := netutil.ParseTcpipAddress(netconf.VnetGatewayIP6)
+	guestAddr4 := gvnetutil.ParseTcpipAddress(netconf.VnetGuestIP4)
+	guestAddr6 := gvnetutil.ParseTcpipAddress(netconf.VnetGuestIP6)
+	gatewayAddr4 := gvnetutil.ParseTcpipAddress(netconf.VnetGatewayIP4)
+	gatewayAddr6 := gvnetutil.ParseTcpipAddress(netconf.VnetGatewayIP6)
 
 	// add static neighbors so we don't need ARP (waste of CPU)
 	guestMac, err := tcpip.ParseMACAddress(netconf.GuestMACVnet)
@@ -375,8 +379,8 @@ func startNet(opts NetOptions, nicEp stack.LinkEndpoint) (*Network, error) {
 	go icmpFwd.ProxyRequests()
 
 	// Build NAT table
-	hostNatIP4 := netutil.ParseTcpipAddress(netconf.VnetHostNatIP4)
-	hostNatIP6 := netutil.ParseTcpipAddress(netconf.VnetHostNatIP6)
+	hostNatIP4 := gvnetutil.ParseTcpipAddress(netconf.VnetHostNatIP4)
+	hostNatIP6 := gvnetutil.ParseTcpipAddress(netconf.VnetHostNatIP6)
 
 	bridgeRouteMon, err := bridge.NewRouteMon()
 	if err != nil {
@@ -394,6 +398,8 @@ func startNet(opts NetOptions, nicEp stack.LinkEndpoint) (*Network, error) {
 	log.SetTarget(gvisorLogger{})
 
 	network := &Network{
+		Netconf: opts.Netconf,
+
 		Stack:        s,
 		NIC:          nicID,
 		LinkMTU:      opts.LinkMTU,

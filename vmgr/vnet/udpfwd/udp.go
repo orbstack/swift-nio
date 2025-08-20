@@ -9,7 +9,7 @@ import (
 
 	"github.com/orbstack/macvirt/vmgr/vnet/gonet"
 	"github.com/orbstack/macvirt/vmgr/vnet/gvaddr"
-	"github.com/orbstack/macvirt/vmgr/vnet/netutil"
+	"github.com/orbstack/macvirt/vmgr/vnet/gvnetutil"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/sys/unix"
 	"gvisor.dev/gvisor/pkg/tcpip"
@@ -150,7 +150,7 @@ func (m *udpManager) handleNewPacket(r *udp.ForwarderRequest) {
 	defer r.Packet().DecRef()
 
 	localAddress := r.ID().LocalAddress
-	if !netutil.ShouldForward(localAddress) {
+	if !gvnetutil.ShouldForward(localAddress) {
 		return
 	}
 

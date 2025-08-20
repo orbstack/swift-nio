@@ -45,6 +45,8 @@ const (
 )
 
 type DockerAgent struct {
+	netconf *netconf.Config
+
 	mu syncx.Mutex
 
 	realClient    *dockerclient.Client
@@ -96,7 +98,7 @@ type DockerAgent struct {
 	certInjector *dockerCACertInjector
 }
 
-func NewDockerAgent(isK8s bool, isTls bool) (*DockerAgent, error) {
+func NewDockerAgent(isK8s bool, isTls bool, netconf *netconf.Config) (*DockerAgent, error) {
 	dockerAgent := &DockerAgent{
 		// use default unix socket
 		realClient: dockerclient.NewWithHTTP(nil, &http.Client{
@@ -129,6 +131,8 @@ func NewDockerAgent(isK8s bool, isTls bool) (*DockerAgent, error) {
 
 		containerBinds: make(map[string][]string),
 		dirSyncJobs:    make(map[uint64]chan error),
+
+		netconf: netconf,
 
 		domainTLSProxyActive: false,
 	}
