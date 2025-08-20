@@ -28,7 +28,9 @@ struct DockerContainerTerminalTab: View {
 
             Divider()
         }
-        .background(Color(NSColor.secondarySystemFill))
+        // same bg as logs text view
+        .background(.ultraThickMaterial)
+        .background(Color(NSColor.controlBackgroundColor))
     }
 
     private var terminal: some View {
