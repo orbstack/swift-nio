@@ -25,6 +25,7 @@ struct DockerContainerTerminalTab: View {
                         weight: .regular)
                 )
                 .disabled(!vmModel.isLicensed)
+                .help(!vmModel.isLicensed ? "Requires Pro license." : "")
             }
             .padding(.horizontal, 16)
             .frame(height: 27)  // match list section header height. wtf is this number?
