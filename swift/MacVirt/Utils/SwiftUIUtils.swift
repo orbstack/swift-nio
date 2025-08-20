@@ -248,6 +248,16 @@ extension View {
             self
         }
     }
+
+    @ViewBuilder func ifLet<Content: View, T>(_ optional: Optional<T>, transform: (Self, T) -> Content)
+        -> some View
+    {
+        if let value = optional {
+            transform(self, value)
+        } else {
+            self
+        }
+    }
 }
 
 extension Color {

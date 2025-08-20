@@ -168,8 +168,8 @@ struct DockerComposeLogsWindow: View {
         .onChange(of: selection) { _, selection in
             savedSelection = selection
         }
-        .if(composeProject != nil) {
-            $0.navigationTitle(WindowTitles.projectLogs(composeProject!))
+        .ifLet(composeProject) { view, project in
+            view.navigationTitle(WindowTitles.projectLogs(project))
         }
         .toolbar(forCommands: commandModel, hasSidebar: true)
     }

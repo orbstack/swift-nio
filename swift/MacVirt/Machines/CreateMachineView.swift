@@ -91,7 +91,7 @@ struct CreateMachineView: View {
                 #if arch(arm64)
                     Picker("Architecture", selection: $arch) {
                         Text("arm64").tag("arm64")
-                        Text("x86-64 (Intel, emulated)").tag("amd64")
+                        Text("x86-64 (emulated)").tag("amd64")
                     }
                     .disabled(distro == .nixos)
                 #endif

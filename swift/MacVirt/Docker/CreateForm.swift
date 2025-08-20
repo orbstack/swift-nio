@@ -1,14 +1,21 @@
 import SwiftUI
+import Combine
 
 struct CreateForm<Content: View>: View {
+    let submitCommand: PassthroughSubject<Void, Never>?
     let content: Content
     let onSubmit: () -> Void
 
     @State private var preferences = [ValidateFunc]()
 
-    init(@ViewBuilder content: () -> Content, onSubmit: @escaping () -> Void) {
+    init(
+        submitCommand: PassthroughSubject<Void, Never>? = nil,
+        @ViewBuilder content: () -> Content,
+        onSubmit: @escaping () -> Void
+    ) {
         self.content = content()
         self.onSubmit = onSubmit
+        self.submitCommand = submitCommand
     }
 
     var body: some View {
@@ -17,6 +24,11 @@ struct CreateForm<Content: View>: View {
         }
         .formStyle(.grouped)
         .onSubmit(doSubmit)
+        .ifLet(submitCommand) { view, stream in
+            view.onReceive(stream) { _ in
+                doSubmit()
+            }
+        }
         .environment(\.createSubmitFunc, doSubmit)
         .onPreferenceChange(ValidatedFieldKey.self) { preferences in
             self.preferences = preferences

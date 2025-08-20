@@ -384,12 +384,12 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
 
         let window = NSWindow(
             contentRect: contentRect, styleMask: styleMask, backing: .buffered, defer: false)
+        window.center()
         window.title = "Settings"
         window.identifier = NSUserInterfaceItemIdentifier("settings2")
         window.isRestorable = false
         // required to make titlebar thick
         window.toolbar = NSToolbar()
-        window.center()
 
         let hostingView = NSHostingView(
             rootView: AppSettings(updaterController: updaterController!)

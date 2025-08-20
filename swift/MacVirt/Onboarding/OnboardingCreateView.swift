@@ -4,6 +4,7 @@
 
 import Foundation
 import SwiftUI
+import Combine
 
 // min 2 chars, disallows hidden files (^.)
 private let containerNameRegex = try! NSRegularExpression(pattern: "^[a-zA-Z0-9][a-zA-Z0-9-.]+$")
@@ -25,7 +26,7 @@ struct OnboardingCreateView: View {
     @State private var distro = Distro.ubuntu
     @State private var version = Distro.ubuntu.versions.last!.key
 
-    @Environment(\.createSubmitFunc) private var submitFunc
+    @State private var createButtonPressed = PassthroughSubject<Void, Never>()
 
     var body: some View {
         VStack {
@@ -47,7 +48,7 @@ struct OnboardingCreateView: View {
             HStack {
                 Spacer()
                 VStack(alignment: .center) {
-                    CreateForm {
+                    CreateForm(submitCommand: createButtonPressed) {
                         Section {
                             let nameBinding = Binding<String>(
                                 get: { name },
@@ -87,7 +88,9 @@ struct OnboardingCreateView: View {
 
                                     return nil
                                 })
+                        }
 
+                        Section {
                             Picker("Distribution", selection: $distro) {
                                 ForEach(Distro.allCases, id: \.self) { distro in
                                     Text(distro.friendlyName).tag(distro)
@@ -121,7 +124,7 @@ struct OnboardingCreateView: View {
                             #if arch(arm64)
                                 Picker("Architecture", selection: $arch) {
                                     Text("arm64").tag("arm64")
-                                    Text("x86-64 (Intel, emulated)").tag("amd64")
+                                    Text("x86-64 (emulated)").tag("amd64")
                                 }
                                 .disabled(distro == .nixos)
                             #endif
@@ -141,7 +144,10 @@ struct OnboardingCreateView: View {
                                 name: name, distro: distro, version: version, arch: arch)
                         }
                         onboardingController.finish()
-                    }.frame(minWidth: 200)
+                    }
+                    .scrollContentBackground(.hidden)
+                    .scrollDisabled(true) // should never overflow due to fixed-size onboarding window
+                    .frame(maxWidth: 400)
                 }.fixedSize()
                 Spacer()
             }
@@ -156,12 +162,9 @@ struct OnboardingCreateView: View {
                 }
                 .buttonStyle(.borderless)
                 Spacer()
-                CtaButton(
-                    label: "Create",
-                    action: {
-                        submitFunc()
-                    }
-                )
+                CtaButton("Create") {
+                    createButtonPressed.send()
+                }
                 Spacer()
             }
         }

@@ -68,11 +68,9 @@ struct OnboardingWelcomeView: View {
                 }
                 .frame(maxWidth: .infinity)
                 VStack(alignment: .center) {
-                    CtaButton(
-                        label: "Next",
-                        action: {
-                            onboardingModel.advance(to: .mode)
-                        })
+                    CtaButton("Next") {
+                        onboardingModel.advance(to: .mode)
+                    }
                 }
                 .frame(maxWidth: .infinity)
                 VStack {

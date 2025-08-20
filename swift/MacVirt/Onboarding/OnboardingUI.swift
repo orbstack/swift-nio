@@ -27,7 +27,7 @@ struct CtaButton: View {
     @State private var hoverOpacity = 0.0
     @State private var activeOpacity = 0.0
 
-    init(label: String, action: @escaping () -> Void) {
+    init(_ label: String, action: @escaping () -> Void) {
         self.label = label
         self.action = action
     }
