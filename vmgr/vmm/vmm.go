@@ -33,8 +33,6 @@ type NfsInfo struct {
 	ParentDirDev   int32  `json:"parentDirDev"`
 	ParentDirInode uint64 `json:"parentDirInode"`
 	EmptyDirInode  uint64 `json:"emptyDirInode"`
-	DirPath        string `json:"dirPath"`
-	ParentDirName  string `json:"parentDirName"`
 }
 
 type VzSpec struct {

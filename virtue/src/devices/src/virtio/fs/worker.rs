@@ -9,7 +9,7 @@ use super::defs::{HPQ_INDEX, REQ_INDEX};
 use super::descriptor_utils::{Reader, Writer};
 use super::device::{FsSignalChannel, FsSignalMask};
 use super::passthrough::PassthroughFs;
-use super::server::Server;
+use super::server::{HostContext, Server};
 use crate::legacy::Gic;
 
 pub struct FsWorker {
@@ -96,6 +96,10 @@ impl FsWorker {
     }
 
     fn process_queue(&mut self, queue_index: usize) {
+        let hctx = HostContext {
+            is_sync_call: false,
+        };
+
         let queue = &mut self.queues[queue_index];
         while let Some(head) = queue.pop(&self.mem) {
             let reader = Reader::new(&self.mem, head.clone())
@@ -105,7 +109,7 @@ impl FsWorker {
                 .map_err(FsError::QueueWriter)
                 .unwrap();
 
-            if let Err(e) = self.server.handle_message(reader, writer) {
+            if let Err(e) = self.server.handle_message(hctx, reader, writer) {
                 error!("error handling message: {:?}", e);
             }
 

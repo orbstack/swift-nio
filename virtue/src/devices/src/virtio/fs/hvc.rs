@@ -9,7 +9,7 @@ use crate::{
     hvc::HvcDevice,
     virtio::{
         descriptor_utils::{Reader, Writer},
-        fs::server::MAX_PAGES,
+        fs::server::{HostContext, MAX_PAGES},
     },
 };
 
@@ -137,7 +137,8 @@ impl FsHvcDevice {
 
         debug!(?args, "hvc req");
 
-        if let Err(e) = self.server.handle_message(reader, writer) {
+        let hctx = HostContext { is_sync_call: true };
+        if let Err(e) = self.server.handle_message(hctx, reader, writer) {
             error!("error handling message: {:?}", e);
         }
 

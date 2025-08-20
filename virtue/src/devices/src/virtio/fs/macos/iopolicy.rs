@@ -1,5 +1,3 @@
-use std::cell::Cell;
-
 use anyhow::anyhow;
 use nix::errno::Errno;
 
@@ -15,15 +13,7 @@ const IOPOL_SCOPE_THREAD: libc::c_int = 1;
 const IOPOL_ATIME_UPDATES_OFF: libc::c_int = 1;
 const IOPOL_MATERIALIZE_DATALESS_FILES_OFF: libc::c_int = 1;
 
-thread_local! {
-    static IS_VCPU_THREAD: Cell<bool> = const { Cell::new(false) };
-}
-
 pub fn prepare_vcpu_for_hvc() -> anyhow::Result<()> {
-    IS_VCPU_THREAD.with(|is_vcpu| {
-        is_vcpu.set(true);
-    });
-
     // don't allow materializing dataless files:
     // it can block for ~1 sec, which is bad for vCPU thread
     // Apple only started using dataless files for FileProvider in macOS 14 Sonoma (officially announced for the first time at WWDC 2023), but the kernel has supported them since at least macOS 12 (XNU 8020.x) so this doesn't need a version check
@@ -47,16 +37,4 @@ pub fn prepare_vcpu_for_hvc() -> anyhow::Result<()> {
     Errno::result(ret).map_err(|e| anyhow!("set io policy: {}", e))?;
 
     Ok(())
-}
-
-pub fn blocking_io_allowed() -> bool {
-    IS_VCPU_THREAD.with(|is_vcpu| !is_vcpu.get())
-}
-
-pub fn check_blocking_io() -> nix::Result<()> {
-    if blocking_io_allowed() {
-        Ok(())
-    } else {
-        Err(Errno::EDEADLK)
-    }
 }
