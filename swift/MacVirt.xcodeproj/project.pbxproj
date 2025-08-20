@@ -1194,10 +1194,10 @@
 		};
 		D8E7E8B62E1BE45600E24486 /* XCRemoteSwiftPackageReference "swift-nio" */ = {
 			isa = XCRemoteSwiftPackageReference;
-			repositoryURL = "https://github.com/apple/swift-nio.git";
+			repositoryURL = "https://github.com/orbstack/swift-nio";
 			requirement = {
-				kind = upToNextMajorVersion;
-				minimumVersion = 2.84.0;
+				kind = revision;
+				revision = 28e4f428a7100131ef2a0a01f8194f20004dca0d;
 			};
 		};
 /* End XCRemoteSwiftPackageReference section */
