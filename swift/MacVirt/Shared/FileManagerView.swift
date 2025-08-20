@@ -3,6 +3,7 @@ import QuickLookUI
 import SwiftUI
 import UniformTypeIdentifiers
 import _NIOFileSystem
+import Carbon
 
 private let tableCellIdentifier = NSUserInterfaceItemIdentifier("tableCell")
 
@@ -159,6 +160,9 @@ private class FileManagerOutlineView: NSOutlineView, QLPreviewPanelDataSource, Q
             } else {
                 super.keyDown(with: event)
             }
+        } else if event.keyCode == kVK_Escape {
+            // deselect all
+            self.selectRowIndexes(IndexSet(), byExtendingSelection: false)
         } else {
             // Pass other key events to the outline view for navigation, selection, etc.
             super.keyDown(with: event)
@@ -875,7 +879,7 @@ private enum Columns {
     case whiteout = 7
     case unknown = 8
 
-    init(from fileType: FileType) {
+    init(from fileType: _NIOFileSystem.FileType) {
         switch fileType {
         case .regular: self = .regular
         case .directory: self = .directory

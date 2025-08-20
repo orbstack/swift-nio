@@ -14,7 +14,10 @@ struct LogsTabToolbarWrapper<Content: View>: View {
         .safeAreaInset(edge: .top) {
             VStack(spacing: 0) {
                 HStack(alignment: .center) {
-                    Spacer()
+                    TextField(text: $commandModel.searchField) {
+                        Label("Search", systemImage: "magnifyingglass")
+                    }
+                    .textFieldStyle(.roundedBorder)
 
                     Button {
                         commandModel.copyAllCommand.send()
@@ -32,14 +35,6 @@ struct LogsTabToolbarWrapper<Content: View>: View {
                     }
                     .help("Clear")
                     .keyboardShortcut("k", modifiers: [.command])
-                    .buttonStyle(.accessoryBar)
-
-                    Button {
-                        commandModel.searchCommand.send()
-                    } label: {
-                        Image(systemName: "magnifyingglass")
-                    }
-                    .help("Search")
                     .buttonStyle(.accessoryBar)
                 }
                 .padding(.horizontal, 12)

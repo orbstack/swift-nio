@@ -8,6 +8,9 @@ import Foundation
 import SwiftUI
 import NIOCore
 import os
+import Carbon
+
+private let inspectorHeight: CGFloat = 120
 
 let logsMaxLines = 5000
 private let maxChars = logsMaxLines * 150  // avg line len - easier to do it like this
@@ -154,9 +157,10 @@ private class AsyncPipeReader {
 }
 
 class CommandViewModel: ObservableObject {
-    let searchCommand = PassthroughSubject<Void, Never>()
     let clearCommand = PassthroughSubject<Void, Never>()
     let copyAllCommand = PassthroughSubject<Void, Never>()
+
+    @Published var searchField = ""
 }
 
 private struct LogLine {
@@ -177,6 +181,8 @@ class LogsViewModel: ObservableObject {
 
     private var cancellables: Set<AnyCancellable> = []
     @Published var lastContainerName: String?  // saved once we get id
+
+    @Published var selectedText = ""
 
     @MainActor
     func monitorContainers(vmModel: VmViewModel, cid: DockerContainerId) {
@@ -497,6 +503,22 @@ class LogsViewModel: ObservableObject {
     }
 }
 
+private class LogsNSTableView: NSTableView {
+    override func keyDown(with event: NSEvent) {
+        super.keyDown(with: event)
+
+        if event.keyCode == kVK_Escape {
+            // deselect all
+            self.selectRowIndexes(IndexSet(), byExtendingSelection: false)
+        }
+    }
+
+    // add padding without affecting scroller
+    override func setFrameSize(_ newSize: NSSize) {
+        super.setFrameSize(NSSize(width: newSize.width, height: newSize.height + 12))
+    }
+}
+
 private struct LogsTextView: NSViewRepresentable {
     let model: LogsViewModel
     let commandModel: CommandViewModel
@@ -550,11 +572,10 @@ private struct LogsTextView: NSViewRepresentable {
     func makeNSView(context: Context) -> NSScrollView {
         let scrollView = NSScrollView()
         scrollView.additionalSafeAreaInsets.top = topInset
-        scrollView.additionalSafeAreaInsets.bottom = 10
+        scrollView.additionalSafeAreaInsets.bottom = inspectorHeight
         scrollView.hasVerticalScroller = true
-        scrollView.findBarPosition = .aboveContent
 
-        let tableView = NSTableView()
+        let tableView = LogsNSTableView()
         tableView.delegate = context.coordinator
         tableView.dataSource = context.coordinator
         scrollView.documentView = tableView
@@ -613,21 +634,35 @@ struct LogsView: View {
 
     var body: some View {
         LogsTextView(model: model, commandModel: commandModel, topInset: logsTopInset)
-            .onAppear {
-                model.start(cmdExe: cmdExe, args: args + extraArgs)
+        // render under toolbar
+        .ignoresSafeArea()
+        .safeAreaInset(edge: .bottom) {
+            VStack(spacing: 0) {
+
+                Divider()
+
+                VStack {
+                    TextEditor(text: .constant(model.selectedText))
+                        .font(.body.monospaced())
+                }
+                .frame(height: inspectorHeight)
             }
-            .onDisappear {
-                model.stop()
-            }
-            .onChange(of: args) { _, newArgs in
-                model.start(cmdExe: cmdExe, args: newArgs + extraArgs)
-            }
-            .onChange(of: extraArgs) { _, newExtraArgs in
-                model.start(cmdExe: cmdExe, args: args + newExtraArgs, clearAndRestart: true)
-            }
-            .onChange(of: extraState) { _, _ in
-                model.start(cmdExe: cmdExe, args: args + extraArgs, clearAndRestart: true)
-            }
+        }
+        .onAppear {
+            model.start(cmdExe: cmdExe, args: args + extraArgs)
+        }
+        .onDisappear {
+            model.stop()
+        }
+        .onChange(of: args) { _, newArgs in
+            model.start(cmdExe: cmdExe, args: newArgs + extraArgs)
+        }
+        .onChange(of: extraArgs) { _, newExtraArgs in
+            model.start(cmdExe: cmdExe, args: args + newExtraArgs, clearAndRestart: true)
+        }
+        .onChange(of: extraState) { _, _ in
+            model.start(cmdExe: cmdExe, args: args + extraArgs, clearAndRestart: true)
+        }
     }
 }
 
@@ -662,15 +697,6 @@ extension View {
                 }
                 .help("Clear")
                 .keyboardShortcut("k", modifiers: [.command])
-            }
-
-            ToolbarItem(placement: .automatic) {
-                Button {
-                    commandModel.searchCommand.send()
-                } label: {
-                    Label("Search", systemImage: "magnifyingglass")
-                }
-                .help("Search")
             }
         }
     }

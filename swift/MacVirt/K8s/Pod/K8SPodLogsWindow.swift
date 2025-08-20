@@ -127,5 +127,6 @@ struct K8SPodLogsWindow: View {
             savedSelection = selection
         }
         .toolbar(forCommands: commandModel, hasSidebar: true)
+        .searchable(text: $commandModel.searchField)
     }
 }

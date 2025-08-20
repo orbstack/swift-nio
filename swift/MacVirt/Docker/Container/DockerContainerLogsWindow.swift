@@ -110,5 +110,6 @@ struct DockerContainerLogsWindow: View {
             containerId = url.lastPathComponent
         }
         .toolbar(forCommands: commandModel)
+        .searchable(text: $commandModel.searchField)
     }
 }

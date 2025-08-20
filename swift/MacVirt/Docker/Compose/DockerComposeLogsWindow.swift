@@ -172,5 +172,6 @@ struct DockerComposeLogsWindow: View {
             view.navigationTitle(WindowTitles.projectLogs(project))
         }
         .toolbar(forCommands: commandModel, hasSidebar: true)
+        .searchable(text: $commandModel.searchField)
     }
 }
