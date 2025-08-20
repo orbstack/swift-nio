@@ -168,13 +168,27 @@ private struct LogLine {
     let text: NSAttributedString
 }
 
-private struct LogContents {
+private struct RawLogContents {
     var lines = CircularBuffer<LogLine>()
     var seq: UInt64 = 0
 }
 
+private struct DisplayLogContents {
+    var lines = CircularBuffer<LogLine>()
+    var searchFilter = ""
+
+    func shouldShowLine(_ line: LogLine) -> Bool {
+        if searchFilter.isEmpty {
+            return true
+        }
+
+        return line.text.string.contains(searchFilter)
+    }
+}
+
 class LogsViewModel: ObservableObject {
-    fileprivate var contents = OSAllocatedUnfairLock(initialState: LogContents())
+    fileprivate var displayContents = OSAllocatedUnfairLock(initialState: DisplayLogContents())
+    fileprivate var rawContents = OSAllocatedUnfairLock(initialState: RawLogContents())
     fileprivate let updateEvent = PassthroughSubject<Void, Never>()
 
     var process: Process?
@@ -453,7 +467,7 @@ class LogsViewModel: ObservableObject {
     }
 
     private func add(attributedString: NSMutableAttributedString) {
-        contents.withLock { contents in
+        let line = rawContents.withLock { contents in
             if contents.lines.count >= logsMaxLines {
                 contents.lines.removeFirst()
             }
@@ -461,7 +475,21 @@ class LogsViewModel: ObservableObject {
             let line = LogLine(seq: contents.seq, text: attributedString)
             contents.seq += 1
             contents.lines.append(line)
+
+            return line
         }
+
+        displayContents.withLock { contents in
+            if !contents.shouldShowLine(line) {
+                return
+            }
+
+            if contents.lines.count >= logsMaxLines {
+                contents.lines.removeFirst()
+            }
+            contents.lines.append(line)
+        }
+
         updateEvent.send()
     }
 
@@ -491,14 +519,17 @@ class LogsViewModel: ObservableObject {
     }
 
     func clear() {
-        contents.withLock { contents in
+        rawContents.withLock { contents in
+            contents.lines.removeAll()
+        }
+        displayContents.withLock { contents in
             contents.lines.removeAll()
         }
         updateEvent.send()
     }
 
     func copyAll() {
-        let str = contents.withLock { contents in
+        let str = displayContents.withLock { contents in
             var str = String()
             for line in contents.lines {
                 if !str.isEmpty {
@@ -509,6 +540,23 @@ class LogsViewModel: ObservableObject {
             return str
         }
         NSPasteboard.copy(str)
+    }
+
+    func setSearchFilter(_ filter: String) {
+        displayContents.withLock { contents in
+            contents.searchFilter = filter
+            contents.lines.removeAll()
+
+            // TODO: is this deadlock safe?
+            rawContents.withLock { rawContents in
+                for line in rawContents.lines {
+                    if contents.shouldShowLine(line) {
+                        contents.lines.append(line)
+                    }
+                }
+            }
+        }
+        updateEvent.send()
     }
 }
 
@@ -542,7 +590,7 @@ private struct LogsTextView: NSViewRepresentable {
         }
 
         func numberOfRows(in tableView: NSTableView) -> Int {
-            model.contents.withLock { contents in
+            model.displayContents.withLock { contents in
                 contents.lines.count
             }
         }
@@ -550,7 +598,7 @@ private struct LogsTextView: NSViewRepresentable {
         func tableView(_ tableView: NSTableView, viewFor tableColumn: NSTableColumn?, row: Int)
             -> NSView?
         {
-            guard let line = model.contents.withLock({ contents in
+            guard let line = model.displayContents.withLock({ contents in
                 if row >= contents.lines.count {
                     return LogLine?(nil)
                 }
@@ -581,7 +629,7 @@ private struct LogsTextView: NSViewRepresentable {
             let tableView = notification.object as! NSTableView
             var selectedLineText = ""
             let selectedSeqs = tableView.selectedRowIndexes.compactMap { row in
-                model.contents.withLock { contents in
+                model.displayContents.withLock { contents in
                     // in case mutated during reload
                     if row >= contents.lines.count {
                         return UInt64?(nil)
@@ -620,7 +668,7 @@ private struct LogsTextView: NSViewRepresentable {
                     if tableView.selectedRowIndexes.contains(clickedRow) {
                         // copy all selected lines
                         var selectedLines = String()
-                        model.contents.withLock { contents in
+                        model.displayContents.withLock { contents in
                             for row in tableView.selectedRowIndexes {
                                 if row >= contents.lines.count {
                                     continue
@@ -633,7 +681,7 @@ private struct LogsTextView: NSViewRepresentable {
                         }
                         NSPasteboard.copy(selectedLines)
                     } else {
-                        if let line = model.contents.withLock { contents in
+                        if let line = model.displayContents.withLock { contents in
                             if clickedRow >= contents.lines.count {
                                 return LogLine?(nil)
                             }
@@ -658,7 +706,7 @@ private struct LogsTextView: NSViewRepresentable {
             // restore selected sequences
             // seq-based is more reliable because it works across searches, where we can't easily just track added+removed rows
             var newSelectedIndexes = IndexSet()
-            model.contents.withLock { contents in
+            model.displayContents.withLock { contents in
                 for (i, line) in contents.lines.enumerated() {
                     if model.selectedSeqs.contains(line.seq) {
                         newSelectedIndexes.insert(i)
@@ -726,6 +774,9 @@ struct LogsView: View {
         }
         .onChange(of: extraState) { _, _ in
             model.start(cmdExe: cmdExe, args: args + extraArgs, clearAndRestart: true)
+        }
+        .onChange(of: commandModel.searchField) { _, newSearchField in
+            model.setSearchFilter(newSearchField)
         }
     }
 }
