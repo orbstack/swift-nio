@@ -15,9 +15,8 @@ private let inspectorHeight: CGFloat = 120
 
 let logsMaxLines = 5000
 private let maxChars = logsMaxLines * 150  // avg line len - easier to do it like this
-private let bottomScrollThreshold = 256.0
+private let bottomScrollThreshold: CGFloat = 30
 private let fontSize = 12.5
-private let terminalLineHeight = 1.2
 
 private let terminalFont = NSFont.monospacedSystemFont(ofSize: fontSize, weight: .regular)
 private let terminalFontBold = NSFont.monospacedSystemFont(ofSize: fontSize, weight: .bold)
@@ -576,6 +575,24 @@ private class LogsNSTableView: NSTableView {
     override func setFrameSize(_ newSize: NSSize) {
         super.setFrameSize(NSSize(width: newSize.width, height: newSize.height + 12))
     }
+
+    @objc func copy(_ sender: Any?) {
+        let delegate = self.delegate as! LogsTextView.Coordinator
+        delegate.copySelected(tableView: self)
+    }
+}
+
+private class LogsTableCellView: NSTableCellView {
+    let seq: UInt64
+
+    init(seq: UInt64) {
+        self.seq = seq
+        super.init(frame: .zero)
+    }
+
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
 }
 
 private struct LogsTextView: NSViewRepresentable {
@@ -586,6 +603,8 @@ private struct LogsTextView: NSViewRepresentable {
     class Coordinator: NSObject, NSTableViewDelegate, NSTableViewDataSource {
         let model: LogsViewModel
         var cancellables = Set<AnyCancellable>()
+
+        var lastScrolledSeq: UInt64?
 
         init(model: LogsViewModel) {
             self.model = model
@@ -614,7 +633,7 @@ private struct LogsTextView: NSViewRepresentable {
             textView.usesSingleLineMode = true
             textView.lineBreakMode = .byTruncatingTail
 
-            let cellView = NSTableCellView()
+            let cellView = LogsTableCellView(seq: line.seq)
             cellView.textField = textView
             cellView.addSubview(textView)
             NSLayoutConstraint.activate([
@@ -631,19 +650,49 @@ private struct LogsTextView: NSViewRepresentable {
             let tableView = notification.object as! NSTableView
             var selectedLineText = ""
             let selectedSeqs = tableView.selectedRowIndexes.compactMap { row in
-                model.displayContents.withLock { contents in
-                    // in case mutated during reload
-                    if row >= contents.lines.count {
-                        return UInt64?(nil)
-                    }
-
-                    let line = contents.lines[offset: row]
-                    selectedLineText = line.text.string
-                    return line.seq
+                guard let cellView = tableView.view(atColumn: 0, row: row, makeIfNecessary: false) as? LogsTableCellView else {
+                    return UInt64?(nil)
                 }
+                selectedLineText = cellView.textField!.stringValue
+                return cellView.seq
             }
             model.selectedSeqs = Set(selectedSeqs)
             model.selectedLineText = selectedLineText
+        }
+
+        @objc func onScrollViewBoundsChanged(_ notification: Notification) {
+            let contentView = notification.object as! NSClipView
+            let bounds = contentView.bounds
+            let maxY = bounds.maxY - inspectorHeight /* scrollView.additionalSafeAreaInsets.bottom */
+            let tableView = contentView.documentView as! NSTableView
+            let row = tableView.row(at: NSPoint(x: 0, y: maxY))
+            lastScrolledSeq = nil
+            if row != -1 {
+                // .view is less reliable because view might not be created yet?
+                model.displayContents.withLock { contents in
+                    if row >= contents.lines.count {
+                        return
+                    }
+                    lastScrolledSeq = contents.lines[offset: row].seq
+                }
+            }
+        }
+
+        func copySelected(tableView: NSTableView) {
+            // copy all selected lines
+            var selectedLines = String()
+            model.displayContents.withLock { contents in
+                for row in tableView.selectedRowIndexes {
+                    if row >= contents.lines.count {
+                        continue
+                    }
+                    if !selectedLines.isEmpty {
+                        selectedLines.append("\n")
+                    }
+                    selectedLines.append(contents.lines[offset: row].text.string)
+                }
+            }
+            NSPasteboard.copy(selectedLines)
         }
     }
 
@@ -657,6 +706,9 @@ private struct LogsTextView: NSViewRepresentable {
         tableView.delegate = context.coordinator
         tableView.dataSource = context.coordinator
         scrollView.documentView = tableView
+
+        scrollView.contentView.postsBoundsChangedNotifications = true
+        NotificationCenter.default.addObserver(context.coordinator, selector: #selector(Coordinator.onScrollViewBoundsChanged), name: NSView.boundsDidChangeNotification, object: scrollView.contentView)
 
         tableView.allowsMultipleSelection = true
         tableView.headerView = nil
@@ -701,24 +753,33 @@ private struct LogsTextView: NSViewRepresentable {
 
         model.updateEvent.throttle(for: .milliseconds(15), scheduler: DispatchQueue.main, latest: true).sink {
             // no overflow risk: this is a float
-            let shouldScroll = (scrollView.contentView.bounds.maxY >= tableView.bounds.maxY - 30)
+            let shouldScroll = ((scrollView.contentView.bounds.maxY - scrollView.additionalSafeAreaInsets.bottom) >= tableView.bounds.maxY - bottomScrollThreshold)
 
             tableView.reloadData()
 
             // restore selected sequences
             // seq-based is more reliable because it works across searches, where we can't easily just track added+removed rows
             var newSelectedIndexes = IndexSet()
+            var lastScrolledRow = -1
             model.displayContents.withLock { contents in
                 for (i, line) in contents.lines.enumerated() {
                     if model.selectedSeqs.contains(line.seq) {
                         newSelectedIndexes.insert(i)
+                    }
+                    if line.seq == context.coordinator.lastScrolledSeq {
+                        lastScrolledRow = i
                     }
                 }
             }
             tableView.selectRowIndexes(newSelectedIndexes, byExtendingSelection: false)
 
             if shouldScroll {
+                print("scroll to END")
                 tableView.scrollRowToVisible(tableView.numberOfRows - 1)
+            } else if lastScrolledRow != -1 {
+                print("scroll to \(lastScrolledRow)")
+                // if NOT at the end, try to restore the scroll position
+                tableView.scrollRowToVisible(lastScrolledRow)
             }
         }.store(in: &context.coordinator.cancellables)
 
