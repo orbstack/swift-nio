@@ -3,14 +3,18 @@ import SwiftUI
 struct DockerContainerTerminalTab: View {
     @EnvironmentObject private var vmModel: VmViewModel
 
-    @State private var useDebugShell = true
+    @State private var useDebugShell: Bool = true
 
     let container: DKContainer
 
     private var statusBar: some View {
         VStack(spacing: 0) {
             HStack(alignment: .center) {
-                Toggle("Debug Shell", isOn: $useDebugShell)
+                Spacer()
+                Toggle("Debug Shell", isOn: Binding(
+                    get: { useDebugShell && vmModel.isLicensed },
+                    set: { useDebugShell = $0 }
+                ))
                     .toggleStyle(.checkbox)
                     .font(
                         .system(
@@ -18,7 +22,6 @@ struct DockerContainerTerminalTab: View {
                             weight: .regular)
                     )
                 .disabled(!vmModel.isLicensed)
-                Spacer()
             }
             .padding(.horizontal, 16)
             .frame(height: 27) // match list section header height. wtf is this number?
@@ -81,7 +84,7 @@ struct DockerContainerTerminalTab: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            if useDebugShell || container.running {
+            if (useDebugShell && vmModel.isLicensed) || container.running {
                 statusBar
                 terminal
             } else {
