@@ -34,11 +34,6 @@ const DIRENT_PADDING: [u8; 8] = [0; 8];
 const FUSE_PAGE_SIZE: u32 = 4096;
 pub const MAX_PAGES: u32 = ((MAX_BUFFER_SIZE - 1) / FUSE_PAGE_SIZE) + 1;
 
-#[derive(Debug, Clone, Copy)]
-pub struct HostContext {
-    pub is_sync_call: bool,
-}
-
 struct ZCReader<'a>(Reader<'a>);
 
 impl ZeroCopyReader for ZCReader<'_> {
@@ -93,7 +88,7 @@ impl<F: FileSystem + Sync> Server<F> {
     }
 
     #[allow(clippy::cognitive_complexity)]
-    pub fn handle_message(&self, hctx: HostContext, mut r: Reader, w: Writer) -> Result<usize> {
+    pub fn handle_message(&self, mut r: Reader, w: Writer) -> Result<usize> {
         let in_header: InHeader = r.read_obj().map_err(Error::DecodeMessage)?;
 
         if in_header.len > (MAX_BUFFER_SIZE + BUFFER_HEADER_SIZE) {
@@ -103,62 +98,56 @@ impl<F: FileSystem + Sync> Server<F> {
         debug!("opcode: {}", in_header.opcode);
         let opcode = Opcode::from_u32(in_header.opcode);
         match opcode {
-            Some(Opcode::Lookup) => self.lookup(hctx, in_header, r, w),
-            Some(Opcode::Forget) => self.forget(hctx, in_header, r), // No reply.
-            Some(Opcode::Getattr) => self.getattr(hctx, in_header, r, w),
-            Some(Opcode::Setattr) => self.setattr(hctx, in_header, r, w),
-            Some(Opcode::Readlink) => self.readlink(hctx, in_header, w),
-            Some(Opcode::Symlink) => self.symlink(hctx, in_header, r, w),
-            Some(Opcode::Mknod) => self.mknod(hctx, in_header, r, w),
-            Some(Opcode::Mkdir) => self.mkdir(hctx, in_header, r, w),
-            Some(Opcode::Unlink) => self.unlink(hctx, in_header, r, w),
-            Some(Opcode::Rmdir) => self.rmdir(hctx, in_header, r, w),
-            Some(Opcode::Rename) => self.rename(hctx, in_header, r, w),
-            Some(Opcode::Link) => self.link(hctx, in_header, r, w),
-            Some(Opcode::Open) => self.open(hctx, in_header, r, w),
-            Some(Opcode::Read) => self.read(hctx, in_header, r, w),
-            Some(Opcode::Write) => self.write(hctx, in_header, r, w),
-            Some(Opcode::Statfs) => self.statfs(hctx, in_header, w),
-            Some(Opcode::Release) => self.release(hctx, in_header, r, w),
-            Some(Opcode::Fsync) => self.fsync(hctx, in_header, r, w),
-            Some(Opcode::Setxattr) => self.setxattr(hctx, in_header, r, w),
-            Some(Opcode::Getxattr) => self.getxattr(hctx, in_header, r, w),
-            Some(Opcode::Listxattr) => self.listxattr(hctx, in_header, r, w),
-            Some(Opcode::Removexattr) => self.removexattr(hctx, in_header, r, w),
-            Some(Opcode::Flush) => self.flush(hctx, in_header, r, w),
-            Some(Opcode::Init) => self.init(hctx, in_header, r, w),
-            Some(Opcode::Opendir) => self.opendir(hctx, in_header, r, w),
-            Some(Opcode::Readdir) => self.readdir(hctx, in_header, r, w),
-            Some(Opcode::Releasedir) => self.releasedir(hctx, in_header, r, w),
-            Some(Opcode::Fsyncdir) => self.fsyncdir(hctx, in_header, r, w),
-            Some(Opcode::Getlk) => self.getlk(hctx, in_header, r, w),
-            Some(Opcode::Setlk) => self.setlk(hctx, in_header, r, w),
-            Some(Opcode::Setlkw) => self.setlkw(hctx, in_header, r, w),
-            Some(Opcode::Access) => self.access(hctx, in_header, r, w),
-            Some(Opcode::Create) => self.create(hctx, in_header, r, w),
-            Some(Opcode::Interrupt) => self.interrupt(hctx, in_header),
-            Some(Opcode::Bmap) => self.bmap(hctx, in_header, r, w),
+            Some(Opcode::Lookup) => self.lookup(in_header, r, w),
+            Some(Opcode::Forget) => self.forget(in_header, r), // No reply.
+            Some(Opcode::Getattr) => self.getattr(in_header, r, w),
+            Some(Opcode::Setattr) => self.setattr(in_header, r, w),
+            Some(Opcode::Readlink) => self.readlink(in_header, w),
+            Some(Opcode::Symlink) => self.symlink(in_header, r, w),
+            Some(Opcode::Mknod) => self.mknod(in_header, r, w),
+            Some(Opcode::Mkdir) => self.mkdir(in_header, r, w),
+            Some(Opcode::Unlink) => self.unlink(in_header, r, w),
+            Some(Opcode::Rmdir) => self.rmdir(in_header, r, w),
+            Some(Opcode::Rename) => self.rename(in_header, r, w),
+            Some(Opcode::Link) => self.link(in_header, r, w),
+            Some(Opcode::Open) => self.open(in_header, r, w),
+            Some(Opcode::Read) => self.read(in_header, r, w),
+            Some(Opcode::Write) => self.write(in_header, r, w),
+            Some(Opcode::Statfs) => self.statfs(in_header, w),
+            Some(Opcode::Release) => self.release(in_header, r, w),
+            Some(Opcode::Fsync) => self.fsync(in_header, r, w),
+            Some(Opcode::Setxattr) => self.setxattr(in_header, r, w),
+            Some(Opcode::Getxattr) => self.getxattr(in_header, r, w),
+            Some(Opcode::Listxattr) => self.listxattr(in_header, r, w),
+            Some(Opcode::Removexattr) => self.removexattr(in_header, r, w),
+            Some(Opcode::Flush) => self.flush(in_header, r, w),
+            Some(Opcode::Init) => self.init(in_header, r, w),
+            Some(Opcode::Opendir) => self.opendir(in_header, r, w),
+            Some(Opcode::Readdir) => self.readdir(in_header, r, w),
+            Some(Opcode::Releasedir) => self.releasedir(in_header, r, w),
+            Some(Opcode::Fsyncdir) => self.fsyncdir(in_header, r, w),
+            Some(Opcode::Getlk) => self.getlk(in_header, r, w),
+            Some(Opcode::Setlk) => self.setlk(in_header, r, w),
+            Some(Opcode::Setlkw) => self.setlkw(in_header, r, w),
+            Some(Opcode::Access) => self.access(in_header, r, w),
+            Some(Opcode::Create) => self.create(in_header, r, w),
+            Some(Opcode::Interrupt) => self.interrupt(in_header),
+            Some(Opcode::Bmap) => self.bmap(in_header, r, w),
             Some(Opcode::Destroy) => self.destroy(),
-            Some(Opcode::Ioctl) => self.ioctl(hctx, in_header, r, w),
-            Some(Opcode::Poll) => self.poll(hctx, in_header, r, w),
-            Some(Opcode::NotifyReply) => self.notify_reply(hctx, in_header, r, w),
-            Some(Opcode::BatchForget) => self.batch_forget(hctx, in_header, r, w),
-            Some(Opcode::Fallocate) => self.fallocate(hctx, in_header, r, w),
-            Some(Opcode::Readdirplus) => self.readdirplus(hctx, in_header, r, w),
-            Some(Opcode::Rename2) => self.rename2(hctx, in_header, r, w),
-            Some(Opcode::Lseek) => self.lseek(hctx, in_header, r, w),
-            Some(Opcode::CopyFileRange) => self.copyfilerange(hctx, in_header, r, w),
+            Some(Opcode::Ioctl) => self.ioctl(in_header, r, w),
+            Some(Opcode::Poll) => self.poll(in_header, r, w),
+            Some(Opcode::NotifyReply) => self.notify_reply(in_header, r, w),
+            Some(Opcode::BatchForget) => self.batch_forget(in_header, r, w),
+            Some(Opcode::Fallocate) => self.fallocate(in_header, r, w),
+            Some(Opcode::Readdirplus) => self.readdirplus(in_header, r, w),
+            Some(Opcode::Rename2) => self.rename2(in_header, r, w),
+            Some(Opcode::Lseek) => self.lseek(in_header, r, w),
+            Some(Opcode::CopyFileRange) => self.copyfilerange(in_header, r, w),
             _ => reply_error(Errno::ENOSYS.into(), in_header.unique, w),
         }
     }
 
-    fn lookup(
-        &self,
-        hctx: HostContext,
-        in_header: InHeader,
-        mut r: Reader,
-        w: Writer,
-    ) -> Result<usize> {
+    fn lookup(&self, in_header: InHeader, mut r: Reader, w: Writer) -> Result<usize> {
         let namelen = (in_header.len as usize)
             .checked_sub(size_of::<InHeader>())
             .ok_or(Error::InvalidHeaderLength)?;
@@ -171,7 +160,7 @@ impl<F: FileSystem + Sync> Server<F> {
 
         match self
             .fs
-            .lookup(Context::new(in_header, hctx), in_header.nodeid.into(), name)
+            .lookup(Context::new(in_header), in_header.nodeid.into(), name)
         {
             Ok(entry) => {
                 let out = EntryOut::from(entry);
@@ -182,26 +171,17 @@ impl<F: FileSystem + Sync> Server<F> {
         }
     }
 
-    fn forget(&self, hctx: HostContext, in_header: InHeader, mut r: Reader) -> Result<usize> {
+    fn forget(&self, in_header: InHeader, mut r: Reader) -> Result<usize> {
         let ForgetIn { nlookup } = r.read_obj().map_err(Error::DecodeMessage)?;
 
-        self.fs.forget(
-            Context::new(in_header, hctx),
-            in_header.nodeid.into(),
-            nlookup,
-        );
+        self.fs
+            .forget(Context::new(in_header), in_header.nodeid.into(), nlookup);
 
         // There is no reply for forget messages.
         Ok(0)
     }
 
-    fn getattr(
-        &self,
-        hctx: HostContext,
-        in_header: InHeader,
-        mut r: Reader,
-        w: Writer,
-    ) -> Result<usize> {
+    fn getattr(&self, in_header: InHeader, mut r: Reader, w: Writer) -> Result<usize> {
         let GetattrIn { flags, fh, .. } = r.read_obj().map_err(Error::DecodeMessage)?;
 
         let handle = if (flags & GETATTR_FH) != 0 {
@@ -210,11 +190,10 @@ impl<F: FileSystem + Sync> Server<F> {
             None
         };
 
-        match self.fs.getattr(
-            Context::new(in_header, hctx),
-            in_header.nodeid.into(),
-            handle,
-        ) {
+        match self
+            .fs
+            .getattr(Context::new(in_header), in_header.nodeid.into(), handle)
+        {
             Ok((st, timeout)) => {
                 let out = AttrOut {
                     attr_valid: timeout.as_secs(),
@@ -228,13 +207,7 @@ impl<F: FileSystem + Sync> Server<F> {
         }
     }
 
-    fn setattr(
-        &self,
-        hctx: HostContext,
-        in_header: InHeader,
-        mut r: Reader,
-        w: Writer,
-    ) -> Result<usize> {
+    fn setattr(&self, in_header: InHeader, mut r: Reader, w: Writer) -> Result<usize> {
         let setattr_in: SetattrIn = r.read_obj().map_err(Error::DecodeMessage)?;
 
         let handle = if setattr_in.valid & FATTR_FH != 0 {
@@ -248,7 +221,7 @@ impl<F: FileSystem + Sync> Server<F> {
         let st: bindings::stat64 = setattr_in.into();
 
         match self.fs.setattr(
-            Context::new(in_header, hctx),
+            Context::new(in_header),
             in_header.nodeid.into(),
             st,
             handle,
@@ -267,10 +240,10 @@ impl<F: FileSystem + Sync> Server<F> {
         }
     }
 
-    fn readlink(&self, hctx: HostContext, in_header: InHeader, w: Writer) -> Result<usize> {
+    fn readlink(&self, in_header: InHeader, w: Writer) -> Result<usize> {
         match self
             .fs
-            .readlink(Context::new(in_header, hctx), in_header.nodeid.into())
+            .readlink(Context::new(in_header), in_header.nodeid.into())
         {
             Ok(linkname) => {
                 // We need to disambiguate the option type here even though it is `None`.
@@ -280,13 +253,7 @@ impl<F: FileSystem + Sync> Server<F> {
         }
     }
 
-    fn symlink(
-        &self,
-        hctx: HostContext,
-        in_header: InHeader,
-        mut r: Reader,
-        w: Writer,
-    ) -> Result<usize> {
+    fn symlink(&self, in_header: InHeader, mut r: Reader, w: Writer) -> Result<usize> {
         // Unfortunately the name and linkname are encoded one after another and
         // separated by a nul character.
         let len = (in_header.len as usize)
@@ -306,7 +273,7 @@ impl<F: FileSystem + Sync> Server<F> {
         let extensions = get_extensions(options, name.len() + linkname.len(), buf.as_slice())?;
 
         match self.fs.symlink(
-            Context::new(in_header, hctx),
+            Context::new(in_header),
             bytes_to_cstr(linkname)?,
             in_header.nodeid.into(),
             bytes_to_cstr(name)?,
@@ -321,13 +288,7 @@ impl<F: FileSystem + Sync> Server<F> {
         }
     }
 
-    fn mknod(
-        &self,
-        hctx: HostContext,
-        in_header: InHeader,
-        mut r: Reader,
-        w: Writer,
-    ) -> Result<usize> {
+    fn mknod(&self, in_header: InHeader, mut r: Reader, w: Writer) -> Result<usize> {
         let MknodIn {
             mode, rdev, umask, ..
         } = r.read_obj().map_err(Error::DecodeMessage)?;
@@ -347,7 +308,7 @@ impl<F: FileSystem + Sync> Server<F> {
         let extensions = get_extensions(options, name.len(), buf.as_slice())?;
 
         match self.fs.mknod(
-            Context::new(in_header, hctx),
+            Context::new(in_header),
             in_header.nodeid.into(),
             bytes_to_cstr(name)?,
             mode,
@@ -364,13 +325,7 @@ impl<F: FileSystem + Sync> Server<F> {
         }
     }
 
-    fn mkdir(
-        &self,
-        hctx: HostContext,
-        in_header: InHeader,
-        mut r: Reader,
-        w: Writer,
-    ) -> Result<usize> {
+    fn mkdir(&self, in_header: InHeader, mut r: Reader, w: Writer) -> Result<usize> {
         let MkdirIn { mode, umask } = r.read_obj().map_err(Error::DecodeMessage)?;
 
         let remaining_len = (in_header.len as usize)
@@ -388,7 +343,7 @@ impl<F: FileSystem + Sync> Server<F> {
         let extensions = get_extensions(options, name.len(), buf.as_slice())?;
 
         match self.fs.mkdir(
-            Context::new(in_header, hctx),
+            Context::new(in_header),
             in_header.nodeid.into(),
             bytes_to_cstr(name)?,
             mode,
@@ -404,13 +359,7 @@ impl<F: FileSystem + Sync> Server<F> {
         }
     }
 
-    fn unlink(
-        &self,
-        hctx: HostContext,
-        in_header: InHeader,
-        mut r: Reader,
-        w: Writer,
-    ) -> Result<usize> {
+    fn unlink(&self, in_header: InHeader, mut r: Reader, w: Writer) -> Result<usize> {
         let namelen = (in_header.len as usize)
             .checked_sub(size_of::<InHeader>())
             .ok_or(Error::InvalidHeaderLength)?;
@@ -419,7 +368,7 @@ impl<F: FileSystem + Sync> Server<F> {
         r.read_exact(&mut name).map_err(Error::DecodeMessage)?;
 
         match self.fs.unlink(
-            Context::new(in_header, hctx),
+            Context::new(in_header),
             in_header.nodeid.into(),
             bytes_to_cstr(&name)?,
         ) {
@@ -428,13 +377,7 @@ impl<F: FileSystem + Sync> Server<F> {
         }
     }
 
-    fn rmdir(
-        &self,
-        hctx: HostContext,
-        in_header: InHeader,
-        mut r: Reader,
-        w: Writer,
-    ) -> Result<usize> {
+    fn rmdir(&self, in_header: InHeader, mut r: Reader, w: Writer) -> Result<usize> {
         let namelen = (in_header.len as usize)
             .checked_sub(size_of::<InHeader>())
             .ok_or(Error::InvalidHeaderLength)?;
@@ -443,7 +386,7 @@ impl<F: FileSystem + Sync> Server<F> {
         r.read_exact(&mut name).map_err(Error::DecodeMessage)?;
 
         match self.fs.rmdir(
-            Context::new(in_header, hctx),
+            Context::new(in_header),
             in_header.nodeid.into(),
             bytes_to_cstr(&name)?,
         ) {
@@ -454,7 +397,6 @@ impl<F: FileSystem + Sync> Server<F> {
 
     fn do_rename(
         &self,
-        hctx: HostContext,
         in_header: InHeader,
         msg_size: usize,
         newdir: u64,
@@ -480,7 +422,7 @@ impl<F: FileSystem + Sync> Server<F> {
         let (oldname, newname) = buf.split_at(split_pos);
 
         match self.fs.rename(
-            Context::new(in_header, hctx),
+            Context::new(in_header),
             in_header.nodeid.into(),
             bytes_to_cstr(oldname)?,
             newdir.into(),
@@ -492,40 +434,22 @@ impl<F: FileSystem + Sync> Server<F> {
         }
     }
 
-    fn rename(
-        &self,
-        hctx: HostContext,
-        in_header: InHeader,
-        mut r: Reader,
-        w: Writer,
-    ) -> Result<usize> {
+    fn rename(&self, in_header: InHeader, mut r: Reader, w: Writer) -> Result<usize> {
         let RenameIn { newdir } = r.read_obj().map_err(Error::DecodeMessage)?;
 
-        self.do_rename(hctx, in_header, size_of::<RenameIn>(), newdir, 0, r, w)
+        self.do_rename(in_header, size_of::<RenameIn>(), newdir, 0, r, w)
     }
 
-    fn rename2(
-        &self,
-        hctx: HostContext,
-        in_header: InHeader,
-        mut r: Reader,
-        w: Writer,
-    ) -> Result<usize> {
+    fn rename2(&self, in_header: InHeader, mut r: Reader, w: Writer) -> Result<usize> {
         let Rename2In { newdir, flags, .. } = r.read_obj().map_err(Error::DecodeMessage)?;
 
         #[cfg(target_os = "linux")]
         let flags = flags & (libc::RENAME_EXCHANGE | libc::RENAME_NOREPLACE);
 
-        self.do_rename(hctx, in_header, size_of::<Rename2In>(), newdir, flags, r, w)
+        self.do_rename(in_header, size_of::<Rename2In>(), newdir, flags, r, w)
     }
 
-    fn link(
-        &self,
-        hctx: HostContext,
-        in_header: InHeader,
-        mut r: Reader,
-        w: Writer,
-    ) -> Result<usize> {
+    fn link(&self, in_header: InHeader, mut r: Reader, w: Writer) -> Result<usize> {
         let LinkIn { oldnodeid } = r.read_obj().map_err(Error::DecodeMessage)?;
 
         let namelen = (in_header.len as usize)
@@ -537,7 +461,7 @@ impl<F: FileSystem + Sync> Server<F> {
         r.read_exact(&mut name).map_err(Error::DecodeMessage)?;
 
         match self.fs.link(
-            Context::new(in_header, hctx),
+            Context::new(in_header),
             oldnodeid.into(),
             in_header.nodeid.into(),
             bytes_to_cstr(&name)?,
@@ -551,20 +475,13 @@ impl<F: FileSystem + Sync> Server<F> {
         }
     }
 
-    fn open(
-        &self,
-        hctx: HostContext,
-        in_header: InHeader,
-        mut r: Reader,
-        w: Writer,
-    ) -> Result<usize> {
+    fn open(&self, in_header: InHeader, mut r: Reader, w: Writer) -> Result<usize> {
         let OpenIn { flags, .. } = r.read_obj().map_err(Error::DecodeMessage)?;
 
-        match self.fs.open(
-            Context::new(in_header, hctx),
-            in_header.nodeid.into(),
-            flags,
-        ) {
+        match self
+            .fs
+            .open(Context::new(in_header), in_header.nodeid.into(), flags)
+        {
             Ok((handle, opts)) => {
                 let out = OpenOut {
                     fh: handle.map(Into::into).unwrap_or(0),
@@ -578,13 +495,7 @@ impl<F: FileSystem + Sync> Server<F> {
         }
     }
 
-    fn read(
-        &self,
-        hctx: HostContext,
-        in_header: InHeader,
-        mut r: Reader,
-        mut w: Writer,
-    ) -> Result<usize> {
+    fn read(&self, in_header: InHeader, mut r: Reader, mut w: Writer) -> Result<usize> {
         let ReadIn {
             fh,
             offset,
@@ -609,7 +520,7 @@ impl<F: FileSystem + Sync> Server<F> {
         let data_writer = ZCWriter(w.split_at(size_of::<OutHeader>()).unwrap());
 
         match self.fs.read(
-            Context::new(in_header, hctx),
+            Context::new(in_header),
             in_header.nodeid.into(),
             fh.into(),
             data_writer,
@@ -634,13 +545,7 @@ impl<F: FileSystem + Sync> Server<F> {
         }
     }
 
-    fn write(
-        &self,
-        hctx: HostContext,
-        in_header: InHeader,
-        mut r: Reader,
-        w: Writer,
-    ) -> Result<usize> {
+    fn write(&self, in_header: InHeader, mut r: Reader, w: Writer) -> Result<usize> {
         let WriteIn {
             fh,
             offset,
@@ -667,7 +572,7 @@ impl<F: FileSystem + Sync> Server<F> {
         let data_reader = ZCReader(r);
 
         match self.fs.write(
-            Context::new(in_header, hctx),
+            Context::new(in_header),
             in_header.nodeid.into(),
             fh.into(),
             data_reader,
@@ -690,23 +595,17 @@ impl<F: FileSystem + Sync> Server<F> {
         }
     }
 
-    fn statfs(&self, hctx: HostContext, in_header: InHeader, w: Writer) -> Result<usize> {
+    fn statfs(&self, in_header: InHeader, w: Writer) -> Result<usize> {
         match self
             .fs
-            .statfs(Context::new(in_header, hctx), in_header.nodeid.into())
+            .statfs(Context::new(in_header), in_header.nodeid.into())
         {
             Ok(st) => reply_ok(Some(Kstatfs::from(st)), None, in_header.unique, w),
             Err(e) => reply_error(e, in_header.unique, w),
         }
     }
 
-    fn release(
-        &self,
-        hctx: HostContext,
-        in_header: InHeader,
-        mut r: Reader,
-        w: Writer,
-    ) -> Result<usize> {
+    fn release(&self, in_header: InHeader, mut r: Reader, w: Writer) -> Result<usize> {
         let ReleaseIn {
             fh,
             flags,
@@ -723,7 +622,7 @@ impl<F: FileSystem + Sync> Server<F> {
         };
 
         match self.fs.release(
-            Context::new(in_header, hctx),
+            Context::new(in_header),
             in_header.nodeid.into(),
             flags,
             fh.into(),
@@ -736,20 +635,14 @@ impl<F: FileSystem + Sync> Server<F> {
         }
     }
 
-    fn fsync(
-        &self,
-        hctx: HostContext,
-        in_header: InHeader,
-        mut r: Reader,
-        w: Writer,
-    ) -> Result<usize> {
+    fn fsync(&self, in_header: InHeader, mut r: Reader, w: Writer) -> Result<usize> {
         let FsyncIn {
             fh, fsync_flags, ..
         } = r.read_obj().map_err(Error::DecodeMessage)?;
         let datasync = fsync_flags & 0x1 != 0;
 
         match self.fs.fsync(
-            Context::new(in_header, hctx),
+            Context::new(in_header),
             in_header.nodeid.into(),
             datasync,
             fh.into(),
@@ -759,13 +652,7 @@ impl<F: FileSystem + Sync> Server<F> {
         }
     }
 
-    fn setxattr(
-        &self,
-        hctx: HostContext,
-        in_header: InHeader,
-        mut r: Reader,
-        w: Writer,
-    ) -> Result<usize> {
+    fn setxattr(&self, in_header: InHeader, mut r: Reader, w: Writer) -> Result<usize> {
         let SetxattrIn { size, flags } = r.read_obj().map_err(Error::DecodeMessage)?;
 
         // The name and value and encoded one after another and separated by a '\0' character.
@@ -791,7 +678,7 @@ impl<F: FileSystem + Sync> Server<F> {
         }
 
         match self.fs.setxattr(
-            Context::new(in_header, hctx),
+            Context::new(in_header),
             in_header.nodeid.into(),
             bytes_to_cstr(name)?,
             value,
@@ -802,13 +689,7 @@ impl<F: FileSystem + Sync> Server<F> {
         }
     }
 
-    fn getxattr(
-        &self,
-        hctx: HostContext,
-        in_header: InHeader,
-        mut r: Reader,
-        w: Writer,
-    ) -> Result<usize> {
+    fn getxattr(&self, in_header: InHeader, mut r: Reader, w: Writer) -> Result<usize> {
         let GetxattrIn { size, .. } = r.read_obj().map_err(Error::DecodeMessage)?;
 
         let namelen = (in_header.len as usize)
@@ -824,7 +705,7 @@ impl<F: FileSystem + Sync> Server<F> {
         }
 
         match self.fs.getxattr(
-            Context::new(in_header, hctx),
+            Context::new(in_header),
             in_header.nodeid.into(),
             bytes_to_cstr(&name)?,
             size,
@@ -842,13 +723,7 @@ impl<F: FileSystem + Sync> Server<F> {
         }
     }
 
-    fn listxattr(
-        &self,
-        hctx: HostContext,
-        in_header: InHeader,
-        mut r: Reader,
-        w: Writer,
-    ) -> Result<usize> {
+    fn listxattr(&self, in_header: InHeader, mut r: Reader, w: Writer) -> Result<usize> {
         let GetxattrIn { size, .. } = r.read_obj().map_err(Error::DecodeMessage)?;
 
         if size > MAX_BUFFER_SIZE {
@@ -857,7 +732,7 @@ impl<F: FileSystem + Sync> Server<F> {
 
         match self
             .fs
-            .listxattr(Context::new(in_header, hctx), in_header.nodeid.into(), size)
+            .listxattr(Context::new(in_header), in_header.nodeid.into(), size)
         {
             Ok(ListxattrReply::Names(val)) => reply_ok(None::<u8>, Some(&val), in_header.unique, w),
             Ok(ListxattrReply::Count(count)) => {
@@ -872,13 +747,7 @@ impl<F: FileSystem + Sync> Server<F> {
         }
     }
 
-    fn removexattr(
-        &self,
-        hctx: HostContext,
-        in_header: InHeader,
-        mut r: Reader,
-        w: Writer,
-    ) -> Result<usize> {
+    fn removexattr(&self, in_header: InHeader, mut r: Reader, w: Writer) -> Result<usize> {
         let namelen = (in_header.len as usize)
             .checked_sub(size_of::<InHeader>())
             .ok_or(Error::InvalidHeaderLength)?;
@@ -891,24 +760,18 @@ impl<F: FileSystem + Sync> Server<F> {
 
         match self
             .fs
-            .removexattr(Context::new(in_header, hctx), in_header.nodeid.into(), name)
+            .removexattr(Context::new(in_header), in_header.nodeid.into(), name)
         {
             Ok(()) => reply_ok(None::<u8>, None, in_header.unique, w),
             Err(e) => reply_error(e, in_header.unique, w),
         }
     }
 
-    fn flush(
-        &self,
-        hctx: HostContext,
-        in_header: InHeader,
-        mut r: Reader,
-        w: Writer,
-    ) -> Result<usize> {
+    fn flush(&self, in_header: InHeader, mut r: Reader, w: Writer) -> Result<usize> {
         let FlushIn { fh, lock_owner, .. } = r.read_obj().map_err(Error::DecodeMessage)?;
 
         match self.fs.flush(
-            Context::new(in_header, hctx),
+            Context::new(in_header),
             in_header.nodeid.into(),
             fh.into(),
             lock_owner,
@@ -918,13 +781,7 @@ impl<F: FileSystem + Sync> Server<F> {
         }
     }
 
-    fn init(
-        &self,
-        _hctx: HostContext,
-        in_header: InHeader,
-        mut r: Reader,
-        w: Writer,
-    ) -> Result<usize> {
+    fn init(&self, in_header: InHeader, mut r: Reader, w: Writer) -> Result<usize> {
         let InitInCompat {
             major,
             minor,
@@ -1012,20 +869,13 @@ impl<F: FileSystem + Sync> Server<F> {
         }
     }
 
-    fn opendir(
-        &self,
-        hctx: HostContext,
-        in_header: InHeader,
-        mut r: Reader,
-        w: Writer,
-    ) -> Result<usize> {
+    fn opendir(&self, in_header: InHeader, mut r: Reader, w: Writer) -> Result<usize> {
         let OpenIn { flags, .. } = r.read_obj().map_err(Error::DecodeMessage)?;
 
-        match self.fs.opendir(
-            Context::new(in_header, hctx),
-            in_header.nodeid.into(),
-            flags,
-        ) {
+        match self
+            .fs
+            .opendir(Context::new(in_header), in_header.nodeid.into(), flags)
+        {
             Ok((handle, opts)) => {
                 let out = OpenOut {
                     fh: handle.map(Into::into).unwrap_or(0),
@@ -1041,7 +891,6 @@ impl<F: FileSystem + Sync> Server<F> {
 
     fn do_readdir(
         &self,
-        hctx: HostContext,
         in_header: InHeader,
         mut r: Reader,
         mut w: Writer,
@@ -1065,7 +914,7 @@ impl<F: FileSystem + Sync> Server<F> {
 
         let res = if plus {
             self.fs.readdirplus(
-                Context::new(in_header, hctx),
+                Context::new(in_header),
                 in_header.nodeid.into(),
                 fh.into(),
                 size,
@@ -1074,7 +923,7 @@ impl<F: FileSystem + Sync> Server<F> {
             )
         } else {
             self.fs.readdir(
-                Context::new(in_header, hctx),
+                Context::new(in_header),
                 in_header.nodeid.into(),
                 fh.into(),
                 size,
@@ -1099,37 +948,19 @@ impl<F: FileSystem + Sync> Server<F> {
         }
     }
 
-    fn readdir(
-        &self,
-        hctx: HostContext,
-        in_header: InHeader,
-        r: Reader,
-        w: Writer,
-    ) -> Result<usize> {
-        self.do_readdir(hctx, in_header, r, w, false)
+    fn readdir(&self, in_header: InHeader, r: Reader, w: Writer) -> Result<usize> {
+        self.do_readdir(in_header, r, w, false)
     }
 
-    fn readdirplus(
-        &self,
-        hctx: HostContext,
-        in_header: InHeader,
-        r: Reader,
-        w: Writer,
-    ) -> Result<usize> {
-        self.do_readdir(hctx, in_header, r, w, true)
+    fn readdirplus(&self, in_header: InHeader, r: Reader, w: Writer) -> Result<usize> {
+        self.do_readdir(in_header, r, w, true)
     }
 
-    fn releasedir(
-        &self,
-        hctx: HostContext,
-        in_header: InHeader,
-        mut r: Reader,
-        w: Writer,
-    ) -> Result<usize> {
+    fn releasedir(&self, in_header: InHeader, mut r: Reader, w: Writer) -> Result<usize> {
         let ReleaseIn { fh, flags, .. } = r.read_obj().map_err(Error::DecodeMessage)?;
 
         match self.fs.releasedir(
-            Context::new(in_header, hctx),
+            Context::new(in_header),
             in_header.nodeid.into(),
             flags,
             fh.into(),
@@ -1139,20 +970,14 @@ impl<F: FileSystem + Sync> Server<F> {
         }
     }
 
-    fn fsyncdir(
-        &self,
-        hctx: HostContext,
-        in_header: InHeader,
-        mut r: Reader,
-        w: Writer,
-    ) -> Result<usize> {
+    fn fsyncdir(&self, in_header: InHeader, mut r: Reader, w: Writer) -> Result<usize> {
         let FsyncIn {
             fh, fsync_flags, ..
         } = r.read_obj().map_err(Error::DecodeMessage)?;
         let datasync = fsync_flags & 0x1 != 0;
 
         match self.fs.fsyncdir(
-            Context::new(in_header, hctx),
+            Context::new(in_header),
             in_header.nodeid.into(),
             datasync,
             fh.into(),
@@ -1162,13 +987,7 @@ impl<F: FileSystem + Sync> Server<F> {
         }
     }
 
-    fn getlk(
-        &self,
-        _hctx: HostContext,
-        in_header: InHeader,
-        mut _r: Reader,
-        w: Writer,
-    ) -> Result<usize> {
+    fn getlk(&self, in_header: InHeader, mut _r: Reader, w: Writer) -> Result<usize> {
         if let Err(e) = self.fs.getlk() {
             reply_error(e, in_header.unique, w)
         } else {
@@ -1176,13 +995,7 @@ impl<F: FileSystem + Sync> Server<F> {
         }
     }
 
-    fn setlk(
-        &self,
-        _hctx: HostContext,
-        in_header: InHeader,
-        mut _r: Reader,
-        w: Writer,
-    ) -> Result<usize> {
+    fn setlk(&self, in_header: InHeader, mut _r: Reader, w: Writer) -> Result<usize> {
         if let Err(e) = self.fs.setlk() {
             reply_error(e, in_header.unique, w)
         } else {
@@ -1190,13 +1003,7 @@ impl<F: FileSystem + Sync> Server<F> {
         }
     }
 
-    fn setlkw(
-        &self,
-        _hctx: HostContext,
-        in_header: InHeader,
-        mut _r: Reader,
-        w: Writer,
-    ) -> Result<usize> {
+    fn setlkw(&self, in_header: InHeader, mut _r: Reader, w: Writer) -> Result<usize> {
         if let Err(e) = self.fs.setlkw() {
             reply_error(e, in_header.unique, w)
         } else {
@@ -1204,31 +1011,19 @@ impl<F: FileSystem + Sync> Server<F> {
         }
     }
 
-    fn access(
-        &self,
-        hctx: HostContext,
-        in_header: InHeader,
-        mut r: Reader,
-        w: Writer,
-    ) -> Result<usize> {
+    fn access(&self, in_header: InHeader, mut r: Reader, w: Writer) -> Result<usize> {
         let AccessIn { mask, .. } = r.read_obj().map_err(Error::DecodeMessage)?;
 
         match self
             .fs
-            .access(Context::new(in_header, hctx), in_header.nodeid.into(), mask)
+            .access(Context::new(in_header), in_header.nodeid.into(), mask)
         {
             Ok(()) => reply_ok(None::<u8>, None, in_header.unique, w),
             Err(e) => reply_error(e, in_header.unique, w),
         }
     }
 
-    fn create(
-        &self,
-        hctx: HostContext,
-        in_header: InHeader,
-        mut r: Reader,
-        w: Writer,
-    ) -> Result<usize> {
+    fn create(&self, in_header: InHeader, mut r: Reader, w: Writer) -> Result<usize> {
         let CreateIn {
             flags, mode, umask, ..
         } = r.read_obj().map_err(Error::DecodeMessage)?;
@@ -1249,7 +1044,7 @@ impl<F: FileSystem + Sync> Server<F> {
         let extensions = get_extensions(options, name.len(), buf.as_slice())?;
 
         match self.fs.create(
-            Context::new(in_header, hctx),
+            Context::new(in_header),
             in_header.nodeid.into(),
             bytes_to_cstr(name)?,
             mode,
@@ -1285,17 +1080,11 @@ impl<F: FileSystem + Sync> Server<F> {
         }
     }
 
-    fn interrupt(&self, _hctx: HostContext, _in_header: InHeader) -> Result<usize> {
+    fn interrupt(&self, _in_header: InHeader) -> Result<usize> {
         Ok(0)
     }
 
-    fn bmap(
-        &self,
-        _hctx: HostContext,
-        in_header: InHeader,
-        mut _r: Reader,
-        w: Writer,
-    ) -> Result<usize> {
+    fn bmap(&self, in_header: InHeader, mut _r: Reader, w: Writer) -> Result<usize> {
         if let Err(e) = self.fs.bmap() {
             reply_error(e, in_header.unique, w)
         } else {
@@ -1310,13 +1099,7 @@ impl<F: FileSystem + Sync> Server<F> {
         Ok(0)
     }
 
-    fn ioctl(
-        &self,
-        hctx: HostContext,
-        in_header: InHeader,
-        mut r: Reader,
-        w: Writer,
-    ) -> Result<usize> {
+    fn ioctl(&self, in_header: InHeader, mut r: Reader, w: Writer) -> Result<usize> {
         let IoctlIn {
             fh,
             flags,
@@ -1327,7 +1110,7 @@ impl<F: FileSystem + Sync> Server<F> {
         } = r.read_obj().map_err(Error::DecodeMessage)?;
 
         match self.fs.ioctl(
-            Context::new(in_header, hctx),
+            Context::new(in_header),
             in_header.nodeid.into(),
             fh.into(),
             flags,
@@ -1347,13 +1130,7 @@ impl<F: FileSystem + Sync> Server<F> {
         }
     }
 
-    fn poll(
-        &self,
-        _hctx: HostContext,
-        in_header: InHeader,
-        mut _r: Reader,
-        w: Writer,
-    ) -> Result<usize> {
+    fn poll(&self, in_header: InHeader, mut _r: Reader, w: Writer) -> Result<usize> {
         if let Err(e) = self.fs.poll() {
             reply_error(e, in_header.unique, w)
         } else {
@@ -1361,13 +1138,7 @@ impl<F: FileSystem + Sync> Server<F> {
         }
     }
 
-    fn notify_reply(
-        &self,
-        _hctx: HostContext,
-        in_header: InHeader,
-        mut _r: Reader,
-        w: Writer,
-    ) -> Result<usize> {
+    fn notify_reply(&self, in_header: InHeader, mut _r: Reader, w: Writer) -> Result<usize> {
         if let Err(e) = self.fs.notify_reply() {
             reply_error(e, in_header.unique, w)
         } else {
@@ -1375,13 +1146,7 @@ impl<F: FileSystem + Sync> Server<F> {
         }
     }
 
-    fn batch_forget(
-        &self,
-        hctx: HostContext,
-        in_header: InHeader,
-        mut r: Reader,
-        w: Writer,
-    ) -> Result<usize> {
+    fn batch_forget(&self, in_header: InHeader, mut r: Reader, w: Writer) -> Result<usize> {
         let BatchForgetIn { count, .. } = r.read_obj().map_err(Error::DecodeMessage)?;
 
         if let Some(size) = (count as usize).checked_mul(size_of::<ForgetOne>()) {
@@ -1401,20 +1166,13 @@ impl<F: FileSystem + Sync> Server<F> {
             );
         }
 
-        self.fs
-            .batch_forget(Context::new(in_header, hctx), requests);
+        self.fs.batch_forget(Context::new(in_header), requests);
 
         // No reply for forget messages.
         Ok(0)
     }
 
-    fn fallocate(
-        &self,
-        hctx: HostContext,
-        in_header: InHeader,
-        mut r: Reader,
-        w: Writer,
-    ) -> Result<usize> {
+    fn fallocate(&self, in_header: InHeader, mut r: Reader, w: Writer) -> Result<usize> {
         let FallocateIn {
             fh,
             offset,
@@ -1424,7 +1182,7 @@ impl<F: FileSystem + Sync> Server<F> {
         } = r.read_obj().map_err(Error::DecodeMessage)?;
 
         match self.fs.fallocate(
-            Context::new(in_header, hctx),
+            Context::new(in_header),
             in_header.nodeid.into(),
             fh.into(),
             mode,
@@ -1436,19 +1194,13 @@ impl<F: FileSystem + Sync> Server<F> {
         }
     }
 
-    fn lseek(
-        &self,
-        hctx: HostContext,
-        in_header: InHeader,
-        mut r: Reader,
-        w: Writer,
-    ) -> Result<usize> {
+    fn lseek(&self, in_header: InHeader, mut r: Reader, w: Writer) -> Result<usize> {
         let LseekIn {
             fh, offset, whence, ..
         } = r.read_obj().map_err(Error::DecodeMessage)?;
 
         match self.fs.lseek(
-            Context::new(in_header, hctx),
+            Context::new(in_header),
             in_header.nodeid.into(),
             fh.into(),
             offset,
@@ -1463,13 +1215,7 @@ impl<F: FileSystem + Sync> Server<F> {
         }
     }
 
-    fn copyfilerange(
-        &self,
-        hctx: HostContext,
-        in_header: InHeader,
-        mut r: Reader,
-        w: Writer,
-    ) -> Result<usize> {
+    fn copyfilerange(&self, in_header: InHeader, mut r: Reader, w: Writer) -> Result<usize> {
         let CopyfilerangeIn {
             fh_in,
             off_in,
@@ -1482,7 +1228,7 @@ impl<F: FileSystem + Sync> Server<F> {
         } = r.read_obj().map_err(Error::DecodeMessage)?;
 
         match self.fs.copyfilerange(
-            Context::new(in_header, hctx),
+            Context::new(in_header),
             in_header.nodeid.into(),
             fh_in.into(),
             off_in,
