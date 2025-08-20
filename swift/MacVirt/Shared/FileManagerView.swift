@@ -679,6 +679,29 @@ private class FileManagerOutlineDelegate: NSObject, NSOutlineViewDelegate,
         }
     }
 
+    func outlineViewItemWillCollapse(_ notification: Notification) {
+        guard let collapsingNode = notification.userInfo?["NSObject"] as? NSTreeNode,
+            let collapsingItem = collapsingNode.representedObject as? FileItem,
+            collapsingItem.children != nil
+        else { return }
+
+        // we need to filter out any selected rows that are children of the collapsing item. otherwise,
+        // collapseItem() will set children to nil, & the item will be re-expanded because its child is selected.
+        // my guess is that outlineViewItemDidCollapse() is called before the expansion animation completes,
+        // and whoever is triggering the re-expansion does so before NSOutlineView deselects the children.
+        // who knows. -cheru
+        let newRowIndexes = view.selectedRowIndexes.compactMap { index in
+            if let node = view.item(atRow: index) as? NSTreeNode,
+                let item = node.representedObject as? FileItem,
+                !item.path.starts(with: collapsingItem.path + "/")
+            {
+                return index
+            }
+            return nil
+        }
+        view.selectRowIndexes(IndexSet(newRowIndexes), byExtendingSelection: false)
+    }
+
     func outlineViewItemDidCollapse(_ notification: Notification) {
         if let node = notification.userInfo?["NSObject"] as? NSTreeNode,
             let item = node.representedObject as? FileItem,
