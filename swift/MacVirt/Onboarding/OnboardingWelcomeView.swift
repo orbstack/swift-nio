@@ -62,20 +62,18 @@ struct OnboardingWelcomeView: View {
             .foregroundColor(.secondary)
             .padding(.bottom, 16)
 
-            HStack(alignment: .bottom) {
-                HStack {
-                    Spacer()
-                }
-                .frame(maxWidth: .infinity)
-                VStack(alignment: .center) {
+            Grid(alignment: .center) {
+                GridRow {
+                    Color.clear
+                        .gridCellUnsizedAxes(.vertical)
+
                     CtaButton("Next") {
                         onboardingModel.advance(to: .mode)
                     }
+
+                    Color.clear
+                        .gridCellUnsizedAxes(.vertical)
                 }
-                .frame(maxWidth: .infinity)
-                VStack {
-                    Spacer()
-                }.frame(maxWidth: .infinity, maxHeight: 1)
             }
         }
     }

@@ -148,14 +148,30 @@ struct OnboardingModeView: View {
 
             Spacer()
 
-            HStack {
-                Button {
-                    onboardingModel.back()
-                } label: {
-                    Text("Back")
+            Grid(alignment: .center) {
+                GridRow {
+                    HStack(alignment: .bottom) {
+                        Button {
+                            onboardingModel.back()
+                        } label: {
+                            Image(systemName: "chevron.left")
+                                .resizable()
+                                .foregroundColor(.secondary)
+                                .aspectRatio(contentMode: .fit)
+                                .frame(height: 16)
+                                .padding(6)
+                        }
+                        .buttonStyle(.borderless)
+
+                        Spacer()
+                    }
+
+                    Color.clear
+                        .gridCellUnsizedAxes(.vertical)
+
+                    Color.clear
+                        .gridCellUnsizedAxes(.vertical)
                 }
-                .buttonStyle(.borderless)
-                Spacer()
             }
         }
     }
