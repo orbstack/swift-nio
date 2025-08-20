@@ -9,6 +9,7 @@ import SwiftUI
 import NIOCore
 import os
 import Carbon
+import SwiftUIIntrospect
 
 private let inspectorHeight: CGFloat = 120
 
@@ -567,6 +568,7 @@ private class LogsNSTableView: NSTableView {
         if event.keyCode == kVK_Escape {
             // deselect all
             self.selectRowIndexes(IndexSet(), byExtendingSelection: false)
+            self.delegate?.tableViewSelectionIsChanging?(Notification(name: .init(""), object: self))
         }
     }
 
@@ -756,6 +758,11 @@ struct LogsView: View {
                 VStack {
                     TextEditor(text: .constant(model.selectedLineText))
                         .font(.body.monospaced())
+                        .introspect(.textEditor, on: .macOS(.v13, .v14, .v15)) { nsTextView in
+                            // SwiftUI .contentMargins resets on unfocus??
+                            nsTextView.textContainerInset = NSSize(width: 10, height: 10)
+                            nsTextView.isEditable = false
+                        }
                 }
                 .frame(height: inspectorHeight)
             }

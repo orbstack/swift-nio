@@ -1,5 +1,36 @@
 import SwiftUI
 
+private struct AKSearchField: NSViewRepresentable {
+    @Binding var text: String
+
+    func makeNSView(context: Context) -> NSSearchField {
+        let searchField = NSSearchField()
+        searchField.delegate = context.coordinator
+        return searchField
+    }
+
+    func updateNSView(_ nsView: NSSearchField, context: Context) {
+        context.coordinator.binding = $text
+    }
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator(binding: $text)
+    }
+
+    class Coordinator: NSObject, NSSearchFieldDelegate {
+        var binding: Binding<String>
+
+        init(binding: Binding<String>) {
+            self.binding = binding
+        }
+
+        func controlTextDidChange(_ obj: Notification) {
+            guard let searchField = obj.object as? NSSearchField else { return }
+            binding.wrappedValue = searchField.stringValue
+        }
+    }
+}
+
 struct LogsTabToolbarWrapper<Content: View>: View {
     @StateObject private var commandModel = CommandViewModel()
 
@@ -14,10 +45,7 @@ struct LogsTabToolbarWrapper<Content: View>: View {
         .safeAreaInset(edge: .top) {
             VStack(spacing: 0) {
                 HStack(alignment: .center) {
-                    TextField(text: $commandModel.searchField) {
-                        Label("Search", systemImage: "magnifyingglass")
-                    }
-                    .textFieldStyle(.roundedBorder)
+                    AKSearchField(text: $commandModel.searchField)
 
                     Button {
                         commandModel.copyAllCommand.send()

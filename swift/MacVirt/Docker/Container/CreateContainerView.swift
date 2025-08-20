@@ -147,10 +147,6 @@ private struct ImageSelector: View {
                 ContentUnavailableViewCompat("Select an image")
             }
         }
-        // .searchable(text: $searchField)
-        // VStack {
-        //     TextField(text: $searchField, prompt: Text("Search"))
-        // }
     }
 }
 
