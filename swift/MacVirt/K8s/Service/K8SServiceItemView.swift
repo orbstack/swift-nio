@@ -36,7 +36,7 @@ struct K8SServiceItemView: View, Equatable, BaseK8SResourceItem {
                     .foregroundColor(Color(hex: 0xFAFAFA))
                     .background(Circle().fill(color))
                     // rasterize so opacity works on it as one big image
-                    .drawingGroup(opaque: false)
+                    .compositingGroup()
 
                 VStack(alignment: .leading) {
                     Text(service.name)

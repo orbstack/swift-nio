@@ -41,7 +41,7 @@ struct K8SPodItemView: View, Equatable, BaseK8SResourceItem {
                             .foregroundColor(Color(hex: 0xFAFAFA))
                             .background(Circle().fill(color))
                             // rasterize so opacity works on it as one big image
-                            .drawingGroup(opaque: false)
+                            .compositingGroup()
 
                     case .loading:
                         // can't rasterize this so only do opacity on bg
@@ -62,7 +62,7 @@ struct K8SPodItemView: View, Equatable, BaseK8SResourceItem {
                             .foregroundColor(Color(hex: 0xFAFAFA))
                             .background(Circle().fill(SystemColors.desaturate(Color(.systemRed))))
                             // rasterize so opacity works on it as one big image
-                            .drawingGroup(opaque: false)
+                            .compositingGroup()
                     }
                 }
                 .opacity((state == .completed) ? 0.5 : 1)
