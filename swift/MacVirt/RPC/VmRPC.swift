@@ -13,6 +13,7 @@ struct VmConfig: Codable, Equatable {
     var rosetta: Bool
     var networkProxy: String
     var networkBridge: Bool
+    var networkSubnet4: String
     var networkHttps: Bool
     var mountHideShared: Bool
     var dataDir: String?
@@ -31,6 +32,7 @@ struct VmConfig: Codable, Equatable {
         case rosetta
         case networkProxy
         case networkBridge
+        case networkSubnet4 = "network.subnet4"
         case networkHttps = "network.https"
         case mountHideShared
         case dataDir
