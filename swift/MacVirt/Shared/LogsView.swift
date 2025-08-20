@@ -11,6 +11,8 @@ import SwiftUI
 import SwiftUIIntrospect
 import os
 
+private let logsQueue = DispatchQueue(label: "dev.orbstack.OrbStack.logs")
+
 private let inspectorHeight: CGFloat = 120
 
 let logsMaxLines = 5000
@@ -176,12 +178,22 @@ private struct DisplayLogContents {
     var lines = CircularBuffer<LogLine>()
     var searchFilter = ""
 
-    func shouldShowLine(_ line: LogLine) -> Bool {
+    func filterLine(_ line: LogLine) -> LogLine? {
         if searchFilter.isEmpty {
-            return true
+            return line
         }
 
-        return line.text.string.contains(searchFilter)
+        if line.text.string.contains(searchFilter) {
+            let mutableLine = line.text.mutableCopy() as! NSMutableAttributedString
+            // matches
+            let string = mutableLine.string
+            for range in string.ranges(of: searchFilter) {
+                mutableLine.addAttribute(.backgroundColor, value: NSColor.systemYellow.withAlphaComponent(0.4), range: NSRange(range, in: string))
+            }
+            return LogLine(seq: line.seq, text: mutableLine)
+        }
+
+        return nil
     }
 }
 
@@ -201,7 +213,7 @@ class LogsViewModel: ObservableObject {
     private var cancellables: Set<AnyCancellable> = []
     @Published var lastContainerName: String?  // saved once we get id
 
-    @Published var selectedLineText = ""
+    @Published var selectedLineText = NSAttributedString()
     var selectedSeqs = Set<UInt64>()
 
     @MainActor
@@ -368,6 +380,8 @@ class LogsViewModel: ObservableObject {
 
     private func add(terminalLine: String) {
         let attributedStr = NSMutableAttributedString(string: terminalLine)
+        // needed for AKReadOnlyTextView
+        attributedStr.addAttribute(.font, value: terminalFont, range: NSRange(location: 0, length: attributedStr.length))
 
         // parse links first, before indexes change
         var matches = urlRegex.matches(
@@ -472,14 +486,12 @@ class LogsViewModel: ObservableObject {
         }
 
         displayContents.withLock { contents in
-            if !contents.shouldShowLine(line) {
-                return
+            if let newLine = contents.filterLine(line) {
+                if contents.lines.count >= logsMaxLines {
+                    contents.lines.removeFirst()
+                }
+                contents.lines.append(newLine)
             }
-
-            if contents.lines.count >= logsMaxLines {
-                contents.lines.removeFirst()
-            }
-            contents.lines.append(line)
         }
 
         updateEvent.send()
@@ -542,8 +554,8 @@ class LogsViewModel: ObservableObject {
             // TODO: is this deadlock safe?
             rawContents.withLock { rawContents in
                 for line in rawContents.lines {
-                    if contents.shouldShowLine(line) {
-                        contents.lines.append(line)
+                    if let newLine = contents.filterLine(line) {
+                        contents.lines.append(newLine)
                     }
                 }
             }
@@ -644,7 +656,7 @@ private struct LogsTextView: NSViewRepresentable {
 
         func tableViewSelectionIsChanging(_ notification: Notification) {
             let tableView = notification.object as! NSTableView
-            var selectedLineText = ""
+            var selectedLineText = NSAttributedString()
             let selectedSeqs = tableView.selectedRowIndexes.compactMap { row in
                 guard
                     let cellView = tableView.view(atColumn: 0, row: row, makeIfNecessary: false)
@@ -652,7 +664,7 @@ private struct LogsTextView: NSViewRepresentable {
                 else {
                     return UInt64?(nil)
                 }
-                selectedLineText = cellView.textField!.stringValue
+                selectedLineText = cellView.textField!.attributedStringValue
                 return cellView.seq
             }
             model.selectedSeqs = Set(selectedSeqs)
@@ -805,6 +817,23 @@ private struct LogsTextView: NSViewRepresentable {
     }
 }
 
+private struct AKReadOnlyTextView: NSViewRepresentable {
+    let text: NSAttributedString
+
+    func makeNSView(context: Context) -> NSTextView {
+        let textView = NSTextView()
+        textView.isEditable = false
+        textView.isSelectable = true
+        textView.textContainerInset = NSSize(width: 10, height: 10)
+        textView.usesAdaptiveColorMappingForDarkAppearance = true
+        return textView
+    }
+
+    func updateNSView(_ nsView: NSTextView, context: Context) {
+        nsView.textStorage?.setAttributedString(text)
+    }
+}
+
 struct LogsView: View {
     @Environment(\.logsTopInset) private var logsTopInset
     @EnvironmentObject private var commandModel: CommandViewModel
@@ -824,13 +853,7 @@ struct LogsView: View {
                     Divider()
 
                     VStack {
-                        TextEditor(text: .constant(model.selectedLineText))
-                            .font(.body.monospaced())
-                            .introspect(.textEditor, on: .macOS(.v13, .v14, .v15)) { nsTextView in
-                                // SwiftUI .contentMargins resets on unfocus??
-                                nsTextView.textContainerInset = NSSize(width: 10, height: 10)
-                                nsTextView.isEditable = false
-                            }
+                        AKReadOnlyTextView(text: model.selectedLineText)
                     }
                     .frame(height: inspectorHeight)
                 }
@@ -851,7 +874,10 @@ struct LogsView: View {
                 model.start(cmdExe: cmdExe, args: args + extraArgs, clearAndRestart: true)
             }
             .onChange(of: commandModel.searchField) { _, newSearchField in
-                model.setSearchFilter(newSearchField)
+                // filtering may be expensive
+                logsQueue.async {
+                    model.setSearchFilter(newSearchField)
+                }
             }
     }
 }
