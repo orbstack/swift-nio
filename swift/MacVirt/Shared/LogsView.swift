@@ -160,8 +160,7 @@ class CommandViewModel: ObservableObject {
 class LogsViewModel: ObservableObject {
 
     enum EditAction {
-        case append(NSAttributedString)
-        case replace(range: NSRange, replacementString: NSAttributedString)
+        case truncateAndAppend(appendString: NSAttributedString, truncateRange: NSRange?)
         case clear
     }
 
@@ -443,16 +442,18 @@ class LogsViewModel: ObservableObject {
 
     @MainActor
     private func add(attributedString: NSMutableAttributedString) {
-        contents.append(attributedString)
-        // publish
-        updateEvent.send(.append(attributedString))
+        contents.beginEditing()
         // truncate if needed
-        if contents.length > maxChars {
-            let truncateRange = NSRange(location: 0, length: contents.length - maxChars)
+        let newLength = contents.length + attributedString.length
+        if newLength > maxChars {
+            let truncateRange = NSRange(location: 0, length: newLength - maxChars)
             contents.deleteCharacters(in: truncateRange)
-            updateEvent.send(
-                .replace(range: truncateRange, replacementString: NSAttributedString()))
+            updateEvent.send(.truncateAndAppend(appendString: attributedString, truncateRange: truncateRange))
+        } else {
+            updateEvent.send(.truncateAndAppend(appendString: attributedString, truncateRange: nil))
         }
+        contents.append(attributedString)
+        contents.endEditing()
     }
 
     @MainActor
@@ -606,8 +607,13 @@ private struct LogsTextView: NSViewRepresentable {
                 guard let textView else { return }
 
                 switch editAction {
-                case .append(let string):
-                    textView.textStorage?.append(string)
+                case .truncateAndAppend(let appendString, let truncateRange):
+                    textView.textStorage?.beginEditing()
+                    if let truncateRange {
+                        textView.textStorage?.deleteCharacters(in: truncateRange)
+                    }
+                    textView.textStorage?.append(appendString)
+                    textView.textStorage?.endEditing()
 
                     if let clipView = textView.enclosingScrollView?.contentView {
                         let shouldScroll = (clipView.bounds.maxY >= textView.bounds.maxY - 1)
@@ -615,8 +621,6 @@ private struct LogsTextView: NSViewRepresentable {
                             debouncedScrollToEnd.call()
                         }
                     }
-                case .replace(let range, let replacementString):
-                    textView.textStorage?.replaceCharacters(in: range, with: replacementString)
                 case .clear:
                     textView.string = ""
                 }
