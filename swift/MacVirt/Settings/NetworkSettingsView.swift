@@ -15,11 +15,28 @@ struct NetworkSettingsView: View {
     @State private var proxyMode = "auto"
     @State private var networkBridge = true
     @State private var networkHttps = false
+    @State private var networkSubnet4 = "192.168.138.0/23"
 
     var body: some View {
         SettingsStateWrapperView {
             SettingsForm {
                 Section {
+                    Picker(selection: $networkSubnet4) {
+                        Text("192.168.138.0/23 (default)").tag("192.168.138.0/23")
+                        Text("172.30.30.0/23").tag("172.30.30.0/23")
+                        Text("10.241.105.0/23").tag("10.241.105.0/23")
+
+                        Divider()
+
+                        Text("198.19.248.0/23 (benchmark)").tag("198.19.248.0/23")
+                        Text("100.115.92.0/23 (CGNAT)").tag("100.65.65.0/23")
+                        Text("169.254.217.0/23").tag("169.254.217.0/23")
+                    } label: {
+                        Text("IP range")
+                    }
+                }
+
+                Section("Containers & Machines") {
                     let networkBridgeBinding = Binding {
                         networkBridge
                     } set: { newValue in
@@ -76,6 +93,19 @@ struct NetworkSettingsView: View {
                         }
                     }
                 }
+
+                SettingsFooter {
+                    Button {
+                        Task {
+                            await vmModel.tryRestart()
+                        }
+                    } label: {
+                        Text("Apply and Restart")
+                        // TODO: dockerSetContext doesn't require restart
+                    }
+                    .disabled(vmModel.appliedConfig == vmModel.config)
+                    .keyboardShortcut("s")
+                }
             }
             .onChange(of: vmModel.config, initial: true) { _, config in
                 if let config {
@@ -106,6 +136,7 @@ struct NetworkSettingsView: View {
         }
 
         vmModel.trySetConfigKey(\.networkProxy, proxyValue)
+        vmModel.trySetConfigKey(\.networkSubnet4, networkSubnet4)
     }
 
     private func updateFrom(_ config: VmConfig) {
@@ -123,5 +154,6 @@ struct NetworkSettingsView: View {
 
         networkBridge = config.networkBridge
         networkHttps = config.networkHttps
+        networkSubnet4 = config.networkSubnet4
     }
 }
