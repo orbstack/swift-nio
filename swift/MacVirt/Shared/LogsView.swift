@@ -552,6 +552,7 @@ private struct LogsTextView: NSViewRepresentable {
     let model: LogsViewModel
     let commandModel: CommandViewModel
     let wordWrap: Bool
+    let topInset: CGFloat
 
     class Coordinator {
         var cancellables = Set<AnyCancellable>()
@@ -562,6 +563,8 @@ private struct LogsTextView: NSViewRepresentable {
     func makeNSView(context: Context) -> NSScrollView {
         let scrollView = NSTextView.scrollableTextView()
         let textView = scrollView.documentView as! NSTextView
+
+        scrollView.additionalSafeAreaInsets.top = topInset
 
         // enable horizontal scroll for non-wrapped case
         textView.isHorizontallyResizable = true
@@ -670,6 +673,7 @@ private struct LogsTextView: NSViewRepresentable {
 }
 
 struct LogsView: View {
+    @Environment(\.logsTopInset) private var logsTopInset
     @EnvironmentObject private var commandModel: CommandViewModel
 
     @Default(.logsWordWrap) private var wordWrap
@@ -681,7 +685,7 @@ struct LogsView: View {
     let model: LogsViewModel
 
     var body: some View {
-        LogsTextView(model: model, commandModel: commandModel, wordWrap: wordWrap)
+        LogsTextView(model: model, commandModel: commandModel, wordWrap: wordWrap, topInset: logsTopInset)
             .onAppear {
                 model.start(cmdExe: cmdExe, args: args + extraArgs)
             }
@@ -764,5 +768,22 @@ private class Debouncer {
         timer = Timer.scheduledTimer(withTimeInterval: delay, repeats: false) { [weak self] _ in
             self?.handler()
         }
+    }
+}
+
+struct LogsTopInsetKey: EnvironmentKey {
+    static let defaultValue: CGFloat = 0
+}
+
+extension EnvironmentValues {
+    var logsTopInset: CGFloat {
+        get { self[LogsTopInsetKey.self] }
+        set { self[LogsTopInsetKey.self] = newValue }
+    }
+}
+
+extension View {
+    func logsTopInset(_ inset: CGFloat) -> some View {
+        environment(\.logsTopInset, inset)
     }
 }

@@ -1,6 +1,6 @@
 import SwiftUI
 
- struct LogsTabToolbarWrapper<Content: View>: View {
+struct LogsTabToolbarWrapper<Content: View>: View {
     @StateObject private var commandModel = CommandViewModel()
 
     @ViewBuilder let content: () -> Content
@@ -10,8 +10,8 @@ import SwiftUI
     }
 
     var body: some View {
-        VStack(spacing: 0) {
-            // TODO: fix safeAreaInset
+        content()
+        .safeAreaInset(edge: .top) {
             VStack(spacing: 0) {
                 HStack(alignment: .center) {
                     Spacer()
@@ -43,14 +43,11 @@ import SwiftUI
                     .buttonStyle(.accessoryBar)
                 }
                 .padding(.horizontal, 12)
-                .frame(height: 27) // match list section header height. wtf is this number?
-
-                Divider()
+                .frame(height: 28) // match list section header height. wtf is this number?
             }
-            .background(Color(NSColor.secondarySystemFill))
-
-            content()
-            .environmentObject(commandModel)
+            .background(.ultraThickMaterial)
         }
+        .logsTopInset(28)
+        .environmentObject(commandModel)
     }
 }
