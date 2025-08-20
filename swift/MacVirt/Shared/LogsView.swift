@@ -285,14 +285,10 @@ class LogsViewModel: ObservableObject {
         task.standardError = pipe
         // AsyncBytes is not actually async, it blocks on read and occupies a task thread
         // so can't run multiple tasks concurrently
-        let reader = AsyncPipeReader(pipe: pipe) { line in
-            // this queuing actually improves perf and provides a buffer:
-            // if gui is slow it'll update less often but won't block the reader
-            DispatchQueue.main.async { [weak self] in
-                guard let self else { return }
-                lastLineDate = Date()  // for restart
-                add(terminalLine: line)
-            }
+        let reader = AsyncPipeReader(pipe: pipe) { [weak self] line in
+            guard let self else { return }
+            self.lastLineDate = Date()  // for restart
+            self.add(terminalLine: line)
         }
 
         task.terminationHandler = { process in
