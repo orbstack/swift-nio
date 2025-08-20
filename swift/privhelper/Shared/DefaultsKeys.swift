@@ -274,8 +274,6 @@ extension Defaults.Keys {
     // rotated in v1.11.1 to fix order of newly-added network column, and to use new default sizes
     static let activityMonitor_autosaveOutline = "activityMonitor_autosaveOutline2"
 
-    static let logsWordWrap = Key<Bool>("logs_wordWrap", default: false, suite: suite)
-
     static let k8sFilterShowSystemNs = Key<Bool>(
         "k8sFilterShowSystemNs", default: false, suite: suite)
 
