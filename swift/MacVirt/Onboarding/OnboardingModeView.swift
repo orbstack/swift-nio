@@ -41,7 +41,9 @@ private struct ModeButton<ImageView: View>: View {
     //     self.action = action
     // }
 
-    init(_ title: String, action: @escaping () -> Void, @ViewBuilder image: @escaping () -> ImageView) {
+    init(
+        _ title: String, action: @escaping () -> Void, @ViewBuilder image: @escaping () -> ImageView
+    ) {
         self.title = title
         self.image = image
         self.action = action
@@ -95,10 +97,12 @@ private struct ModeButton<ImageView: View>: View {
 
 extension ModeButton where ImageView == Image {
     init(_ title: String, image: String, action: @escaping () -> Void) {
-        self.init(title, action: action, image: {
-            Image(image)
-                .resizable()
-        })
+        self.init(
+            title, action: action,
+            image: {
+                Image(image)
+                    .resizable()
+            })
     }
 }
 
@@ -132,7 +136,7 @@ struct OnboardingModeView: View {
                 } image: {
                     // yay trademarks
                     DockerImageIconPlaceholder(id: "docker")
-                        .scaleEffect(48/28)
+                        .scaleEffect(48 / 28)
                 }
 
                 ModeButton("Kubernetes", image: "distro/k8s") {

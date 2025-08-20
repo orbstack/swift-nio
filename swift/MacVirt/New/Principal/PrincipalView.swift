@@ -67,7 +67,7 @@ struct PrincipalView: View {
                 // clear inspector view when tab changes,
                 // but don't clear state on setting same value (ie gui re-open)
                 navModel.inspectorView = nil
-                navModel.inspectorSelection = []            
+                navModel.inspectorSelection = []
             }
 
             onTabChange(tab)

@@ -52,6 +52,6 @@ with open(args.sample_file, "r") as f, open(
             symbols = all_addr_mappings[(base_addr, end_addr)]
             indent_level = line.index("???")
             symbols_str = ("\n" + " " * indent_level).join(symbols)
-            line = line[: indent_level] + symbols_str + line[line.index("  [") :]
+            line = line[:indent_level] + symbols_str + line[line.index("  [") :]
         out_f.write(line)
         print(line, end="")

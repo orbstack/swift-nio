@@ -11,7 +11,10 @@ struct ContentUnavailableViewCompat<Actions: View>: View {
     let desc: String?
     @ViewBuilder let actions: () -> Actions
 
-    init(_ title: String, systemImage: String? = nil, desc: String? = nil, @ViewBuilder actions: @escaping () -> Actions) {
+    init(
+        _ title: String, systemImage: String? = nil, desc: String? = nil,
+        @ViewBuilder actions: @escaping () -> Actions
+    ) {
         self.title = title
         self.systemImage = systemImage
         self.desc = desc
@@ -25,7 +28,8 @@ struct ContentUnavailableViewCompat<Actions: View>: View {
             } else {
                 Label {
                     Text(title)
-                } icon: {}
+                } icon: {
+                }
             }
         } description: {
             if let desc {

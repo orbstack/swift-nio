@@ -41,7 +41,9 @@ struct MachinesRootView: View {
                         HStack {
                             Spacer()
                             VStack {
-                                ContentUnavailableViewCompat("No Machines", systemImage: "desktopcomputer") {
+                                ContentUnavailableViewCompat(
+                                    "No Machines", systemImage: "desktopcomputer"
+                                ) {
                                     Button {
                                         vmModel.presentCreateMachine = true
                                     } label: {

@@ -47,8 +47,8 @@ class Ghostty {
         // running ghostty_app_free() is too risky for now to call in release-
         // there's a chance we might run a surface action / etc, which could segfault
         #if DEBUG
-        ghostty_app_free(app)
-        ghostty_deinit()
+            ghostty_app_free(app)
+            ghostty_deinit()
         #endif
     }
 
@@ -231,7 +231,7 @@ extension Ghostty {
             return CGSize(
                 width: CGFloat(ghostty_size.width_px), height: CGFloat(ghostty_size.height_px))
         }
-        
+
         var mouseCaptured: Bool {
             ghostty_surface_mouse_captured(surface)
         }
@@ -343,7 +343,9 @@ extension Ghostty {
                 buttonEvent.mods.cMods)
         }
 
-        func sendMouseButton(_ button: MouseButton, _ action: MouseAction, _ mods: InputMods) -> Bool {
+        func sendMouseButton(_ button: MouseButton, _ action: MouseAction, _ mods: InputMods)
+            -> Bool
+        {
             return sendMouseButton(MouseButtonEvent(action: action, button: button, mods: mods))
         }
 

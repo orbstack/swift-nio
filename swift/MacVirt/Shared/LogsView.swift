@@ -2,14 +2,14 @@
 // Created by Danny Lin on 5/7/23.
 //
 
+import Carbon
 import Combine
 import Defaults
 import Foundation
-import SwiftUI
 import NIOCore
-import os
-import Carbon
+import SwiftUI
 import SwiftUIIntrospect
+import os
 
 private let inspectorHeight: CGFloat = 120
 
@@ -559,7 +559,8 @@ private class LogsNSTableView: NSTableView {
         if event.keyCode == kVK_Escape {
             // deselect all
             self.selectRowIndexes(IndexSet(), byExtendingSelection: false)
-            self.delegate?.tableViewSelectionIsChanging?(Notification(name: .init(""), object: self))
+            self.delegate?.tableViewSelectionIsChanging?(
+                Notification(name: .init(""), object: self))
         }
     }
 
@@ -611,12 +612,14 @@ private struct LogsTextView: NSViewRepresentable {
         func tableView(_ tableView: NSTableView, viewFor tableColumn: NSTableColumn?, row: Int)
             -> NSView?
         {
-            guard let line = model.displayContents.withLock({ contents in
-                if row >= contents.lines.count {
-                    return LogLine?(nil)
-                }
-                return contents.lines[offset: row]
-            }) else {
+            guard
+                let line = model.displayContents.withLock({ contents in
+                    if row >= contents.lines.count {
+                        return LogLine?(nil)
+                    }
+                    return contents.lines[offset: row]
+                })
+            else {
                 return nil
             }
 
@@ -643,7 +646,10 @@ private struct LogsTextView: NSViewRepresentable {
             let tableView = notification.object as! NSTableView
             var selectedLineText = ""
             let selectedSeqs = tableView.selectedRowIndexes.compactMap { row in
-                guard let cellView = tableView.view(atColumn: 0, row: row, makeIfNecessary: false) as? LogsTableCellView else {
+                guard
+                    let cellView = tableView.view(atColumn: 0, row: row, makeIfNecessary: false)
+                        as? LogsTableCellView
+                else {
                     return UInt64?(nil)
                 }
                 selectedLineText = cellView.textField!.stringValue
@@ -656,7 +662,8 @@ private struct LogsTextView: NSViewRepresentable {
         @objc func onScrollViewBoundsChanged(_ notification: Notification) {
             let contentView = notification.object as! NSClipView
             let bounds = contentView.bounds
-            let maxY = bounds.maxY - inspectorHeight /* scrollView.additionalSafeAreaInsets.bottom */
+            let maxY =
+                bounds.maxY - inspectorHeight /* scrollView.additionalSafeAreaInsets.bottom */
             let tableView = contentView.documentView as! NSTableView
             let row = tableView.row(at: NSPoint(x: 0, y: maxY))
             lastScrolledSeq = nil
@@ -701,52 +708,59 @@ private struct LogsTextView: NSViewRepresentable {
         scrollView.documentView = tableView
 
         scrollView.contentView.postsBoundsChangedNotifications = true
-        NotificationCenter.default.addObserver(context.coordinator, selector: #selector(Coordinator.onScrollViewBoundsChanged), name: NSView.boundsDidChangeNotification, object: scrollView.contentView)
+        NotificationCenter.default.addObserver(
+            context.coordinator, selector: #selector(Coordinator.onScrollViewBoundsChanged),
+            name: NSView.boundsDidChangeNotification, object: scrollView.contentView)
 
         tableView.allowsMultipleSelection = true
         tableView.headerView = nil
         tableView.usesAlternatingRowBackgroundColors = false
         tableView.rowHeight = 20  // Set fixed row height for consistent vertical centering
 
-        tableView.menu = RIMenu {
-            RIMenuItem("Copy") {
-                let clickedRow = tableView.clickedRow
-                if clickedRow != -1 {
-                    if tableView.selectedRowIndexes.contains(clickedRow) {
-                        // copy all selected lines
-                        var selectedLines = String()
-                        model.displayContents.withLock { contents in
-                            for row in tableView.selectedRowIndexes {
-                                if row >= contents.lines.count {
-                                    continue
+        tableView.menu =
+            RIMenu {
+                RIMenuItem("Copy") {
+                    let clickedRow = tableView.clickedRow
+                    if clickedRow != -1 {
+                        if tableView.selectedRowIndexes.contains(clickedRow) {
+                            // copy all selected lines
+                            var selectedLines = String()
+                            model.displayContents.withLock { contents in
+                                for row in tableView.selectedRowIndexes {
+                                    if row >= contents.lines.count {
+                                        continue
+                                    }
+                                    if !selectedLines.isEmpty {
+                                        selectedLines.append("\n")
+                                    }
+                                    selectedLines.append(contents.lines[offset: row].text.string)
                                 }
-                                if !selectedLines.isEmpty {
-                                    selectedLines.append("\n")
+                            }
+                            NSPasteboard.copy(selectedLines)
+                        } else {
+                            if let line = model.displayContents.withLock { contents in
+                                if clickedRow >= contents.lines.count {
+                                    return LogLine?(nil)
                                 }
-                                selectedLines.append(contents.lines[offset: row].text.string)
+                                return contents.lines[offset: clickedRow]
+                            } {
+                                NSPasteboard.copy(line.text.string)
                             }
-                        }
-                        NSPasteboard.copy(selectedLines)
-                    } else {
-                        if let line = model.displayContents.withLock { contents in
-                            if clickedRow >= contents.lines.count {
-                                return LogLine?(nil)
-                            }
-                            return contents.lines[offset: clickedRow]
-                        } {
-                            NSPasteboard.copy(line.text.string)
                         }
                     }
                 }
-            }
-        }.menu
+            }.menu
 
         let column = NSTableColumn(identifier: NSUserInterfaceItemIdentifier("column"))
         tableView.addTableColumn(column)
 
-        model.updateEvent.throttle(for: .milliseconds(15), scheduler: DispatchQueue.main, latest: true).sink {
+        model.updateEvent.throttle(
+            for: .milliseconds(15), scheduler: DispatchQueue.main, latest: true
+        ).sink {
             // no overflow risk: this is a float
-            let shouldScroll = ((scrollView.contentView.bounds.maxY - scrollView.additionalSafeAreaInsets.bottom) >= tableView.bounds.maxY - bottomScrollThreshold)
+            let shouldScroll =
+                ((scrollView.contentView.bounds.maxY - scrollView.additionalSafeAreaInsets.bottom)
+                    >= tableView.bounds.maxY - bottomScrollThreshold)
 
             tableView.reloadData()
 
@@ -803,42 +817,42 @@ struct LogsView: View {
 
     var body: some View {
         LogsTextView(model: model, commandModel: commandModel, topInset: logsTopInset)
-        // render under toolbar
-        .ignoresSafeArea()
-        .safeAreaInset(edge: .bottom) {
-            VStack(spacing: 0) {
-                Divider()
+            // render under toolbar
+            .ignoresSafeArea()
+            .safeAreaInset(edge: .bottom) {
+                VStack(spacing: 0) {
+                    Divider()
 
-                VStack {
-                    TextEditor(text: .constant(model.selectedLineText))
-                        .font(.body.monospaced())
-                        .introspect(.textEditor, on: .macOS(.v13, .v14, .v15)) { nsTextView in
-                            // SwiftUI .contentMargins resets on unfocus??
-                            nsTextView.textContainerInset = NSSize(width: 10, height: 10)
-                            nsTextView.isEditable = false
-                        }
+                    VStack {
+                        TextEditor(text: .constant(model.selectedLineText))
+                            .font(.body.monospaced())
+                            .introspect(.textEditor, on: .macOS(.v13, .v14, .v15)) { nsTextView in
+                                // SwiftUI .contentMargins resets on unfocus??
+                                nsTextView.textContainerInset = NSSize(width: 10, height: 10)
+                                nsTextView.isEditable = false
+                            }
+                    }
+                    .frame(height: inspectorHeight)
                 }
-                .frame(height: inspectorHeight)
             }
-        }
-        .onAppear {
-            model.start(cmdExe: cmdExe, args: args + extraArgs)
-        }
-        .onDisappear {
-            model.stop()
-        }
-        .onChange(of: args) { _, newArgs in
-            model.start(cmdExe: cmdExe, args: newArgs + extraArgs)
-        }
-        .onChange(of: extraArgs) { _, newExtraArgs in
-            model.start(cmdExe: cmdExe, args: args + newExtraArgs, clearAndRestart: true)
-        }
-        .onChange(of: extraState) { _, _ in
-            model.start(cmdExe: cmdExe, args: args + extraArgs, clearAndRestart: true)
-        }
-        .onChange(of: commandModel.searchField) { _, newSearchField in
-            model.setSearchFilter(newSearchField)
-        }
+            .onAppear {
+                model.start(cmdExe: cmdExe, args: args + extraArgs)
+            }
+            .onDisappear {
+                model.stop()
+            }
+            .onChange(of: args) { _, newArgs in
+                model.start(cmdExe: cmdExe, args: newArgs + extraArgs)
+            }
+            .onChange(of: extraArgs) { _, newExtraArgs in
+                model.start(cmdExe: cmdExe, args: args + newExtraArgs, clearAndRestart: true)
+            }
+            .onChange(of: extraState) { _, _ in
+                model.start(cmdExe: cmdExe, args: args + extraArgs, clearAndRestart: true)
+            }
+            .onChange(of: commandModel.searchField) { _, newSearchField in
+                model.setSearchFilter(newSearchField)
+            }
     }
 }
 

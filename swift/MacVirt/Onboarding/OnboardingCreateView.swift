@@ -2,9 +2,9 @@
 // Created by Danny Lin on 2/6/23.
 //
 
+import Combine
 import Foundation
 import SwiftUI
-import Combine
 
 // min 2 chars, disallows hidden files (^.)
 private let containerNameRegex = try! NSRegularExpression(pattern: "^[a-zA-Z0-9][a-zA-Z0-9-.]+$")
@@ -146,7 +146,7 @@ struct OnboardingCreateView: View {
                         onboardingController.finish()
                     }
                     .scrollContentBackground(.hidden)
-                    .scrollDisabled(true) // should never overflow due to fixed-size onboarding window
+                    .scrollDisabled(true)  // should never overflow due to fixed-size onboarding window
                     .frame(maxWidth: 400)
                 }.fixedSize()
                 Spacer()

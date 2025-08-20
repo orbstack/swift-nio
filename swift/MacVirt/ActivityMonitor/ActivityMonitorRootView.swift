@@ -218,7 +218,7 @@ private struct HistoryGraph: View {
                     let lastValue = lastItem.value
                 {
                     Text(formatter(lastValue))
-                    .lineLimit(1)
+                        .lineLimit(1)
                 }
             }
             .padding(6)

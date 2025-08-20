@@ -16,7 +16,9 @@ struct DockerImageFilesTab: View {
                     }
                 }
         } else {
-            ContentUnavailableViewCompat("Files Not Available", systemImage: "tag.slash", desc: "Only tagged images are supported.")
+            ContentUnavailableViewCompat(
+                "Files Not Available", systemImage: "tag.slash",
+                desc: "Only tagged images are supported.")
         }
     }
 }

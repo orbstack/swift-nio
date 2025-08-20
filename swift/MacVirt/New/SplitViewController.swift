@@ -68,11 +68,11 @@ class SplitViewController: NSSplitViewController {
             updateAutosaveName()
         }
     }
-    
+
     override func viewWillAppear() {
         // initial positions
         splitView.setPosition(160, ofDividerAt: 0)
-        splitView.setPosition(160+300, ofDividerAt: 1)
+        splitView.setPosition(160 + 300, ofDividerAt: 1)
         updateAutosaveName()
     }
 

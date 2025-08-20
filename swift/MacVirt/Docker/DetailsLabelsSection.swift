@@ -28,7 +28,9 @@ struct DetailsLabelsSection: View {
 private func highlightLabel(key: String) -> AttributedString {
     // make an AttributedString to highlight only the last part of the key
     var attrKey = AttributedString(key)
-    if let startOfLastPart = key.lastIndex(of: ".") , let startOfLastPartAttr = AttributedString.Index(startOfLastPart, within: attrKey){
+    if let startOfLastPart = key.lastIndex(of: "."),
+        let startOfLastPartAttr = AttributedString.Index(startOfLastPart, within: attrKey)
+    {
         attrKey[...startOfLastPartAttr].foregroundColor = .secondary
     }
     return attrKey

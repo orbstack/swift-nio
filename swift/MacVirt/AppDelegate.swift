@@ -79,7 +79,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
         // Observe our appearance so we can report the correct value to libghostty.
         self.ghosttyAppearanceObserver = NSApplication.shared.observe(
             \.effectiveAppearance,
-             options: [.new, .initial]
+            options: [.new, .initial]
         ) { _, change in
             guard let appearance = change.newValue else { return }
             self.ghostty.config.setAppearance(appearance: appearance)
@@ -176,10 +176,10 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
     }
 
     func applicationDidFinishLaunching(_: Notification) {
-        // ghostty hack 
+        // ghostty hack
         UserDefaults.standard.register(defaults: [
             // Disable this so that repeated key events make it through to our terminal views.
-            "ApplePressAndHoldEnabled": false,
+            "ApplePressAndHoldEnabled": false
         ])
 
         if !AppConfig.debug {

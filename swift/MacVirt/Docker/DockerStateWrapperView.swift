@@ -30,7 +30,9 @@ struct DockerStateWrapperView<Content: View, T>: View {
                     {
                         content(entities, dockerMachine.record)
                     } else if dockerMachine.record.state == .stopped {
-                        ContentUnavailableViewCompat("Docker Disabled", systemImage: "shippingbox.fill") {
+                        ContentUnavailableViewCompat(
+                            "Docker Disabled", systemImage: "shippingbox.fill"
+                        ) {
                             Button {
                                 Task {
                                     await vmModel.tryStartContainer(dockerMachine.record)

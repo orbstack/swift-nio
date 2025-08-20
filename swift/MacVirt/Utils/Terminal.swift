@@ -12,7 +12,7 @@ import SwiftUI
 struct TerminalView: View {
     let command: [String]
     let env: [String]
-    
+
     @Default(.terminalTheme) var terminalTheme
     @Environment(\.colorScheme) var colorScheme
 

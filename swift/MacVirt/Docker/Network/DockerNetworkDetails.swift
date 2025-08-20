@@ -26,7 +26,9 @@ struct DockerNetworkDetails: View {
                     .font(.body.monospaced())
                 }
 
-                DetailsRow("Created", text: "\(network.formattedCreated) (\(network.formattedCreatedLong))")
+                DetailsRow(
+                    "Created", text: "\(network.formattedCreated) (\(network.formattedCreatedLong))"
+                )
 
                 if let ipamConfig = network.ipam?.config?.first {
                     DetailsRow("Subnet", copyableText: ipamConfig.subnet)

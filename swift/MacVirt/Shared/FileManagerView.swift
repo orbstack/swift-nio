@@ -1,9 +1,9 @@
+import Carbon
 import Defaults
 import QuickLookUI
 import SwiftUI
 import UniformTypeIdentifiers
 import _NIOFileSystem
-import Carbon
 
 private let tableCellIdentifier = NSUserInterfaceItemIdentifier("tableCell")
 
@@ -29,21 +29,24 @@ struct FileManagerView: View {
     var body: some View {
         Group {
             if let rootLoadError {
-                ContentUnavailableViewCompat("Failed to Load Files", systemImage: "externaldrive.trianglebadge.exclamationmark", desc: "\(rootLoadError)")
+                ContentUnavailableViewCompat(
+                    "Failed to Load Files",
+                    systemImage: "externaldrive.trianglebadge.exclamationmark",
+                    desc: "\(rootLoadError)")
             } else {
                 FileManagerNSView(delegate: model)
             }
         }
-            .onChange(of: rootPath, initial: true) { _, newRootPath in
-                Task {
-                    do {
-                        try await model.loadRoot(rootPath: newRootPath, readOnly: readOnly)
-                        rootLoadError = nil
-                    } catch {
-                        rootLoadError = error
-                    }
+        .onChange(of: rootPath, initial: true) { _, newRootPath in
+            Task {
+                do {
+                    try await model.loadRoot(rootPath: newRootPath, readOnly: readOnly)
+                    rootLoadError = nil
+                } catch {
+                    rootLoadError = error
                 }
             }
+        }
     }
 }
 
@@ -62,12 +65,14 @@ private struct FileManagerNSView: NSViewRepresentable {
         treeController.bind(NSBindingName.contentArray, to: delegate, withKeyPath: "rootItems")
 
         delegate.view = view
-        delegate.treeController = treeController // weak
+        delegate.treeController = treeController  // weak
         delegate.toaster = toaster
         view.delegate = delegate  // weak
 
         view.bind(NSBindingName.content, to: treeController, withKeyPath: "arrangedObjects")
-        view.bind(NSBindingName.selectionIndexPaths, to: treeController, withKeyPath: "selectionIndexPaths")
+        view.bind(
+            NSBindingName.selectionIndexPaths, to: treeController,
+            withKeyPath: "selectionIndexPaths")
         view.bind(NSBindingName.sortDescriptors, to: treeController, withKeyPath: "sortDescriptors")
 
         view.setDraggingSourceOperationMask([.copy, .delete], forLocal: false)
@@ -81,7 +86,7 @@ private struct FileManagerNSView: NSViewRepresentable {
         view.usesAlternatingRowBackgroundColors = true
         view.allowsMultipleSelection = true
         view.autoresizesOutlineColumn = false
-        view.rowHeight = 20 // match row height in Finder
+        view.rowHeight = 20  // match row height in Finder
 
         view.sortDescriptors = [NSSortDescriptor(key: Columns.name, ascending: true)]
 
@@ -135,7 +140,9 @@ private struct FileManagerNSView: NSViewRepresentable {
     }
 }
 
-private class FileManagerOutlineView: NSOutlineView, QLPreviewPanelDataSource, QLPreviewPanelDelegate {
+private class FileManagerOutlineView: NSOutlineView, QLPreviewPanelDataSource,
+    QLPreviewPanelDelegate
+{
     private var filesDelegate: FileManagerOutlineDelegate {
         delegate as! FileManagerOutlineDelegate
     }
@@ -152,9 +159,10 @@ private class FileManagerOutlineView: NSOutlineView, QLPreviewPanelDataSource, Q
             }
         } else if event.specialKey == .carriageReturn || event.specialKey == .enter {
             if !filesDelegate.readOnly,
-               selectedRowIndexes.count == 1,
-               let row = selectedRowIndexes.first,
-               let cellView = self.view(atColumn: 0, row: row, makeIfNecessary: false) as? TextFieldCellView
+                selectedRowIndexes.count == 1,
+                let row = selectedRowIndexes.first,
+                let cellView = self.view(atColumn: 0, row: row, makeIfNecessary: false)
+                    as? TextFieldCellView
             {
                 cellView.textField?.becomeFirstResponder()
             } else {
@@ -189,7 +197,8 @@ private class FileManagerOutlineView: NSOutlineView, QLPreviewPanelDataSource, Q
 
     func previewPanel(_ panel: QLPreviewPanel!, previewItemAt index: Int) -> QLPreviewItem! {
         if self.selectedRowIndexes.isEmpty, let rootPath = filesDelegate.rootPath {
-            return FileManagerPreviewItem(treeNode: nil, filePath: rootPath, icon: NSWorkspace.shared.icon(forFile: rootPath))
+            return FileManagerPreviewItem(
+                treeNode: nil, filePath: rootPath, icon: NSWorkspace.shared.icon(forFile: rootPath))
         } else {
             let viewIndex = Array(self.selectedRowIndexes)[index]
             let node = self.item(atRow: viewIndex) as! NSTreeNode
@@ -219,7 +228,9 @@ private class FileManagerOutlineView: NSOutlineView, QLPreviewPanelDataSource, Q
         }
     }
 
-    func previewPanel(_ panel: QLPreviewPanel!, sourceFrameOnScreenFor item: (any QLPreviewItem)!) -> NSRect {
+    func previewPanel(_ panel: QLPreviewPanel!, sourceFrameOnScreenFor item: (any QLPreviewItem)!)
+        -> NSRect
+    {
         // find the frame of the item
         guard let item = item as? FileManagerPreviewItem else {
             return .zero
@@ -229,9 +240,11 @@ private class FileManagerOutlineView: NSOutlineView, QLPreviewPanelDataSource, Q
             return .zero
         }
 
-        if let itemView = self.view(atColumn: 0, row: row, makeIfNecessary: false) as? TextFieldCellView,
+        if let itemView = self.view(atColumn: 0, row: row, makeIfNecessary: false)
+            as? TextFieldCellView,
             let imageView = itemView.imageView,
-            let window = itemView.window {
+            let window = itemView.window
+        {
             let frameInWindow = itemView.convert(imageView.frame, to: nil)
             return window.convertToScreen(frameInWindow)
         } else {
@@ -271,13 +284,14 @@ private class FileManagerOutlineView: NSOutlineView, QLPreviewPanelDataSource, Q
         // trigger border highlight
         super.menu(for: event)
 
-        let actionIndexes: IndexSet = if clickedRow == -1 {
-            []
-        } else if selectedRowIndexes.contains(clickedRow) {
-            selectedRowIndexes
-        } else {
-            [clickedRow]
-        }
+        let actionIndexes: IndexSet =
+            if clickedRow == -1 {
+                []
+            } else if selectedRowIndexes.contains(clickedRow) {
+                selectedRowIndexes
+            } else {
+                [clickedRow]
+            }
         return RIMenu {
             if actionIndexes.count >= 1 {
                 RIMenuItem("Open") { [self] in
@@ -295,7 +309,10 @@ private class FileManagerOutlineView: NSOutlineView, QLPreviewPanelDataSource, Q
                 if !filesDelegate.readOnly {
                     if actionIndexes.count == 1 {
                         RIMenuItem("Rename") {
-                            if let cellView = self.view(atColumn: 0, row: actionIndexes.first!, makeIfNecessary: false) as? TextFieldCellView {
+                            if let cellView = self.view(
+                                atColumn: 0, row: actionIndexes.first!, makeIfNecessary: false)
+                                as? TextFieldCellView
+                            {
                                 cellView.textField?.becomeFirstResponder()
                             }
                         }
@@ -342,7 +359,7 @@ private class FileManagerOutlineView: NSOutlineView, QLPreviewPanelDataSource, Q
 
             RIMenuItem.separator()
 
-            if false && !filesDelegate.readOnly && actionIndexes.count <= 1 { // TODO
+            if false && !filesDelegate.readOnly && actionIndexes.count <= 1 {  // TODO
                 RIMenuItem("New Folder") {
                     // TODO
                 }
@@ -389,7 +406,9 @@ private class FileManagerOutlineDelegate: NSObject, NSOutlineViewDelegate,
     private var itemsCache: [FileItem.ID: FileItem] = [:]
 
     @MainActor
-    private func getDirectoryItemsRec(path: String, accessedItems: inout Set<FileItem.ID>) async throws -> [FileItem] {
+    private func getDirectoryItemsRec(path: String, accessedItems: inout Set<FileItem.ID>)
+        async throws -> [FileItem]
+    {
         var items = [FileItem]()
         try await FileSystem.shared.withDirectoryHandle(atPath: FilePath(path)) { dir in
             for try await file in dir.listContents() {
@@ -407,7 +426,8 @@ private class FileManagerOutlineDelegate: NSObject, NSOutlineViewDelegate,
                     size: info.size, modified: info.lastDataModificationTime.date, icon: icon,
                     children: nil)
                 if file.type == .directory && expandedPaths.contains(path) {
-                    item.children = try await getDirectoryItemsRec(path: path, accessedItems: &accessedItems)
+                    item.children = try await getDirectoryItemsRec(
+                        path: path, accessedItems: &accessedItems)
                 }
 
                 if let existingItem = itemsCache[item.id] {
@@ -453,12 +473,14 @@ private class FileManagerOutlineDelegate: NSObject, NSOutlineViewDelegate,
 
         // start fs events
         do {
-            fsEvents = try FSEventsListener(paths: [rootPath], flags: UInt32(kFSEventStreamCreateFlagNoDefer), latency: 0.1, callback: { events in
-                Task { @MainActor in
-                    // TODO: granular reload
-                    self.rootItems = try await self.getDirectoryItems(path: rootPath)
-                }
-            })
+            fsEvents = try FSEventsListener(
+                paths: [rootPath], flags: UInt32(kFSEventStreamCreateFlagNoDefer), latency: 0.1,
+                callback: { events in
+                    Task { @MainActor in
+                        // TODO: granular reload
+                        self.rootItems = try await self.getDirectoryItems(path: rootPath)
+                    }
+                })
         } catch {
             NSLog("Error starting fs events: \(error)")
         }
@@ -494,7 +516,9 @@ private class FileManagerOutlineDelegate: NSObject, NSOutlineViewDelegate,
         let newPath = destinationPath.appendingPathComponent(lastPathComponent)
         for n in 0..<1000 {
             let newPathSuffixed = if n == 0 { newPath.path } else { newPath.path + " (\(n))" }
-            if try await FileSystem.shared.info(forFileAt: FilePath(newPathSuffixed), infoAboutSymbolicLink: true) == nil {
+            if try await FileSystem.shared.info(
+                forFileAt: FilePath(newPathSuffixed), infoAboutSymbolicLink: true) == nil
+            {
                 return URL(filePath: newPathSuffixed)
             }
         }
@@ -523,9 +547,12 @@ private class FileManagerOutlineDelegate: NSObject, NSOutlineViewDelegate,
             for item in items {
                 do {
                     if let path = item.path, let lastPathComponent = item.lastPathComponent {
-                        let newPath = try await getUniquePath(destinationPath: destinationPath, lastPathComponent: lastPathComponent)
+                        let newPath = try await getUniquePath(
+                            destinationPath: destinationPath, lastPathComponent: lastPathComponent)
                         guard let newPath else {
-                            toaster.error(title: "Failed to copy item", message: "Failed to find a unique name for the copied item.")
+                            toaster.error(
+                                title: "Failed to copy item",
+                                message: "Failed to find a unique name for the copied item.")
                             return
                         }
 
@@ -533,20 +560,29 @@ private class FileManagerOutlineDelegate: NSObject, NSOutlineViewDelegate,
                         // (while copying, swift-nio will traverse folders it's copied as if they were from the source)
                         // to fix: copy to temp dir, then mv to dest
                         if newPath.path.starts(with: path + "/") {
-                            let tempDir = URL(filePath: NSTemporaryDirectory()).appendingPathComponent("orbstack")
-                            let tempPath = try await getUniquePath(destinationPath: tempDir, lastPathComponent: lastPathComponent)
+                            let tempDir = URL(filePath: NSTemporaryDirectory())
+                                .appendingPathComponent("orbstack")
+                            let tempPath = try await getUniquePath(
+                                destinationPath: tempDir, lastPathComponent: lastPathComponent)
                             guard let tempPath else {
-                                toaster.error(title: "Failed to copy item", message: "Failed to find a unique name for the temporary directory.")
+                                toaster.error(
+                                    title: "Failed to copy item",
+                                    message:
+                                        "Failed to find a unique name for the temporary directory.")
                                 return
                             }
 
                             // we don't care if this fails- most likely because EEXIST
-                            try? await FileSystem.shared.createDirectory(at: tempDir.filePath, withIntermediateDirectories: true)
+                            try? await FileSystem.shared.createDirectory(
+                                at: tempDir.filePath, withIntermediateDirectories: true)
 
-                            try await FileSystem.shared.copyItem(at: FilePath(path), to: tempPath.filePath)
-                            try await FileSystem.shared.moveItem(at: tempPath.filePath, to: FilePath(newPath.path))
+                            try await FileSystem.shared.copyItem(
+                                at: FilePath(path), to: tempPath.filePath)
+                            try await FileSystem.shared.moveItem(
+                                at: tempPath.filePath, to: FilePath(newPath.path))
                         } else {
-                            try await FileSystem.shared.copyItem(at: FilePath(path), to: FilePath(newPath.path))
+                            try await FileSystem.shared.copyItem(
+                                at: FilePath(path), to: FilePath(newPath.path))
                         }
                     }
                 } catch {
@@ -559,16 +595,17 @@ private class FileManagerOutlineDelegate: NSObject, NSOutlineViewDelegate,
     func deleteAction(actionIndexes: IndexSet) {
         Task {
             for index in actionIndexes {
-            if let node = await view.item(atRow: index) as? NSTreeNode,
-                let item = node.representedObject as? FileItem
-            {
-                do {
-                    try await FileSystem.shared.removeItem(at: FilePath(item.path))
-                } catch {
-                    toaster.error(title: "Failed to delete item", message: error.localizedDescription)
+                if let node = await view.item(atRow: index) as? NSTreeNode,
+                    let item = node.representedObject as? FileItem
+                {
+                    do {
+                        try await FileSystem.shared.removeItem(at: FilePath(item.path))
+                    } catch {
+                        toaster.error(
+                            title: "Failed to delete item", message: error.localizedDescription)
+                    }
                 }
             }
-        }
         }
     }
 
@@ -605,20 +642,23 @@ private class FileManagerOutlineDelegate: NSObject, NSOutlineViewDelegate,
         let item = node.representedObject as! FileItem
         switch tableColumn?.identifier.rawValue {
         case Columns.name:
-            return TextFieldCellView(value: item.name, editable: !readOnly, image: item.icon, onRename: { newName in
-                let oldName = item.name
-                var newPath = FilePath(item.path)
-                newPath.removeLastComponent()
-                newPath.append(newName)
+            return TextFieldCellView(
+                value: item.name, editable: !readOnly, image: item.icon,
+                onRename: { newName in
+                    let oldName = item.name
+                    var newPath = FilePath(item.path)
+                    newPath.removeLastComponent()
+                    newPath.append(newName)
 
-                do {
-                    try await self.moveItem(item: item, newPath: newPath)
-                    return newName
-                } catch {
-                    self.toaster.error(title: "Failed to rename \(item.type.lowerDescription)", error: error)
-                    return oldName
-                }
-            })
+                    do {
+                        try await self.moveItem(item: item, newPath: newPath)
+                        return newName
+                    } catch {
+                        self.toaster.error(
+                            title: "Failed to rename \(item.type.lowerDescription)", error: error)
+                        return oldName
+                    }
+                })
         case Columns.modified:
             return TextFieldCellView(
                 value: item.modified.formatted(date: .abbreviated, time: .shortened),
@@ -727,7 +767,9 @@ private class FileManagerOutlineDelegate: NSObject, NSOutlineViewDelegate,
                 sender.animator().expandItem(node)
             }
         } else {
-            let actionIndexes = sender.selectedRowIndexes.contains(row) ? sender.selectedRowIndexes : IndexSet(integer: row)
+            let actionIndexes =
+                sender.selectedRowIndexes.contains(row)
+                ? sender.selectedRowIndexes : IndexSet(integer: row)
             for index in actionIndexes {
                 if let node = sender.item(atRow: index) as? NSTreeNode,
                     let item = node.representedObject as? FileItem
@@ -743,7 +785,10 @@ private class TextFieldCellView: NSTableCellView, NSTextFieldDelegate {
     var renameCallback: ((String) async throws -> String)?
     var toaster: Toaster!
 
-    init(value: String, editable: Bool = false, image: NSImage? = nil, color: NSColor? = nil, tabularNums: Bool = false, onRename renameCallback: ((String) async -> String)? = nil) {
+    init(
+        value: String, editable: Bool = false, image: NSImage? = nil, color: NSColor? = nil,
+        tabularNums: Bool = false, onRename renameCallback: ((String) async -> String)? = nil
+    ) {
         super.init(frame: .zero)
 
         let stack = NSStackView(frame: .zero)
@@ -769,7 +814,8 @@ private class TextFieldCellView: NSTableCellView, NSTextFieldDelegate {
         }
         textField.lineBreakMode = .byTruncatingTail
         if tabularNums {
-            textField.font = NSFont.monospacedDigitSystemFont(ofSize: NSFont.systemFontSize, weight: .regular)
+            textField.font = NSFont.monospacedDigitSystemFont(
+                ofSize: NSFont.systemFontSize, weight: .regular)
         }
         textField.delegate = self
         stack.addView(textField, in: .leading)

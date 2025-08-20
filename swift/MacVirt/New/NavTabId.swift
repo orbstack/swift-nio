@@ -43,39 +43,46 @@ extension NavTabId {
         switch self {
         case .dockerContainers:
             return [
-                .contentListTrackingSeparator, /*.dockerContainersNew,*/ .space, .flexibleSpace, .dockerContainersTabs, .flexibleSpace,
+                .contentListTrackingSeparator, /*.dockerContainersNew,*/ .space, .flexibleSpace,
+                .dockerContainersTabs, .flexibleSpace,
                 .licenseBadge, .dockerContainersOpenWindow,
             ]
         case .dockerVolumes:
             return [
-                .contentListTrackingSeparator, .dockerVolumesNew, .flexibleSpace, .dockerVolumesTabs, .flexibleSpace,
+                .contentListTrackingSeparator, .dockerVolumesNew, .flexibleSpace,
+                .dockerVolumesTabs, .flexibleSpace,
                 .licenseBadge, .dockerVolumesOpenWindow,
             ]
         case .dockerImages:
             return [
-                .contentListTrackingSeparator, .dockerImagesImport, .flexibleSpace, .dockerImagesTabs, .flexibleSpace,
+                .contentListTrackingSeparator, .dockerImagesImport, .flexibleSpace,
+                .dockerImagesTabs, .flexibleSpace,
                 .licenseBadge, .dockerImagesOpenWindow,
             ]
         case .dockerNetworks:
             return [
-                .contentListTrackingSeparator, .dockerNetworksNew, .flexibleSpace, .dockerNetworksTabs, .flexibleSpace,
+                .contentListTrackingSeparator, .dockerNetworksNew, .flexibleSpace,
+                .dockerNetworksTabs, .flexibleSpace,
                 .licenseBadge, .dockerNetworksOpenWindow,
             ]
 
         case .k8sPods:
             return [
-                .contentListTrackingSeparator, .k8sEnable, .flexibleSpace, .k8sPodsTabs, .flexibleSpace, .licenseBadge,
+                .contentListTrackingSeparator, .k8sEnable, .flexibleSpace, .k8sPodsTabs,
+                .flexibleSpace, .licenseBadge,
                 .k8sPodsOpenWindow,
             ]
         case .k8sServices:
             return [
-                .contentListTrackingSeparator, /*.space, .flexibleSpace, .k8sServicesTabs,*/ .flexibleSpace, .licenseBadge,
+                .contentListTrackingSeparator, /*.space, .flexibleSpace, .k8sServicesTabs,*/
+                .flexibleSpace, .licenseBadge,
                 .k8sServicesOpenWindow,
             ]
 
         case .machines:
             return [
-                .contentListTrackingSeparator, .machinesNew, .flexibleSpace, .machinesTabs, .flexibleSpace, .licenseBadge,
+                .contentListTrackingSeparator, .machinesNew, .flexibleSpace, .machinesTabs,
+                .flexibleSpace, .licenseBadge,
                 .machinesOpenInNewWindow,
             ]
 

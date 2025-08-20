@@ -247,7 +247,8 @@ struct InspectorViewKey: PreferenceKey {
     static var defaultValue: UniqueEquatable<() -> AnyView>?
 
     static func reduce(
-        value: inout UniqueEquatable<() -> AnyView>?, nextValue: () -> UniqueEquatable<() -> AnyView>?
+        value: inout UniqueEquatable<() -> AnyView>?,
+        nextValue: () -> UniqueEquatable<() -> AnyView>?
     ) {
         let nextVal = nextValue()
         if let nextVal {

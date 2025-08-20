@@ -5,7 +5,11 @@ private enum FSEventsError: Error {
     case startFailed
 }
 
-private func cFsEventsCallback(stream: FSEventStreamRef, info: UnsafeMutableRawPointer?, numEvents: Int, paths: UnsafeMutableRawPointer, flags: UnsafePointer<FSEventStreamEventFlags>, ids: UnsafePointer<FSEventStreamEventId>) {
+private func cFsEventsCallback(
+    stream: FSEventStreamRef, info: UnsafeMutableRawPointer?, numEvents: Int,
+    paths: UnsafeMutableRawPointer, flags: UnsafePointer<FSEventStreamEventFlags>,
+    ids: UnsafePointer<FSEventStreamEventId>
+) {
     guard let info else {
         NSLog("FSEventsListener: no info!")
         return
@@ -31,10 +35,19 @@ class FSEventsListener {
     private var stream: FSEventStreamRef! = nil
     fileprivate let callback: Callback
 
-    init(paths: [String], flags: FSEventStreamEventFlags, latency: TimeInterval, callback: @escaping Callback) throws {
+    init(
+        paths: [String], flags: FSEventStreamEventFlags, latency: TimeInterval,
+        callback: @escaping Callback
+    ) throws {
         self.callback = callback
-        var context = FSEventStreamContext(version: 0, info: Unmanaged.passUnretained(self).toOpaque(), retain: nil, release: nil, copyDescription: nil)
-        guard let stream = FSEventStreamCreate(nil, cFsEventsCallback, &context, paths as CFArray, UInt64(kFSEventStreamEventIdSinceNow), latency, .zero) else {
+        var context = FSEventStreamContext(
+            version: 0, info: Unmanaged.passUnretained(self).toOpaque(), retain: nil, release: nil,
+            copyDescription: nil)
+        guard
+            let stream = FSEventStreamCreate(
+                nil, cFsEventsCallback, &context, paths as CFArray,
+                UInt64(kFSEventStreamEventIdSinceNow), latency, .zero)
+        else {
             throw FSEventsError.createStreamFailed
         }
         self.stream = stream

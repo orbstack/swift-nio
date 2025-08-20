@@ -455,7 +455,8 @@ extension NewMainViewController {
         tabState.sink { [weak item, weak self] tab in
             if let self, let item {
                 tabStateValue = tab
-                item.isEnabled = allowedKeys.contains(tab) && self.navModel.inspectorSelection.count == 1
+                item.isEnabled =
+                    allowedKeys.contains(tab) && self.navModel.inspectorSelection.count == 1
             }
         }.store(in: &cancellables)
 

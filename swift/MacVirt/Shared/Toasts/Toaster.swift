@@ -39,19 +39,31 @@ class Toaster: ObservableObject {
         }
 
         DispatchQueue.main.asyncAfter(deadline: .now() + toast.duration) {
-            withAnimation { 
+            withAnimation {
                 self.toasts.removeAll { $0.id == toast.id }
             }
         }
     }
 
-    func error(title: String, message: String, duration: TimeInterval = defaultDuration, action: (() -> Void)? = nil) {
-        add(toast: Toast(type: .error, title: AttributedString(title), message: AttributedString(message), duration: duration, action: action))
+    func error(
+        title: String, message: String, duration: TimeInterval = defaultDuration,
+        action: (() -> Void)? = nil
+    ) {
+        add(
+            toast: Toast(
+                type: .error, title: AttributedString(title), message: AttributedString(message),
+                duration: duration, action: action))
     }
 
-    func error(title: String, error: any Error, duration: TimeInterval = defaultDuration, action: (() -> Void)? = nil) {
+    func error(
+        title: String, error: any Error, duration: TimeInterval = defaultDuration,
+        action: (() -> Void)? = nil
+    ) {
         NSLog("toasting error: [\(title)] \(error)")
         // localizedDescription i
-        add(toast: Toast(type: .error, title: AttributedString(title), message: AttributedString("\(error)"), duration: duration, action: action))
+        add(
+            toast: Toast(
+                type: .error, title: AttributedString(title), message: AttributedString("\(error)"),
+                duration: duration, action: action))
     }
 }

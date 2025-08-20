@@ -42,35 +42,35 @@ struct LogsTabToolbarWrapper<Content: View>: View {
 
     var body: some View {
         content()
-        .safeAreaInset(edge: .top) {
-            VStack(spacing: 0) {
-                HStack(alignment: .center) {
-                    AKSearchField(text: $commandModel.searchField)
+            .safeAreaInset(edge: .top) {
+                VStack(spacing: 0) {
+                    HStack(alignment: .center) {
+                        AKSearchField(text: $commandModel.searchField)
 
-                    Button {
-                        commandModel.copyAllCommand.send()
-                    } label: {
-                        Image(systemName: "doc.on.doc")
-                    }
-                    .help("Copy")
-                    .keyboardShortcut("c", modifiers: [.command, .shift])
-                    .buttonStyle(.accessoryBar)
+                        Button {
+                            commandModel.copyAllCommand.send()
+                        } label: {
+                            Image(systemName: "doc.on.doc")
+                        }
+                        .help("Copy")
+                        .keyboardShortcut("c", modifiers: [.command, .shift])
+                        .buttonStyle(.accessoryBar)
 
-                    Button {
-                        commandModel.clearCommand.send()
-                    } label: {
-                        Image(systemName: "trash")
+                        Button {
+                            commandModel.clearCommand.send()
+                        } label: {
+                            Image(systemName: "trash")
+                        }
+                        .help("Clear")
+                        .keyboardShortcut("k", modifiers: [.command])
+                        .buttonStyle(.accessoryBar)
                     }
-                    .help("Clear")
-                    .keyboardShortcut("k", modifiers: [.command])
-                    .buttonStyle(.accessoryBar)
+                    .padding(.horizontal, 12)
+                    .frame(height: 28)  // match list section header height. wtf is this number?
                 }
-                .padding(.horizontal, 12)
-                .frame(height: 28) // match list section header height. wtf is this number?
+                .background(.ultraThickMaterial)
             }
-            .background(.ultraThickMaterial)
-        }
-        .logsTopInset(28)
-        .environmentObject(commandModel)
+            .logsTopInset(28)
+            .environmentObject(commandModel)
     }
 }

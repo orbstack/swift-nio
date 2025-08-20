@@ -11,20 +11,23 @@ struct DockerContainerTerminalTab: View {
         VStack(spacing: 0) {
             HStack(alignment: .center) {
                 Spacer()
-                Toggle("Debug Shell", isOn: Binding(
-                    get: { useDebugShell && vmModel.isLicensed },
-                    set: { useDebugShell = $0 }
-                ))
-                    .toggleStyle(.checkbox)
-                    .font(
-                        .system(
-                            size: 13,
-                            weight: .regular)
+                Toggle(
+                    "Debug Shell",
+                    isOn: Binding(
+                        get: { useDebugShell && vmModel.isLicensed },
+                        set: { useDebugShell = $0 }
                     )
+                )
+                .toggleStyle(.checkbox)
+                .font(
+                    .system(
+                        size: 13,
+                        weight: .regular)
+                )
                 .disabled(!vmModel.isLicensed)
             }
             .padding(.horizontal, 16)
-            .frame(height: 27) // match list section header height. wtf is this number?
+            .frame(height: 27)  // match list section header height. wtf is this number?
 
             Divider()
         }
@@ -37,7 +40,10 @@ struct DockerContainerTerminalTab: View {
         TerminalView(
             command: (useDebugShell || !vmModel.isLicensed)  // if not licensed, use debug shell so we get the ad at top
                 ? [AppConfig.ctlExe, "debug", "-f", container.id]
-                : [AppConfig.dockerExe, "exec", "-it", container.id, "sh", "-c", "command -v bash > /dev/null && exec bash || exec sh"],
+                : [
+                    AppConfig.dockerExe, "exec", "-it", container.id, "sh", "-c",
+                    "command -v bash > /dev/null && exec bash || exec sh",
+                ],
             env: [
                 // env is more robust, user can mess with context
                 "DOCKER_HOST=unix://\(Files.dockerSocket)",

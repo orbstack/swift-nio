@@ -70,7 +70,9 @@ struct DockerContainerDetails: View {
                     Text("Port Forwards")
                 }
                 .onCopyCommand {
-                    let selectedItems = portSelection.compactMap { id in container.ports.first { $0.id == id } }
+                    let selectedItems = portSelection.compactMap { id in
+                        container.ports.first { $0.id == id }
+                    }
                     return [
                         NSItemProvider(
                             object: selectedItems.map { $0.formattedAsCli }.joined(separator: "\n")
@@ -95,10 +97,13 @@ struct DockerContainerDetails: View {
                         }
                     }
                     .onCopyCommand {
-                        let selectedItems = mountSelection.compactMap { id in container.mounts.first { $0.id == id } }
+                        let selectedItems = mountSelection.compactMap { id in
+                            container.mounts.first { $0.id == id }
+                        }
                         return [
                             NSItemProvider(
-                                object: selectedItems.map { "\($0.source):\($0.destination)" }.joined(separator: "\n")
+                                object: selectedItems.map { "\($0.source):\($0.destination)" }
+                                    .joined(separator: "\n")
                                     as NSString)
                         ]
                     }
@@ -116,8 +121,8 @@ struct DockerContainerDetails: View {
     }
 }
 
-private extension DKMountPoint {
-    var formattedSource: String {
+extension DKMountPoint {
+    fileprivate var formattedSource: String {
         switch type {
         case .volume:
             name ?? source

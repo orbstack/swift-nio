@@ -21,7 +21,9 @@ struct DockerVolumeDetails: View {
                     volume.mountpoint != "/var/lib/docker/volumes/\(volume.name)/_data"
 
                 DetailsRow("Name", copyableText: volume.name)
-                DetailsRow("Created", text: "\(volume.formattedCreatedAt) (\(volume.formattedCreatedAtLong))")
+                DetailsRow(
+                    "Created",
+                    text: "\(volume.formattedCreatedAt) (\(volume.formattedCreatedAtLong))")
 
                 if let usageData = vmModel.dockerDf?.volumes[volume.name]?.usageData {
                     let fmtSize = ByteCountFormatter.string(

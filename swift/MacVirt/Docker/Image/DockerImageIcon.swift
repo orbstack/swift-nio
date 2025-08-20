@@ -31,7 +31,7 @@ private func getIconForTag(rawTag: String) -> IconSource? {
 
     // 2. try regex: \b<name>\b for patterns like "drud/ddev-dbserver-mariadb-10.3:v1.21.4-powermail-v11-built"
     var regexParts = rawTag.split(separator: boundaryRegex)
-    regexParts.reverse() // more specific parts come last (e.g. "maltokyo/docker-nginx-webdav")
+    regexParts.reverse()  // more specific parts come last (e.g. "maltokyo/docker-nginx-webdav")
     for part in regexParts {
         if imageLibraryIcons.contains(String(part)) {
             return .asset("container_img_library/\(part)")
@@ -120,11 +120,11 @@ struct DockerImageIcon: View {
             switch icon {
             case .asset(let name):
                 Image(name)
-                .resizable()
-                .aspectRatio(contentMode: .fit)
-                .frame(width: 28, height: 28)
-                // if it's a full rgb square image with solid bg (e.g. from github), it looks much nicer to add subtle rounded corners
-                .clipShape(RoundedRectangle(cornerRadius: 4))
+                    .resizable()
+                    .aspectRatio(contentMode: .fit)
+                    .frame(width: 28, height: 28)
+                    // if it's a full rgb square image with solid bg (e.g. from github), it looks much nicer to add subtle rounded corners
+                    .clipShape(RoundedRectangle(cornerRadius: 4))
             case .url(let url):
                 AsyncImage(url: URL(string: url)) { phase in
                     if let image = phase.image {

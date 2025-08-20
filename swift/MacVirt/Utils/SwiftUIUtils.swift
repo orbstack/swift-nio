@@ -249,7 +249,7 @@ extension View {
         }
     }
 
-    @ViewBuilder func ifLet<Content: View, T>(_ optional: Optional<T>, transform: (Self, T) -> Content)
+    @ViewBuilder func ifLet<Content: View, T>(_ optional: T?, transform: (Self, T) -> Content)
         -> some View
     {
         if let value = optional {

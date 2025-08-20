@@ -36,11 +36,11 @@ struct SidebarView: View {
         List(selection: $selectedTab) {
             listContents
         }
-       .onChange(of: defaultsSelectedTab) { oldTab, tab in
-           if tab != oldTab && tab != selectedTab {
-               selectedTab = tab
-           }
-       }
+        .onChange(of: defaultsSelectedTab) { oldTab, tab in
+            if tab != oldTab && tab != selectedTab {
+                selectedTab = tab
+            }
+        }
         .onChange(of: selectedTab) { _, sel in
             if sel != Defaults[.selectedTab] {
                 Defaults[.selectedTab] = sel

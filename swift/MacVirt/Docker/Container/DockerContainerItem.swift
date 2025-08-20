@@ -45,40 +45,41 @@ struct DockerContainerItem: View, Equatable, BaseDockerContainerItem {
             HStack {
                 // make it consistent
                 DockerContainerImage(container: container)
-                // mask
-                .mask {
-                    Rectangle()
-                        .overlay(alignment: .topLeading) {
-                            if showStatusDot {
-                                // calculate a position intersecting the circle and y=-x from the bottom-right edge
-                                let x = iconSize - (statusDotRadius / 2)
-                                let y = iconSize - (statusDotRadius / 2)
+                    // mask
+                    .mask {
+                        Rectangle()
+                            .overlay(alignment: .topLeading) {
+                                if showStatusDot {
+                                    // calculate a position intersecting the circle and y=-x from the bottom-right edge
+                                    let x = iconSize - (statusDotRadius / 2)
+                                    let y = iconSize - (statusDotRadius / 2)
 
-                                Circle()
-                                    .frame(
-                                        width: CGFloat(statusMarginRadius),
-                                        height: CGFloat(statusMarginRadius)
-                                    )
-                                    .position(x: CGFloat(x), y: CGFloat(y))
-                                    .blendMode(.destinationOut)
+                                    Circle()
+                                        .frame(
+                                            width: CGFloat(statusMarginRadius),
+                                            height: CGFloat(statusMarginRadius)
+                                        )
+                                        .position(x: CGFloat(x), y: CGFloat(y))
+                                        .blendMode(.destinationOut)
+                                }
                             }
-                        }
-                }
-                // status dot
-                .overlay(alignment: .topLeading) {
-                    if showStatusDot {
-                        // calculate a position intersecting the circle and y=-x from the bottom-right edge
-                        let x = iconSize - (statusDotRadius / 2)
-                        let y = iconSize - (statusDotRadius / 2)
-
-                        Circle()
-                            .fill(Color(container.statusDot.color).opacity(0.85))
-                            .frame(
-                                width: CGFloat(statusDotRadius), height: CGFloat(statusDotRadius)
-                            )
-                            .position(x: CGFloat(x), y: CGFloat(y))
                     }
-                }
+                    // status dot
+                    .overlay(alignment: .topLeading) {
+                        if showStatusDot {
+                            // calculate a position intersecting the circle and y=-x from the bottom-right edge
+                            let x = iconSize - (statusDotRadius / 2)
+                            let y = iconSize - (statusDotRadius / 2)
+
+                            Circle()
+                                .fill(Color(container.statusDot.color).opacity(0.85))
+                                .frame(
+                                    width: CGFloat(statusDotRadius),
+                                    height: CGFloat(statusDotRadius)
+                                )
+                                .position(x: CGFloat(x), y: CGFloat(y))
+                        }
+                    }
 
                 VStack(alignment: .leading) {
                     let nameTxt = container.userName

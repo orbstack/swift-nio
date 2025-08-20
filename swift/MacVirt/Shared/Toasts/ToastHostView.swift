@@ -7,7 +7,7 @@ struct ToastHostView: View {
         VStack {
             ForEach(toaster.toasts) { toast in
                 ToastView(toast: toast)
-                .tag(toast.id)
+                    .tag(toast.id)
             }
         }
         .padding()
@@ -19,10 +19,10 @@ private struct ToastHostViewModifier: ViewModifier {
 
     func body(content: Content) -> some View {
         content
-        .overlay(alignment: .bottomTrailing) {
-            ToastHostView()
-        }
-        .environmentObject(toaster)
+            .overlay(alignment: .bottomTrailing) {
+                ToastHostView()
+            }
+            .environmentObject(toaster)
     }
 }
 
@@ -46,39 +46,41 @@ private struct ToastView: View {
                     switch toast.type {
                     case .success:
                         Image(systemName: "checkmark.circle.fill")
-                        .resizable()
-                        .foregroundStyle(.green)
+                            .resizable()
+                            .foregroundStyle(.green)
                     case .info:
                         Image(systemName: "info.circle.fill")
-                        .resizable()
+                            .resizable()
                     case .warning:
                         Image(systemName: "exclamationmark.triangle.fill")
-                        .resizable()
-                        .foregroundStyle(.yellow)
+                            .resizable()
+                            .foregroundStyle(.yellow)
                     case .error:
                         Image(systemName: "xmark.circle.fill")
-                        .resizable()
-                        .foregroundStyle(.red)
+                            .resizable()
+                            .foregroundStyle(.red)
                     }
                 }
                 .frame(width: 16, height: 16)
 
                 Text(toast.title)
-                .foregroundStyle(.primary)
+                    .foregroundStyle(.primary)
             }
 
             HStack(alignment: .top, spacing: 8) {
                 Spacer()
-                .frame(width: 16, height: 16)
+                    .frame(width: 16, height: 16)
 
                 Text(toast.message)
-                .foregroundStyle(.secondary)
+                    .foregroundStyle(.secondary)
             }
         }
         .padding()
         .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 16))
-        .overlay(RoundedRectangle(cornerRadius: 16)
-            .stroke(.secondary.opacity(0.25), lineWidth: 1))
+        .overlay(
+            RoundedRectangle(cornerRadius: 16)
+                .stroke(.secondary.opacity(0.25), lineWidth: 1)
+        )
         .frame(width: 375)
         .compositingGroup()
         .shadow(radius: 2)
@@ -91,11 +93,11 @@ private struct ToastView: View {
                 Image(systemName: "xmark")
                     .resizable()
                     .foregroundStyle(.secondary)
-                .frame(width: 8, height: 8)
-                .padding(6)
-                .background(.thinMaterial, in: .circle)
-                .overlay(Circle().stroke(.secondary.opacity(0.25), lineWidth: 1))
-                .shadow(radius: 2)
+                    .frame(width: 8, height: 8)
+                    .padding(6)
+                    .background(.thinMaterial, in: .circle)
+                    .overlay(Circle().stroke(.secondary.opacity(0.25), lineWidth: 1))
+                    .shadow(radius: 2)
             }
             .buttonStyle(.plain)
             .compositingGroup()

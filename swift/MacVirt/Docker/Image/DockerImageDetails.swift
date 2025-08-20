@@ -32,7 +32,10 @@ struct DockerImageDetails: View {
                     }
                 }
 
-                DetailsRow("Created", text: "\(image.summary.formattedCreated) (\(image.summary.formattedCreatedLong))")
+                DetailsRow(
+                    "Created",
+                    text:
+                        "\(image.summary.formattedCreated) (\(image.summary.formattedCreatedLong))")
                 DetailsRow("Size", text: image.summary.formattedSize)
                 DetailsRow("Platform", text: image.full.platform)
             }
@@ -109,10 +112,13 @@ struct DockerImageDetails: View {
             if let env = image.full.config?.env,
                 !env.isEmpty
             {
-                DetailsKvTableSection("Environment", items: env.sorted().map {
-                    let parts = $0.split(separator: "=", maxSplits: 1)
-                    return KeyValueItem(key: String(parts[0]), value: parts.count == 2 ? String(parts[1]) : "")
-                })
+                DetailsKvTableSection(
+                    "Environment",
+                    items: env.sorted().map {
+                        let parts = $0.split(separator: "=", maxSplits: 1)
+                        return KeyValueItem(
+                            key: String(parts[0]), value: parts.count == 2 ? String(parts[1]) : "")
+                    })
             }
 
             if let labels = image.summary.labels,
