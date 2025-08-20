@@ -452,9 +452,6 @@ private class FileManagerOutlineDelegate: NSObject, NSOutlineViewDelegate,
             fsEvents = try FSEventsListener(paths: [rootPath], flags: UInt32(kFSEventStreamCreateFlagNoDefer), latency: 0.1, callback: { events in
                 Task { @MainActor in
                     // TODO: granular reload
-                    for event in events {
-                        print("fs event: \(event)")
-                    }
                     self.rootItems = try await self.getDirectoryItems(path: rootPath)
                 }
             })
@@ -669,7 +666,6 @@ private class FileManagerOutlineDelegate: NSObject, NSOutlineViewDelegate,
             item.children == nil
         {
             Task { @MainActor in
-                print("expanding \(item.name)")
                 do {
                     try await expandItem(item: item)
                 } catch {
@@ -707,7 +703,6 @@ private class FileManagerOutlineDelegate: NSObject, NSOutlineViewDelegate,
             let item = node.representedObject as? FileItem,
             item.children != nil
         {
-            print("collapsing \(item.name)")
             collapseItem(item: item)
         }
     }
