@@ -613,12 +613,45 @@ private struct LogsTextView: NSViewRepresentable {
         tableView.usesAlternatingRowBackgroundColors = false
         tableView.rowHeight = 20  // Set fixed row height for consistent vertical centering
 
+        tableView.menu = RIMenu {
+            RIMenuItem("Copy") {
+                let clickedRow = tableView.clickedRow
+                if clickedRow != -1 {
+                    if tableView.selectedRowIndexes.contains(clickedRow) {
+                        // copy all selected lines
+                        var selectedLines = String()
+                        model.contents.withLock { contents in
+                            for row in tableView.selectedRowIndexes {
+                                if row >= contents.lines.count {
+                                    continue
+                                }
+                                if !selectedLines.isEmpty {
+                                    selectedLines.append("\n")
+                                }
+                                selectedLines.append(contents.lines[offset: row].text.string)
+                            }
+                        }
+                        NSPasteboard.copy(selectedLines)
+                    } else {
+                        if let line = model.contents.withLock { contents in
+                            if clickedRow >= contents.lines.count {
+                                return LogLine?(nil)
+                            }
+                            return contents.lines[offset: clickedRow]
+                        } {
+                            NSPasteboard.copy(line.text.string)
+                        }
+                    }
+                }
+            }
+        }.menu
+
         let column = NSTableColumn(identifier: NSUserInterfaceItemIdentifier("column"))
         tableView.addTableColumn(column)
 
         model.updateEvent.throttle(for: .milliseconds(15), scheduler: DispatchQueue.main, latest: true).sink {
             // no overflow risk: this is a float
-            let shouldScroll = (scrollView.contentView.bounds.maxY >= tableView.bounds.maxY - 50)
+            let shouldScroll = (scrollView.contentView.bounds.maxY >= tableView.bounds.maxY - 30)
 
             tableView.reloadData()
 
