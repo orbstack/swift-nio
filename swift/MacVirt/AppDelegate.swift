@@ -389,6 +389,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
         window.isRestorable = false
         // required to make titlebar thick
         window.toolbar = NSToolbar()
+        window.center()
 
         let hostingView = NSHostingView(
             rootView: AppSettings(updaterController: updaterController!)
