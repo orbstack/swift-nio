@@ -820,17 +820,20 @@ private struct LogsTextView: NSViewRepresentable {
 private struct AKReadOnlyTextView: NSViewRepresentable {
     let text: NSAttributedString
 
-    func makeNSView(context: Context) -> NSTextView {
-        let textView = NSTextView()
+    func makeNSView(context: Context) -> NSScrollView {
+        let scrollView = NSTextView.scrollableTextView()
+        let textView = scrollView.documentView as! NSTextView
         textView.isEditable = false
         textView.isSelectable = true
         textView.textContainerInset = NSSize(width: 10, height: 10)
+        textView.font = terminalFont
         textView.usesAdaptiveColorMappingForDarkAppearance = true
-        return textView
+        return scrollView
     }
 
-    func updateNSView(_ nsView: NSTextView, context: Context) {
-        nsView.textStorage?.setAttributedString(text)
+    func updateNSView(_ nsView: NSScrollView, context: Context) {
+        let textView = nsView.documentView as! NSTextView
+        textView.textStorage?.setAttributedString(text)
     }
 }
 
