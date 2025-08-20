@@ -90,12 +90,15 @@ private struct ToastView: View {
             } label: {
                 Image(systemName: "xmark")
                     .resizable()
+                    .foregroundStyle(.secondary)
                 .frame(width: 8, height: 8)
+                .padding(6)
+                .background(.thinMaterial, in: .circle)
+                .overlay(Circle().stroke(.secondary.opacity(0.25), lineWidth: 1))
+                .shadow(radius: 2)
             }
             .buttonStyle(.plain)
-            .padding(4)
-            .background(.regularMaterial, in: .circle)
-            .shadow(radius: 2)
+            .compositingGroup()
             .opacity(closeButtonHovered ? 1 : 0)
         }
         .onHover { hovered in
