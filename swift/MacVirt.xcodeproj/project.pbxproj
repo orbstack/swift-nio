@@ -1197,7 +1197,7 @@
 			repositoryURL = "https://github.com/orbstack/swift-nio";
 			requirement = {
 				kind = revision;
-				revision = 28e4f428a7100131ef2a0a01f8194f20004dca0d;
+				revision = 6ef042ff2f21a049bf810d83b573e359d3d9d9a2;
 			};
 		};
 /* End XCRemoteSwiftPackageReference section */
