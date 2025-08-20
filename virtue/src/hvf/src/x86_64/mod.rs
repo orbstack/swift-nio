@@ -335,8 +335,8 @@ pub enum VcpuExit<'a> {
         entry_rip: u64,
     },
     Handled,
-    HypervisorCall,
-    HypervisorIoCall {
+    Hypercall,
+    HypercallIo {
         dev_id: usize,
         args_addr: GuestAddress,
     },
@@ -833,13 +833,13 @@ impl HvfVcpu {
                                 let supported = OrbvmFeatures::all();
 
                                 self.write_reg(hv_x86_reg_t_HV_X86_RAX, supported.bits() & mask)?;
-                                Ok(VcpuExit::HypervisorCall)
+                                Ok(VcpuExit::Hypercall)
                             }
 
                             ORBVM_IO_REQUEST => {
                                 let arg1 = self.read_reg(hv_x86_reg_t_HV_X86_RBX)?;
                                 let arg2 = GuestAddress(self.read_reg(hv_x86_reg_t_HV_X86_RCX)?);
-                                Ok(VcpuExit::HypervisorIoCall {
+                                Ok(VcpuExit::HypercallIo {
                                     dev_id: arg1 as usize,
                                     args_addr: arg2,
                                 })
@@ -853,7 +853,7 @@ impl HvfVcpu {
                                 Ok(VcpuExit::MmioWrite(gpa, &self.mmio_buf[0..4]))
                             }
 
-                            _ => Ok(VcpuExit::HypervisorCall),
+                            _ => Ok(VcpuExit::Hypercall),
                         }
                     }
 
