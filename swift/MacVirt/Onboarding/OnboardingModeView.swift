@@ -18,30 +18,39 @@ private struct DummyButtonStyle: ButtonStyle {
     }
 }
 
-private struct ModeButton: View {
-    private static let radius = 8.0
+private let radius = 8.0
+
+private struct ModeButton<ImageView: View>: View {
     @Environment(\.colorScheme) private var colorScheme: ColorScheme
 
-    let image: String
+    @ViewBuilder let image: () -> ImageView
     let title: String
-    let desc: String
     let action: () -> Void
 
     @State private var hoverOpacity = 0.0
     @State private var activeOpacity = 0.0
 
-    init(image: String, title: String, desc: String, action: @escaping () -> Void) {
-        self.image = image
+    // init(image: String, title: String, action: @escaping () -> Void) {
+    //     self.image = {
+    //         Image(image)
+    //             .resizable()
+    //             .aspectRatio(contentMode: .fit)
+    //             .frame(width: 48, height: 48)
+    //     }
+    //     self.title = title
+    //     self.action = action
+    // }
+
+    init(_ title: String, action: @escaping () -> Void, @ViewBuilder image: @escaping () -> ImageView) {
         self.title = title
-        self.desc = desc
+        self.image = image
         self.action = action
     }
 
     var body: some View {
         Button(action: action) {
             VStack {
-                Image(image)
-                    .resizable()
+                image()
                     .aspectRatio(contentMode: .fit)
                     .frame(width: 48, height: 48)
                     .padding(.bottom, 8)
@@ -50,24 +59,20 @@ private struct ModeButton: View {
                     .fontWeight(.medium)
                     .multilineTextAlignment(.center)
                     .padding(.bottom, 2)
-                Text(desc)
-                    .font(.body)
-                    .foregroundColor(.secondary)
-                    .multilineTextAlignment(.center)
             }
             .padding(16)
             .frame(width: 175, height: 175)
             .background(
                 Color.primary.opacity(hoverOpacity * 0.025),
-                in: RoundedRectangle(cornerRadius: Self.radius)
+                in: RoundedRectangle(cornerRadius: radius)
             )
             .background(
                 Color.white.opacity(colorScheme == .dark ? 0.1 : 0.5),
-                in: RoundedRectangle(cornerRadius: Self.radius)
+                in: RoundedRectangle(cornerRadius: radius)
             )
-            .cornerRadius(Self.radius)
+            .cornerRadius(radius)
             /* .overlay(
-                 RoundedRectangle(cornerRadius: Self.radius)
+                 RoundedRectangle(cornerRadius: radius)
                      .stroke(Color.primary.opacity(0.1 + 0.15 * hoverOpacity), lineWidth: 1)
              ) */
             .shadow(color: Color.primary.opacity(0.1), radius: 2, x: 0, y: 1)
@@ -85,6 +90,15 @@ private struct ModeButton: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+}
+
+extension ModeButton where ImageView == Image {
+    init(_ title: String, image: String, action: @escaping () -> Void) {
+        self.init(title, action: action, image: {
+            Image(image)
+                .resizable()
+        })
     }
 }
 
@@ -112,36 +126,24 @@ struct OnboardingModeView: View {
             Spacer()
 
             HStack(spacing: 24) {
-                ModeButton(
-                    image: "distro_docker",
-                    title: "Docker",
-                    desc: "Build & run Docker containers",
-                    action: {
-                        selectedTab = .dockerContainers
-                        continueWith(.docker)
-                    }
-                )
+                ModeButton("Docker") {
+                    selectedTab = .dockerContainers
+                    continueWith(.docker)
+                } image: {
+                    // yay trademarks
+                    DockerImageIconPlaceholder(id: "docker")
+                        .scaleEffect(48/28)
+                }
 
-                ModeButton(
-                    image: "distro_k8s",
-                    title: "Kubernetes",
-                    desc: "Test Kubernetes deployments",
-                    action: {
-                        selectedTab = .k8sPods
-                        continueWith(.k8s)
-                    }
-                )
+                ModeButton("Kubernetes", image: "distro/k8s") {
+                    selectedTab = .k8sPods
+                    continueWith(.k8s)
+                }
 
-                ModeButton(
-                    image: "distro_ubuntu",
-                    title: "Linux",
-                    // match line count
-                    desc: "Use a full Linux system\n ",
-                    action: {
-                        selectedTab = .machines
-                        continueWith(.linux)
-                    }
-                )
+                ModeButton("Linux", image: "distro/ubuntu") {
+                    selectedTab = .machines
+                    continueWith(.linux)
+                }
             }.fixedSize()
 
             Spacer()
